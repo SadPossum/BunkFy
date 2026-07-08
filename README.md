@@ -53,7 +53,7 @@ Start the full local graph:
 .\eng\run-aspire.ps1
 ```
 
-The Aspire AppHost is currently a composition placeholder. Backend and web runtime resources will be added after those repositories move from foundation structure into runnable app shells.
+The Aspire AppHost starts the backend API and the web smoke shell. The current graph is intentionally minimal: it proves full-stack orchestration without product business logic.
 
 Run the integrated validation pass:
 

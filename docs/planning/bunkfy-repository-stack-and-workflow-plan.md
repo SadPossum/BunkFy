@@ -873,17 +873,16 @@ Exit criteria:
 - Backend can run standalone with local source roots.
 - Root AppHost can reference backend API host.
 
-### Stage 3: Frontend App Shell
+### Stage 3: Frontend Smoke Shell
 
-Goal: create `BunkFy.Web` as a real operational app shell.
+Goal: create `BunkFy.Web` as a minimal browser runtime that can be launched by Aspire.
 
 Tasks:
 
-- Scaffold Vite + React + TypeScript.
+- Scaffold Vite + TypeScript.
 - Configure pnpm and strict TypeScript.
-- Add router, query client, form, validation, and UI primitives.
-- Add API client generation spike.
-- Add app shell layout: property selector placeholder, nav, account/auth placeholder, main content.
+- Add a minimal smoke page.
+- Add typed smoke API fetch.
 - Add frontend CI scripts.
 
 Exit criteria:
@@ -898,19 +897,17 @@ Goal: one command starts the useful development graph.
 
 Tasks:
 
-- Add PostgreSQL resource.
 - Add backend API project.
 - Add Vite frontend resource.
-- Add GMA-required infrastructure resources.
-- Gate optional worker/admin/Redis/NATS behavior behind config flags.
-- Verify API can receive infrastructure connection strings from Aspire.
+- Pass the backend smoke endpoint URL to the frontend.
+- Keep database-backed GMA modules disabled until the product graph needs them.
 - Verify frontend can call API in dev.
 
 Exit criteria:
 
-- `.\eng\run-aspire.ps1` starts API, frontend, and database.
+- `.\eng\run-aspire.ps1` starts API and frontend.
 - Aspire dashboard shows useful names and health.
-- Frontend can call a backend health or version endpoint.
+- Frontend can call a backend smoke endpoint.
 
 ### Stage 5: First Product Module - Properties and Inventory Foundation
 

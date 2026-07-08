@@ -1,6 +1,14 @@
 var builder = DistributedApplication.CreateBuilder(args);
 
-// Composition resources will be added when the backend and web foundations
-// graduate into runnable app shells.
+var api = builder
+    .AddProject("api", "../../apps/backend/src/BunkFy.Host.Api/BunkFy.Host.Api.csproj")
+    .WithHttpHealthCheck("/health");
+
+builder
+    .AddViteApp("web", "../../apps/web")
+    .WithPnpm()
+    .WithReference(api)
+    .WaitFor(api)
+    .WithEnvironment("VITE_BUNKFY_API_BASE_URL", api.GetEndpoint("http"));
 
 builder.Build().Run();
