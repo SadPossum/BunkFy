@@ -44,4 +44,4 @@ jobs:
 
       - name: Verify
         shell: pwsh
-        run: ./eng/verify.ps1 -SkipRestore
+        run: ./eng/verify.ps1

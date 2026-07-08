@@ -20,6 +20,10 @@ if (-not $SkipSubmoduleGuard) {
 
 if (-not $SkipRestore) {
     Invoke-BunkFyCommand -FilePath $dotnet -Arguments @('restore', (Join-BunkFyPath 'BunkFy.slnx')) -WorkingDirectory $root
+
+    if (-not $SkipBackend) {
+        Invoke-BunkFyCommand -FilePath $dotnet -Arguments @('restore', (Join-BunkFyPath 'apps\backend\BunkFy.slnx')) -WorkingDirectory (Join-BunkFyPath 'apps\backend')
+    }
 }
 
 if (-not $SkipBuild) {
