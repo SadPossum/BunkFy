@@ -1,0 +1,14 @@
+bin/
+obj/
+.vs/
+.idea/
+.tmp/
+node_modules/
+dist/
+coverage/
+playwright-report/
+test-results/
+Gma.SourceRoots.props
+*.user
+*.suo
+

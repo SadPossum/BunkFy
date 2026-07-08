@@ -1,0 +1,31 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/BunkFy.AppHost/BunkFy.AppHost.csproj" />
+    <Project Path="src/BunkFy.ServiceDefaults/BunkFy.ServiceDefaults.csproj" />
+  </Folder>
+  <Folder Name="/eng/">
+    <File Path="eng/bootstrap.ps1" />
+    <File Path="eng/common.ps1" />
+    <File Path="eng/run-aspire.ps1" />
+    <File Path="eng/submodule-status.ps1" />
+    <File Path="eng/update-gma.ps1" />
+    <File Path="eng/verify.ps1" />
+  </Folder>
+  <Folder Name="/docs/planning/">
+    <File Path="docs/planning/bunkfy-repository-stack-and-workflow-plan.md" />
+  </Folder>
+  <Folder Name="/.github/workflows/">
+    <File Path=".github/workflows/validate.yml" />
+  </Folder>
+  <Folder Name="/Solution Items/">
+    <File Path=".gitignore" />
+    <File Path=".gitmodules" />
+    <File Path="Directory.Build.props" />
+    <File Path="Directory.Packages.props" />
+    <File Path="global.json" />
+    <File Path="LICENSE" />
+    <File Path="nuget.config" />
+    <File Path="README.md" />
+  </Folder>
+</Solution>
+
