@@ -387,7 +387,7 @@ Responsibilities:
 - Move them to configured branch tips only when requested.
 - Re-run source-root bootstrap.
 - Run backend and root validation.
-- Leave root pointer changes visible for review.
+- Leave root pointer changes easy to inspect before pushing.
 
 Expected usage:
 
@@ -749,24 +749,22 @@ Before committing from root:
 git status --short
 ```
 
-## Branch and PR Workflow
+## Solo Maintainer Branching and Merge Flow
 
-Use separate PRs when changes belong to separate repositories, but keep them linked.
+BunkFy starts as a solo-maintainer project. Pull requests are optional, not a required part of the normal workflow. Use them only when they add value: public discussion, a larger risky change, or a release-sized checkpoint.
 
-Typical feature touching both backend and frontend:
+Default feature flow touching both backend and frontend:
 
-1. Create backend branch in `apps/backend`.
-2. Create frontend branch in `apps/web`.
-3. Implement backend contract and tests.
-4. Generate/update frontend API client.
-5. Implement frontend UI.
-6. Open backend PR.
-7. Open frontend PR referencing backend PR.
-8. Update root submodule pointers on an integration branch.
-9. Run root validation.
-10. Open root PR that pins the intended backend/frontend/GMA commits.
+1. Work directly on the active repository branch, or create a short-lived local branch when isolation is useful.
+2. Implement the backend contract and tests.
+3. Generate or update the frontend API client when the frontend exists.
+4. Implement the frontend UI when the slice includes UI work.
+5. Commit and push backend/frontend changes.
+6. Update root submodule pointers.
+7. Run root validation.
+8. Commit and push the root pointer update.
 
-For early solo development, root pointer PRs may be lightweight, but the discipline should still be visible.
+GitHub branch protection and rulesets should stay lightweight while the project is solo-maintained: no required pull request gate and no required third-party approval. CI can still run on pushes and optional PRs.
 
 ## Staged Development Plan
 
