@@ -178,6 +178,8 @@ BunkFy/
     verify.ps1
     run-aspire.ps1
     submodule-status.ps1
+    sync-submodules.ps1
+    guard-submodules-latest.ps1
     update-gma.ps1
   src/
     BunkFy.AppHost/
@@ -330,7 +332,7 @@ Purpose: run the normal confidence pass.
 
 Responsibilities:
 
-- Check submodule status.
+- Check that submodules are pinned to their configured branch tips.
 - Restore root solution.
 - Build root solution.
 - Run backend fast tests.
@@ -341,7 +343,7 @@ Expected usage:
 
 ```powershell
 .\eng\verify.ps1
-.\eng\verify.ps1 -IncludeE2E
+.\eng\verify.ps1 -SkipSubmoduleFetch
 ```
 
 ### `eng/run-aspire.ps1`
@@ -375,6 +377,47 @@ Expected usage:
 
 ```powershell
 .\eng\submodule-status.ps1
+```
+
+### `eng/sync-submodules.ps1`
+
+Purpose: move all mounted app and GMA submodules to the latest commit on their configured `.gitmodules` branch.
+
+Responsibilities:
+
+- Sync submodule URLs and metadata from `.gitmodules`.
+- Initialize missing submodules.
+- Refuse to overwrite dirty submodule worktrees.
+- Fetch each configured branch.
+- Switch each submodule to its configured branch.
+- Pull with `--ff-only`.
+- Run the latest-tip guard after syncing.
+- Re-run root bootstrap.
+
+Expected usage:
+
+```powershell
+.\eng\sync-submodules.ps1
+.\eng\sync-github-modules.ps1
+```
+
+Submodules remain pinned by commit in the root repository. After this script moves a submodule forward, commit the root pointer update so other checkouts get the same composition.
+
+### `eng/guard-submodules-latest.ps1`
+
+Purpose: fail fast when any mounted submodule is behind the branch configured in `.gitmodules`.
+
+Responsibilities:
+
+- Fetch configured branch tips unless skipped.
+- Compare each local submodule commit with `origin/<configured-branch>`.
+- Explain which sync command fixes stale pointers.
+
+Expected usage:
+
+```powershell
+.\eng\guard-submodules-latest.ps1
+.\eng\guard-submodules-latest.ps1 -SkipFetch
 ```
 
 ### `eng/update-gma.ps1`
@@ -752,6 +795,8 @@ git status --short
 ## Solo Maintainer Branching and Merge Flow
 
 BunkFy starts as a solo-maintainer project. Pull requests are optional, not a required part of the normal workflow. Use them only when they add value: public discussion, a larger risky change, or a release-sized checkpoint.
+
+Default day-to-day development happens on `dev` in the root, backend, and web repositories. `main` is reserved as the later stable/release baseline once the project has meaningful releases.
 
 Default feature flow touching both backend and frontend:
 

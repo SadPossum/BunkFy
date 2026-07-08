@@ -13,26 +13,14 @@ Invoke-BunkFyCommand -FilePath git -Arguments @('submodule', 'status', '--recurs
 
 Write-Host ''
 Write-Host 'Submodule working trees:'
-$submodulePaths = @(
-    'apps/backend',
-    'apps/web',
-    'gma/framework',
-    'gma/modules/administration',
-    'gma/modules/auth',
-    'gma/modules/files',
-    'gma/modules/notifications',
-    'gma/modules/task-runtime',
-    'gma/modules/tenancy'
-)
-
-foreach ($path in $submodulePaths) {
-    $fullPath = Join-BunkFyPath $path
+foreach ($submodule in Get-BunkFySubmoduleConfig) {
+    $fullPath = Join-BunkFyPath $submodule.Path
     if (-not (Test-Path -LiteralPath $fullPath -PathType Container)) {
-        Write-Host "- ${path}: missing"
+        Write-Host "- $($submodule.Path): missing"
         continue
     }
 
     $branch = git -C $fullPath status --short --branch
-    Write-Host "- ${path}: $($branch -join ' | ')"
+    Write-Host "- $($submodule.Path) [$($submodule.Branch)]: $($branch -join ' | ')"
 }
 

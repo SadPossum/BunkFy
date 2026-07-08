@@ -2,7 +2,9 @@ param(
     [switch] $SkipRestore,
     [switch] $SkipBuild,
     [switch] $SkipFrontend,
-    [switch] $SkipBackend
+    [switch] $SkipBackend,
+    [switch] $SkipSubmoduleGuard,
+    [switch] $SkipSubmoduleFetch
 )
 
 . (Join-Path $PSScriptRoot 'common.ps1')
@@ -11,6 +13,10 @@ param(
 
 $root = Get-BunkFyRepositoryRoot
 $dotnet = Resolve-BunkFyDotNet
+
+if (-not $SkipSubmoduleGuard) {
+    & (Join-Path $PSScriptRoot 'guard-submodules-latest.ps1') -SkipFetch:$SkipSubmoduleFetch
+}
 
 if (-not $SkipRestore) {
     Invoke-BunkFyCommand -FilePath $dotnet -Arguments @('restore', (Join-BunkFyPath 'BunkFy.slnx')) -WorkingDirectory $root

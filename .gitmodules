@@ -1,11 +1,11 @@
 [submodule "apps/backend"]
 	path = apps/backend
 	url = https://github.com/SadPossum/BunkFy.Backend.git
-	branch = main
+	branch = dev
 [submodule "apps/web"]
 	path = apps/web
 	url = https://github.com/SadPossum/BunkFy.Web.git
-	branch = main
+	branch = dev
 [submodule "gma/framework"]
 	path = gma/framework
 	url = https://github.com/SadPossum/GMA-Framework.git

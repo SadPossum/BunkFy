@@ -46,6 +46,67 @@ function Resolve-BunkFyGitHubCli {
     return $null
 }
 
+function Get-BunkFySubmoduleConfig {
+    $root = Get-BunkFyRepositoryRoot
+    $gitModulesPath = Join-Path $root '.gitmodules'
+
+    if (-not (Test-Path -LiteralPath $gitModulesPath -PathType Leaf)) {
+        return @()
+    }
+
+    $lines = git -C $root config --file $gitModulesPath --get-regexp '^submodule\..*\.(path|url|branch)$'
+    if ($LASTEXITCODE -ne 0) {
+        throw "Unable to read submodule configuration from $gitModulesPath."
+    }
+
+    $entries = @{}
+    foreach ($line in $lines) {
+        if ($line -notmatch '^submodule\.(.+)\.(path|url|branch)\s+(.+)$') {
+            continue
+        }
+
+        $name = $Matches[1]
+        $key = $Matches[2]
+        $value = $Matches[3]
+
+        if (-not $entries.ContainsKey($name)) {
+            $entries[$name] = [ordered]@{
+                Name = $name
+                Path = $null
+                Url = $null
+                Branch = $null
+            }
+        }
+
+        switch ($key) {
+            'path' { $entries[$name].Path = $value }
+            'url' { $entries[$name].Url = $value }
+            'branch' { $entries[$name].Branch = $value }
+        }
+    }
+
+    $submodules = @()
+    foreach ($name in ($entries.Keys | Sort-Object)) {
+        $entry = $entries[$name]
+        if ([string]::IsNullOrWhiteSpace($entry.Path)) {
+            throw "Submodule '$name' does not declare a path."
+        }
+
+        if ([string]::IsNullOrWhiteSpace($entry.Branch)) {
+            throw "Submodule '$name' does not declare a branch in .gitmodules."
+        }
+
+        $submodules += [pscustomobject]@{
+            Name = $entry.Name
+            Path = $entry.Path
+            Url = $entry.Url
+            Branch = $entry.Branch
+        }
+    }
+
+    return $submodules
+}
+
 function Invoke-BunkFyCommand {
     param(
         [Parameter(Mandatory = $true)][string] $FilePath,

@@ -45,6 +45,8 @@ git submodule update --init --recursive
 
 ## Daily Workflow
 
+The default development branch is `dev` across the root, backend, and web repositories. `main` can remain a stable baseline when the project starts cutting releases.
+
 Start the full local graph:
 
 ```powershell
@@ -64,6 +66,14 @@ Inspect root and submodule state:
 ```powershell
 .\eng\submodule-status.ps1
 ```
+
+Submodules are pinned by commit; Git does not update them automatically when upstream branches move. Sync all configured submodules to their `.gitmodules` branch tips:
+
+```powershell
+.\eng\sync-submodules.ps1
+```
+
+`.\eng\verify.ps1` runs `eng/guard-submodules-latest.ps1` by default, so stale submodule pointers fail validation. The compatibility alias `.\eng\sync-github-modules.ps1` runs the same sync command.
 
 ## App Repositories
 
