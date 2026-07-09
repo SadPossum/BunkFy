@@ -12,6 +12,18 @@ var nats = builder.AddNats("nats")
     .WithJetStream()
     .WithDataVolume(isReadOnly: false);
 
+const string minioAccessKey = "minioadmin";
+const string minioSecretKey = "minioadmin";
+const string filesBucketName = "bunkfy-files";
+
+var minio = builder.AddContainer("minio", "quay.io/minio/minio", "latest")
+    .WithEnvironment("MINIO_ROOT_USER", minioAccessKey)
+    .WithEnvironment("MINIO_ROOT_PASSWORD", minioSecretKey)
+    .WithArgs("server", "/data", "--console-address", ":9001")
+    .WithHttpEndpoint(targetPort: 9000, name: "api")
+    .WithHttpEndpoint(targetPort: 9001, name: "console")
+    .WithVolume("bunkfy-minio-data", "/data");
+
 bool workerEnabled = bool.TryParse(
     builder.Configuration["AppHost:Worker:Enabled"],
     out bool configuredWorkerEnabled) && configuredWorkerEnabled;
@@ -22,7 +34,15 @@ var api = builder
     .WithReference(postgreSql)
     .WithReference(nats)
     .WaitFor(nats)
+    .WaitFor(minio)
     .WithEnvironment("ASPNETCORE_ENVIRONMENT", "Development")
+    .WithEnvironment("FileManagement__Provider", "Minio")
+    .WithEnvironment("FileManagement__Minio__Endpoint", "minio:9000")
+    .WithEnvironment("FileManagement__Minio__AccessKey", minioAccessKey)
+    .WithEnvironment("FileManagement__Minio__SecretKey", minioSecretKey)
+    .WithEnvironment("FileManagement__Minio__BucketName", filesBucketName)
+    .WithEnvironment("FileManagement__Minio__UseSsl", "false")
+    .WithEnvironment("FileManagement__Minio__CreateBucketIfMissing", "true")
     .WithEnvironment("NatsJetStream__Enabled", workerEnabled ? "false" : "true")
     .WithHttpHealthCheck("/health");
 
@@ -56,8 +76,9 @@ if (workerEnabled)
         .WithEnvironment("DOTNET_ENVIRONMENT", "Development")
         .WithEnvironment("NatsJetStream__Enabled", "true")
         .WithEnvironment("NatsConsumers__Enabled", "false")
-        .WithEnvironment("Tasks__Worker__Enabled", "false")
-        .WithEnvironment("Worker__Modules__Auth", "true");
+        .WithEnvironment("Tasks__Worker__Enabled", "true")
+        .WithEnvironment("Worker__Modules__Auth", "true")
+        .WithEnvironment("Worker__Modules__TaskRuntime", "true");
 }
 
 bool redisEnabled = bool.TryParse(

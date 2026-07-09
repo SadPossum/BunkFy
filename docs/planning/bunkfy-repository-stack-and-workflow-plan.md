@@ -35,7 +35,7 @@ Likely first-class product areas:
 
 - Properties, buildings, rooms, beds, and bed inventory.
 - Reservations, booking lifecycle, cancellations, no-shows, check-in, and check-out.
-- Guests, identity documents, notes, stays, and communication history.
+- Operator-managed guest records, identity documents, notes, stays, and communication history. Guests do not authenticate into BunkFy.
 - Rates, restrictions, occupancy, availability, and simple revenue controls.
 - Housekeeping and maintenance tasks.
 - Staff roles, permissions, audit trail, and tenant/property access.
@@ -90,7 +90,7 @@ apps/backend/
       Properties/
       Inventory/
       Reservations/
-      Guests/
+      GuestRecords/
       Billing/
       Housekeeping/
   tests/
@@ -531,7 +531,7 @@ Early product modules should be application-owned and live in the backend repo:
 src/Modules/Properties/
 src/Modules/Inventory/
 src/Modules/Reservations/
-src/Modules/Guests/
+src/Modules/GuestRecords/
 src/Modules/Billing/
 src/Modules/Housekeeping/
 ```
@@ -541,7 +541,7 @@ Possible module meanings:
 - `Properties`: hostel organizations, physical properties, buildings, floors, rooms, beds, and operational settings.
 - `Inventory`: bed/room inventory state, out-of-service periods, closures, and availability primitives.
 - `Reservations`: booking lifecycle, reservation holds, cancellations, no-shows, check-in, check-out.
-- `Guests`: guest profile, stay history, documents, consents, and notes.
+- `GuestRecords`: operator-managed guest profile, stay history, documents, consents, and notes. It is not a guest account or guest portal module.
 - `Billing`: charges, payments, invoices, refunds, taxes, and accounting exports.
 - `Housekeeping`: cleaning tasks, room/bed readiness, maintenance requests, assignment.
 
@@ -626,7 +626,7 @@ apps/web/
     features/
       reservations/
       inventory/
-      guests/
+      guest-records/
       housekeeping/
       auth/
       administration/
