@@ -51,8 +51,8 @@ Use separate repositories for root composition, backend, and frontend:
 BunkFy/                    # root superproject and composition repo
 BunkFy.Backend/            # backend app repo mounted at apps/backend
 BunkFy.Web/                # frontend app repo mounted at apps/web
-GMA-Framework/             # source dependency mounted at gma/framework
-GMA-Module-*/              # source dependencies mounted at gma/modules/<alias>
+GMA-Framework/             # source dependency mounted inside apps/backend/gma/framework
+GMA-Module-*/              # source dependencies mounted inside apps/backend/gma/modules/<alias>
 ```
 
 The root repo should not become a hidden monorepo full of product implementation. Its job is to wire things together and make the full system easy to run.
@@ -69,7 +69,7 @@ Backend defaults:
 - EF Core persistence.
 - PostgreSQL as the preferred open-source default database unless there is a strong reason to keep SQL Server first.
 - Keep SQL Server support only if the GMA modules require it or if multi-provider support is still valuable enough to maintain.
-- GMA reusable modules mounted as source under root `gma/`.
+- GMA reusable modules mounted as source under backend `gma/`.
 - Application-owned PMS modules in `apps/backend/src/Modules`.
 
 Expected backend repository shape:
@@ -144,8 +144,6 @@ BunkFy/
   src/BunkFy.ServiceDefaults/
   apps/backend/             # submodule
   apps/web/                 # submodule
-  gma/framework/            # submodule
-  gma/modules/auth/         # submodule
 ```
 
 Use Aspire for local orchestration first:
@@ -193,15 +191,6 @@ BunkFy/
   apps/
     backend/                # submodule: BunkFy.Backend
     web/                    # submodule: BunkFy.Web
-  gma/
-    framework/              # submodule: GMA-Framework
-    modules/
-      administration/       # submodule: GMA-Module-Administration
-      auth/                 # submodule: GMA-Module-Auth
-      files/                # submodule: GMA-Module-Files
-      notifications/        # submodule: GMA-Module-Notifications
-      task-runtime/         # submodule: GMA-Module-Task-Runtime
-      tenancy/              # submodule: GMA-Module-Tenancy
   BunkFy.slnx
   Directory.Build.props
   Directory.Packages.props
@@ -213,56 +202,41 @@ BunkFy/
 
 ### Root-Owned Submodules
 
-The root repo should mount:
+The root repo should mount app repositories only:
 
 ```text
 apps/backend
 apps/web
-gma/framework
-gma/modules/administration
-gma/modules/auth
-gma/modules/files
-gma/modules/notifications
-gma/modules/task-runtime
-gma/modules/tenancy
 ```
 
-Prefer public HTTPS submodule URLs if BunkFy is truly open source and the GMA repositories are public. If any GMA repository remains private, CI and contributors need a documented token path.
+The backend repo owns the GMA source submodules under `apps/backend/gma/`. This keeps backend code, GMA references, and backend-specific source-root configuration discoverable from one focused checkout while the root repo stays a full-stack composition shell.
 
 Example submodule setup commands:
 
 ```powershell
 git submodule add https://github.com/SadPossum/BunkFy.Backend.git apps/backend
 git submodule add https://github.com/SadPossum/BunkFy.Web.git apps/web
-
-git submodule add https://github.com/SadPossum/GMA-Framework.git gma/framework
-git submodule add https://github.com/SadPossum/GMA-Module-Administration.git gma/modules/administration
-git submodule add https://github.com/SadPossum/GMA-Module-Auth.git gma/modules/auth
-git submodule add https://github.com/SadPossum/GMA-Module-Files.git gma/modules/files
-git submodule add https://github.com/SadPossum/GMA-Module-Notifications.git gma/modules/notifications
-git submodule add https://github.com/SadPossum/GMA-Module-Task-Runtime.git gma/modules/task-runtime
-git submodule add https://github.com/SadPossum/GMA-Module-Tenancy.git gma/modules/tenancy
 ```
 
 If private SSH aliases are required locally, keep that as a contributor setup option rather than the only path for an open-source checkout.
 
-### Avoid Nested GMA Duplication
+### Backend-Owned GMA Source
 
-Do not put another full set of GMA submodules inside `apps/backend` for normal root development. That creates duplicate source trees and confusing dependency pointers.
+Keep the reusable GMA framework/modules inside `apps/backend/gma/` rather than as root-level submodules. The backend repository is the project that directly references GMA projects, so it should own those dependency pointers.
 
-Instead:
+This means:
 
-- Root owns `gma/`.
-- Root bootstrap writes `apps/backend/Gma.SourceRoots.props` so backend project references point back to root `gma/`.
-- Backend standalone development can still use its own local `Gma.SourceRoots.props` to point at sibling or local GMA checkouts.
+- Root owns app-level pointers: `apps/backend` and `apps/web`.
+- Backend owns GMA pointers: `gma/framework` and `gma/modules/<alias>`.
+- Root bootstrap initializes submodules recursively and delegates backend source-root generation to `apps/backend/eng/gma-bootstrap.ps1`.
 
-Example backend source-root file when mounted inside root:
+Example backend source-root file:
 
 ```xml
 <Project>
   <PropertyGroup>
-    <GmaFrameworkRoot>$(MSBuildThisFileDirectory)..\..\gma\framework\src\</GmaFrameworkRoot>
-    <GmaModulesRoot>$(MSBuildThisFileDirectory)..\..\gma\modules\</GmaModulesRoot>
+    <GmaFrameworkRoot>$(MSBuildThisFileDirectory)gma\framework\src\</GmaFrameworkRoot>
+    <GmaModulesRoot>$(MSBuildThisFileDirectory)gma\modules\</GmaModulesRoot>
     <GmaModuleAdministrationRoot>$(GmaModulesRoot)administration\src\</GmaModuleAdministrationRoot>
     <GmaModuleAuthRoot>$(GmaModulesRoot)auth\src\</GmaModuleAuthRoot>
     <GmaModuleFilesRoot>$(GmaModulesRoot)files\src\</GmaModuleFilesRoot>
@@ -280,7 +254,7 @@ Before editing any submodule, check that it is on a branch:
 ```powershell
 git -C apps/backend status --short --branch
 git -C apps/web status --short --branch
-git -C gma/framework status --short --branch
+git -C apps/backend/gma/framework status --short --branch
 ```
 
 If it is detached, switch to a branch first:
@@ -297,9 +271,9 @@ Submodule change workflow:
 4. Commit and push the submodule branch.
 5. Return to the root repo.
 6. Run root validation.
-7. Commit the root submodule pointer update only after the submodule commit is pushed and intended.
+7. Commit the owning parent pointer update only after the submodule commit is pushed and intended.
 
-Never commit a root submodule pointer that points to an unpushed local-only commit.
+Never commit a submodule pointer that points to an unpushed local-only commit.
 
 ## Root Scripts
 
@@ -313,8 +287,7 @@ Responsibilities:
 
 - Run `git submodule sync --recursive`.
 - Run `git submodule update --init --recursive`.
-- Write root and backend `Gma.SourceRoots.props` files.
-- Write `Gma.SourceRoots.props` files inside mounted GMA source repos when required for package-local builds.
+- Delegate backend and GMA source-root generation to `apps/backend/eng/gma-bootstrap.ps1`.
 - Enable Corepack if needed.
 - Install frontend dependencies with `pnpm install --frozen-lockfile` when a lockfile exists.
 - Restore the root solution.
@@ -862,7 +835,7 @@ Tasks:
 - Generate or hand-adapt a GMA source-first backend shell.
 - Rename projects to `BunkFy.*`.
 - Compose selected GMA modules explicitly.
-- Add backend source-root support for root-mounted GMA.
+- Add backend-owned GMA submodules and source-root support.
 - Add backend architecture tests.
 - Add a minimal health/root endpoint.
 - Add initial appsettings shape.

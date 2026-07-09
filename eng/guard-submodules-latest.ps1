@@ -59,4 +59,9 @@ if ($failures.Count -gt 0) {
     throw 'One or more submodules are not at their configured branch tips.'
 }
 
+$backendGmaGuard = Join-BunkFyPath 'apps\backend\eng\check-submodule-dev-heads.ps1'
+if (Test-Path -LiteralPath $backendGmaGuard -PathType Leaf) {
+    & $backendGmaGuard
+}
+
 Write-Host 'Submodule latest guard complete.'

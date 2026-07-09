@@ -14,15 +14,6 @@ BunkFy/
   apps/
     backend/                 # submodule: SadPossum/BunkFy.Backend
     web/                     # submodule: SadPossum/BunkFy.Web
-  gma/
-    framework/               # submodule: SadPossum/GMA-Framework
-    modules/
-      administration/
-      auth/
-      files/
-      notifications/
-      task-runtime/
-      tenancy/
   docs/
   eng/
 ```
@@ -80,7 +71,7 @@ Submodules are pinned by commit; Git does not update them automatically when ups
 - Backend: https://github.com/SadPossum/BunkFy.Backend
 - Web: https://github.com/SadPossum/BunkFy.Web
 
-The backend app consumes GMA as editable source. In this root checkout, `eng/bootstrap.ps1` writes `apps/backend/Gma.SourceRoots.props` so backend project references resolve to the root-mounted `gma/` submodules.
+The backend app consumes GMA as editable source through nested submodules under `apps/backend/gma/`. Root bootstrap initializes submodules recursively and delegates backend source-root generation to `apps/backend/eng/gma-bootstrap.ps1`.
 
 ## Planning
 

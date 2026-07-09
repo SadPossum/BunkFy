@@ -6,13 +6,13 @@ param(
 . (Join-Path $PSScriptRoot 'common.ps1')
 
 $targets = [ordered]@{
-    'framework' = 'gma/framework'
-    'administration' = 'gma/modules/administration'
-    'auth' = 'gma/modules/auth'
-    'files' = 'gma/modules/files'
-    'notifications' = 'gma/modules/notifications'
-    'task-runtime' = 'gma/modules/task-runtime'
-    'tenancy' = 'gma/modules/tenancy'
+    'framework' = 'apps/backend/gma/framework'
+    'administration' = 'apps/backend/gma/modules/administration'
+    'auth' = 'apps/backend/gma/modules/auth'
+    'files' = 'apps/backend/gma/modules/files'
+    'notifications' = 'apps/backend/gma/modules/notifications'
+    'task-runtime' = 'apps/backend/gma/modules/task-runtime'
+    'tenancy' = 'apps/backend/gma/modules/tenancy'
 }
 
 $selected = if ($Module -contains 'all') { $targets.Keys } else { $Module }
@@ -27,5 +27,5 @@ foreach ($name in $selected) {
 
 & (Join-Path $PSScriptRoot 'bootstrap.ps1') -SkipSubmodules -SkipFrontendInstall -SkipRestore -Force
 
-Write-Host 'GMA update complete. Review root submodule pointer changes before committing.'
+Write-Host 'GMA update complete. Review backend submodule pointer changes before committing.'
 

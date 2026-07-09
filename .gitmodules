@@ -6,31 +6,3 @@
 	path = apps/web
 	url = https://github.com/SadPossum/BunkFy.Web.git
 	branch = dev
-[submodule "gma/framework"]
-	path = gma/framework
-	url = https://github.com/SadPossum/GMA-Framework.git
-	branch = dev
-[submodule "gma/modules/administration"]
-	path = gma/modules/administration
-	url = https://github.com/SadPossum/GMA-Module-Administration.git
-	branch = dev
-[submodule "gma/modules/auth"]
-	path = gma/modules/auth
-	url = https://github.com/SadPossum/GMA-Module-Auth.git
-	branch = dev
-[submodule "gma/modules/files"]
-	path = gma/modules/files
-	url = https://github.com/SadPossum/GMA-Module-Files.git
-	branch = dev
-[submodule "gma/modules/notifications"]
-	path = gma/modules/notifications
-	url = https://github.com/SadPossum/GMA-Module-Notifications.git
-	branch = dev
-[submodule "gma/modules/task-runtime"]
-	path = gma/modules/task-runtime
-	url = https://github.com/SadPossum/GMA-Module-Task-Runtime.git
-	branch = dev
-[submodule "gma/modules/tenancy"]
-	path = gma/modules/tenancy
-	url = https://github.com/SadPossum/GMA-Module-Tenancy.git
-	branch = dev

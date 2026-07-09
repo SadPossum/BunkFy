@@ -3,6 +3,7 @@ obj/
 .vs/
 .idea/
 .tmp/
+gma/
 node_modules/
 dist/
 coverage/
