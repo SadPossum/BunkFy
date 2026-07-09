@@ -20,10 +20,6 @@ if (-not $SkipSubmoduleGuard) {
 
 if (-not $SkipRestore) {
     Invoke-BunkFyCommand -FilePath $dotnet -Arguments @('restore', (Join-BunkFyPath 'BunkFy.slnx')) -WorkingDirectory $root
-
-    if (-not $SkipBackend) {
-        Invoke-BunkFyCommand -FilePath $dotnet -Arguments @('restore', (Join-BunkFyPath 'apps\backend\BunkFy.slnx')) -WorkingDirectory (Join-BunkFyPath 'apps\backend')
-    }
 }
 
 if (-not $SkipBuild) {
@@ -31,7 +27,19 @@ if (-not $SkipBuild) {
 }
 
 if (-not $SkipBackend) {
-    Invoke-BunkFyCommand -FilePath $dotnet -Arguments @('build', (Join-BunkFyPath 'apps\backend\BunkFy.slnx'), '--no-restore', '-m:1') -WorkingDirectory (Join-BunkFyPath 'apps\backend')
+    $backendVerifyArguments = @()
+    if ($SkipRestore) {
+        $backendVerifyArguments += '-SkipRestore'
+    }
+
+    if ($SkipBuild) {
+        $backendVerifyArguments += '-SkipBuild'
+    }
+
+    Invoke-BunkFyCommand `
+        -FilePath (Join-BunkFyPath 'apps\backend\eng\verify.ps1') `
+        -Arguments $backendVerifyArguments `
+        -WorkingDirectory (Join-BunkFyPath 'apps\backend')
 }
 
 if (-not $SkipFrontend) {
