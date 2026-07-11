@@ -19,11 +19,11 @@ if (-not $SkipSubmoduleGuard) {
 }
 
 if (-not $SkipRestore) {
-    Invoke-BunkFyCommand -FilePath $dotnet -Arguments @('restore', (Join-BunkFyPath 'BunkFy.slnx')) -WorkingDirectory $root
+    Invoke-BunkFyCommand -FilePath $dotnet -Arguments @('restore', (Join-BunkFyPath 'BunkFy.Workspace.slnx')) -WorkingDirectory $root
 }
 
 if (-not $SkipBuild) {
-    Invoke-BunkFyCommand -FilePath $dotnet -Arguments @('build', (Join-BunkFyPath 'BunkFy.slnx'), '--no-restore', '-m:1') -WorkingDirectory $root
+    Invoke-BunkFyCommand -FilePath $dotnet -Arguments @('build', (Join-BunkFyPath 'BunkFy.Workspace.slnx'), '--no-restore', '-m:1') -WorkingDirectory $root
 }
 
 if (-not $SkipBackend) {

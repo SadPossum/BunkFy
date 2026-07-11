@@ -1,14 +1,14 @@
 # BunkFy Repository, Stack, and Workflow Plan
 
-Status: draft planning task
+Status: draft planning task with implemented foundation notes
 Date: 2026-07-08
 Audience: future BunkFy development threads, maintainers, and contributors
 
 ## Current Checkpoint
 
-The first implementation milestone should establish repositories, submodules, documentation structure, scripts, CI, and source-root wiring only. It should not implement the product frontend, product modules, or a full runnable app graph yet.
+The first implementation milestone established repositories, submodules, documentation structure, scripts, CI, source-root wiring, and a runnable backend/root Aspire foundation. The backend platform stack is now wired, but product-specific PMS modules are still intentionally not implemented.
 
-The root Aspire AppHost can exist as a placeholder composition project, but backend and frontend runtime resources should be added later, after the backend and web repositories graduate from foundations into runnable shells.
+The root Aspire AppHost now composes the backend API, frontend app, PostgreSQL, NATS, MinIO, optional SQL Server/Redis/admin/worker services, and supporting local development infrastructure. Treat older stage text below as historical planning unless a section explicitly describes current behavior.
 
 ## Purpose
 
@@ -42,6 +42,16 @@ Likely first-class product areas:
 - Files for documents, guest attachments, invoices, and operational assets.
 - Notifications for staff-facing events.
 - Background tasks for scheduled work, imports, reconciliation, and reminders.
+- Inventory owns holds, allocations, and the no-overbooking invariant. Reservations owns the booking lifecycle around those inventory decisions.
+- Data provider/adapter ingestion should come after Reservations once there is enough canonical model to update. It may come before or after Staff/Access depending on the first real product or integration pressure.
+- Early backend work should develop no more than one new product module at a time. The active slice may still touch existing modules, shared contracts, host composition, tests, and GMA extension points as needed.
+- Do not force a public demo milestone before the system has enough useful operational depth, likely after Reservations and possibly after Staff/Access or Data Providers/Ingestion.
+
+Current backend planning notes:
+
+- `apps/backend/docs/planning/product-domain-map.md` owns current domain language and module boundaries.
+- `apps/backend/docs/planning/development-guidelines.md` owns current module-focus and development-flow guidance.
+- `apps/backend/docs/planning/pre-module-readiness.md` records what is ready and what is intentionally deferred before the first product module.
 
 ### Repository Direction
 
@@ -67,8 +77,9 @@ Backend defaults:
 - ASP.NET Core API hosts using GMA module composition.
 - Explicit module registration, no magic business-module auto-discovery.
 - EF Core persistence.
-- PostgreSQL as the preferred open-source default database unless there is a strong reason to keep SQL Server first.
-- Keep SQL Server support only if the GMA modules require it or if multi-provider support is still valuable enough to maintain.
+- PostgreSQL is the product/default deployment database direction.
+- Module domain/application code should remain database-provider agnostic; provider-specific behavior belongs in persistence adapters and migration projects.
+- The copied backend shell may still carry SQL Server examples and migration paths, but runtime defaults are PostgreSQL and product design should not depend on SQL Server.
 - GMA reusable modules mounted as source under backend `gma/`.
 - Application-owned PMS modules in `apps/backend/src/Modules`.
 
@@ -76,7 +87,7 @@ Expected backend repository shape:
 
 ```text
 apps/backend/
-  BunkFy.Backend.slnx
+  BunkFy.slnx
   Directory.Build.props
   Directory.Packages.props
   Gma.SourceRoots.props.example
@@ -151,7 +162,8 @@ Use Aspire for local orchestration first:
 - Backend API.
 - Frontend Vite dev server.
 - PostgreSQL.
-- Optional SQL Server if still supported.
+- MinIO.
+- Optional SQL Server only while dual-provider persistence/migration paths remain useful.
 - NATS JetStream when messaging or outbox publishing is being exercised.
 - Redis only when caching behavior is being exercised.
 - Admin API and worker only when explicitly enabled.
@@ -191,7 +203,7 @@ BunkFy/
   apps/
     backend/                # submodule: BunkFy.Backend
     web/                    # submodule: BunkFy.Web
-  BunkFy.slnx
+  BunkFy.Workspace.slnx
   Directory.Build.props
   Directory.Packages.props
   global.json
@@ -539,8 +551,8 @@ src/Modules/Housekeeping/
 Possible module meanings:
 
 - `Properties`: hostel organizations, physical properties, buildings, floors, rooms, beds, and operational settings.
-- `Inventory`: bed/room inventory state, out-of-service periods, closures, and availability primitives.
-- `Reservations`: booking lifecycle, reservation holds, cancellations, no-shows, check-in, check-out.
+- `Inventory`: bed/room inventory state, reservation holds, allocations, out-of-service periods, closures, availability primitives, and no-overbooking enforcement.
+- `Reservations`: booking lifecycle, confirmed booking records, cancellations, no-shows, check-in, check-out, and references to inventory decisions.
 - `GuestRecords`: operator-managed guest profile, stay history, documents, consents, and notes. It is not a guest account or guest portal module.
 - `Billing`: charges, payments, invoices, refunds, taxes, and accounting exports.
 - `Housekeeping`: cleaning tasks, room/bed readiness, maintenance requests, assignment.
@@ -587,18 +599,25 @@ Reasons:
 - Strong open-source default for self-hosted deployments.
 - Good relational fit for reservations, inventory, and audit trails.
 - Avoids making SQL Server a requirement for open-source hostel operators.
+- Keeps BunkFy aligned with the likely self-hosted deployment path while preserving clean module boundaries.
+
+Module rule:
+
+- Domain/application code stays database-provider agnostic.
+- Provider-specific behavior lives in infrastructure adapters and migration projects.
+- Product decisions should not leak SQL Server or PostgreSQL concepts into module logic.
 
 Research point:
 
-- Decide whether BunkFy keeps GMA's dual SQL Server/PostgreSQL migration pattern or simplifies product modules to PostgreSQL-only.
+- Decide whether BunkFy keeps GMA's dual SQL Server/PostgreSQL migration pattern for persistence/migrations or simplifies product persistence/migration projects to PostgreSQL-only.
 
 If dual provider support remains:
 
-- Every persistence module needs synchronized migration projects.
+- Every persistence provider path needs synchronized migration projects.
 - CI must run migration drift checks.
 - Architecture tests should prevent provider-specific leakage into domain/application code.
 
-If PostgreSQL-only:
+If PostgreSQL-only persistence/migrations:
 
 - Setup is simpler.
 - CI is simpler.
@@ -796,7 +815,7 @@ Tasks:
 - Confirm whether GMA repos will be public or private.
 - Confirm root submodule URLs.
 - Confirm default database provider.
-- Confirm whether SQL Server support is retained for product modules.
+- Confirm whether SQL Server support is retained for product persistence/migration provider paths.
 - Confirm frontend package manager.
 - Confirm license compatibility across BunkFy and GMA.
 
@@ -812,7 +831,7 @@ Goal: create the root composition shell.
 
 Tasks:
 
-- Add root `BunkFy.slnx`.
+- Add root `BunkFy.Workspace.slnx`.
 - Add `src/BunkFy.AppHost`.
 - Add `src/BunkFy.ServiceDefaults`.
 - Add submodules under `apps/` and `gma/`.
@@ -1006,7 +1025,7 @@ Exit criteria:
 - Current stable .NET, Aspire, and GMA baseline at implementation time.
 - Aspire JavaScript/Vite integration details and production publish model.
 - OpenAPI TypeScript client generation.
-- PostgreSQL-only vs dual-provider support.
+- PostgreSQL-only vs dual-provider persistence/migration support.
 - Tenant/property/staff access model.
 - Reservation availability algorithm.
 - Calendar/occupancy grid implementation options.
@@ -1033,7 +1052,7 @@ Exit criteria:
 - Whether GMA must become public for BunkFy to be meaningfully open source.
 - Contributor onboarding for recursive submodules.
 - Docker Compose distribution model.
-- Demo data and seed strategy.
+- Seed/sample data strategy.
 - Security policy and responsible disclosure.
 
 ## Quality Gates
@@ -1042,9 +1061,9 @@ Initial root validation should eventually include:
 
 ```powershell
 git submodule status --recursive
-dotnet restore BunkFy.slnx
-dotnet build BunkFy.slnx --no-restore -m:1
-dotnet test apps\backend\BunkFy.Backend.slnx --no-build --logger "console;verbosity=minimal"
+dotnet restore BunkFy.Workspace.slnx
+dotnet build BunkFy.Workspace.slnx --no-restore -m:1
+dotnet test apps\backend\BunkFy.slnx --no-build --logger "console;verbosity=minimal"
 pnpm --dir apps\web install --frozen-lockfile
 pnpm --dir apps\web typecheck
 pnpm --dir apps\web lint
@@ -1114,18 +1133,13 @@ Mitigation:
 - Build inventory and property model first.
 - Add tests around edge cases: date boundaries, bed moves, cancellations, no-shows, overbooking, and out-of-service inventory.
 
-## Initial Next Tasks
+## Current Next Build Direction
 
-1. Create or confirm the `BunkFy.Backend` and `BunkFy.Web` repositories.
-2. Decide whether GMA repositories will be public for open-source BunkFy.
-3. Add root submodules under `apps/` and `gma/`.
-4. Scaffold root `BunkFy.AppHost` and `BunkFy.ServiceDefaults`.
-5. Adapt a GMA source-first backend shell into `apps/backend`.
-6. Scaffold Vite React TypeScript frontend into `apps/web`.
-7. Implement root bootstrap and verify scripts.
-8. Wire Aspire to start backend, frontend, and PostgreSQL.
-9. Add first cross-repo smoke endpoint and frontend call.
-10. Start product research for tenancy/property/inventory boundaries.
+1. Start the first product module slice with Properties/Inventory foundation.
+2. Define tenant/property/room/bed language in code using the backend product-domain glossary.
+3. Add public/admin API and admin CLI operations only where they help operate the active module.
+4. Add focused architecture, module, and integration tests for boundaries, persistence, and core rules.
+5. Keep Reservations, Staff/Access, and Data Providers/Ingestion as follow-up slices until the active module has a clean foundation.
 
 ## Reference Links
 

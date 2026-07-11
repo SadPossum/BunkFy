@@ -30,7 +30,7 @@ if (-not $SkipFrontendInstall) {
 if (-not $SkipRestore) {
     Invoke-BunkFyCommand `
         -FilePath (Resolve-BunkFyDotNet) `
-        -Arguments @('restore', (Join-BunkFyPath 'BunkFy.slnx')) `
+        -Arguments @('restore', (Join-BunkFyPath 'BunkFy.Workspace.slnx')) `
         -WorkingDirectory $root
 }
 

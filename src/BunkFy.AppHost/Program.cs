@@ -2,11 +2,22 @@ using Aspire.Hosting.ApplicationModel;
 
 var builder = DistributedApplication.CreateBuilder(args);
 
-var sqlServer = builder.AddSqlServer("sql")
-    .AddDatabase("SqlServer");
+var postgreSqlPassword = builder.AddParameter(
+    "postgres-password",
+    "postgres",
+    secret: true);
 
-var postgreSql = builder.AddPostgres("postgres")
+var postgreSql = builder.AddPostgres("postgres", password: postgreSqlPassword)
+    .WithDataVolume(isReadOnly: false)
     .AddDatabase("PostgreSql");
+
+bool sqlServerEnabled = bool.TryParse(
+    builder.Configuration["AppHost:SqlServer:Enabled"],
+    out bool configuredSqlServerEnabled) && configuredSqlServerEnabled;
+
+var sqlServer = sqlServerEnabled
+    ? builder.AddSqlServer("sql").AddDatabase("SqlServer")
+    : null;
 
 var nats = builder.AddNats("nats")
     .WithJetStream()
@@ -30,9 +41,9 @@ bool workerEnabled = bool.TryParse(
 
 var api = builder
     .AddProject("bunkfy-host-api", "../../apps/backend/src/BunkFy.Host.Api/BunkFy.Host.Api.csproj")
-    .WithReference(sqlServer)
     .WithReference(postgreSql)
     .WithReference(nats)
+    .WaitFor(postgreSql)
     .WaitFor(nats)
     .WaitFor(minio)
     .WithEnvironment("ASPNETCORE_ENVIRONMENT", "Development")
@@ -46,6 +57,12 @@ var api = builder
     .WithEnvironment("NatsJetStream__Enabled", workerEnabled ? "false" : "true")
     .WithHttpHealthCheck("/health");
 
+if (sqlServer is { } configuredSqlServer)
+{
+    api.WithReference(configuredSqlServer)
+        .WaitFor(configuredSqlServer);
+}
+
 bool adminApiEnabled = bool.TryParse(
     builder.Configuration["AppHost:AdminApi:Enabled"],
     out bool configuredAdminApiEnabled) && configuredAdminApiEnabled;
@@ -55,13 +72,19 @@ if (adminApiEnabled)
 {
     adminApi = builder
         .AddProject("bunkfy-host-admin-api", "../../apps/backend/src/BunkFy.Host.AdminApi/BunkFy.Host.AdminApi.csproj")
-        .WithReference(sqlServer)
         .WithReference(postgreSql)
         .WithReference(nats)
+        .WaitFor(postgreSql)
         .WaitFor(nats)
         .WithEnvironment("ASPNETCORE_ENVIRONMENT", "Development")
         .WithEnvironment("NatsJetStream__Enabled", workerEnabled ? "false" : "true")
         .WithHttpHealthCheck("/health");
+
+    if (sqlServer is { } configuredAdminSqlServer)
+    {
+        adminApi.WithReference(configuredAdminSqlServer)
+            .WaitFor(configuredAdminSqlServer);
+    }
 }
 
 IResourceBuilder<ProjectResource>? worker = null;
@@ -69,16 +92,25 @@ if (workerEnabled)
 {
     worker = builder
         .AddProject("bunkfy-host-worker", "../../apps/backend/src/BunkFy.Host.Worker/BunkFy.Host.Worker.csproj")
-        .WithReference(sqlServer)
         .WithReference(postgreSql)
         .WithReference(nats)
+        .WaitFor(postgreSql)
         .WaitFor(nats)
         .WithEnvironment("DOTNET_ENVIRONMENT", "Development")
         .WithEnvironment("NatsJetStream__Enabled", "true")
-        .WithEnvironment("NatsConsumers__Enabled", "false")
+        .WithEnvironment("NatsConsumers__Enabled", "true")
         .WithEnvironment("Tasks__Worker__Enabled", "true")
         .WithEnvironment("Worker__Modules__Auth", "true")
+        .WithEnvironment("Worker__Modules__Properties", "true")
+        .WithEnvironment("Worker__Modules__Inventory", "true")
+        .WithEnvironment("Worker__Modules__Reservations", "true")
         .WithEnvironment("Worker__Modules__TaskRuntime", "true");
+
+    if (sqlServer is { } configuredWorkerSqlServer)
+    {
+        worker.WithReference(configuredWorkerSqlServer)
+            .WaitFor(configuredWorkerSqlServer);
+    }
 }
 
 bool redisEnabled = bool.TryParse(
@@ -110,11 +142,15 @@ if (redisEnabled)
     }
 }
 
-builder
+var web = builder
     .AddViteApp("web", "../../apps/web")
     .WithPnpm()
     .WithReference(api)
     .WaitFor(api)
+    .WithEnvironment("NODE_ENV", "development")
     .WithEnvironment("VITE_BUNKFY_API_BASE_URL", api.GetEndpoint("http"));
+
+api.WithEnvironment("Http__Cors__Enabled", "true")
+    .WithEnvironment("Http__Cors__AllowedOrigins__0", web.GetEndpoint("http"));
 
 builder.Build().Run();
