@@ -2,6 +2,16 @@
   <Folder Name="/.github/workflows/">
     <File Path=".github/workflows/validate.yml" />
   </Folder>
+  <Folder Name="/Solution Items/">
+    <File Path=".gitignore" />
+    <File Path=".gitmodules" />
+    <File Path="Directory.Build.props" />
+    <File Path="Directory.Packages.props" />
+    <File Path="LICENSE" />
+    <File Path="README.md" />
+    <File Path="global.json" />
+    <File Path="nuget.config" />
+  </Folder>
   <Folder Name="/apps/backend/">
     <File Path="apps/backend/BunkFy.slnx" />
   </Folder>
@@ -69,6 +79,7 @@
     <File Path="apps/backend/eng/check-source-packages.ps1" />
     <File Path="apps/backend/eng/check-submodule-dev-heads.ps1" />
     <File Path="apps/backend/eng/common.ps1" />
+    <File Path="apps/backend/eng/export-openapi.ps1" />
     <File Path="apps/backend/eng/export-source-set.ps1" />
     <File Path="apps/backend/eng/gma-bootstrap.ps1" />
     <File Path="apps/backend/eng/gma-status.ps1" />
@@ -77,8 +88,8 @@
     <File Path="apps/backend/eng/new-module.ps1" />
     <File Path="apps/backend/eng/restore.ps1" />
     <File Path="apps/backend/eng/run-adapter.ps1" />
-    <File Path="apps/backend/eng/run-admin.ps1" />
     <File Path="apps/backend/eng/run-admin-api.ps1" />
+    <File Path="apps/backend/eng/run-admin.ps1" />
     <File Path="apps/backend/eng/run-api.ps1" />
     <File Path="apps/backend/eng/run-aspire.ps1" />
     <File Path="apps/backend/eng/run-worker.ps1" />
@@ -87,20 +98,6 @@
     <File Path="apps/backend/eng/test-ingestion-runtime.ps1" />
     <File Path="apps/backend/eng/update-solutions.ps1" />
     <File Path="apps/backend/eng/verify.ps1" />
-  </Folder>
-  <Folder Name="/apps/backend/gma/framework/.tmp/composition-tooling-e210fe4ca4a14c1985b81aef52e4fa97/src/Hosts/">
-    <Project Path="apps/backend/gma/framework/.tmp/composition-tooling-e210fe4ca4a14c1985b81aef52e4fa97/src/Hosts/Acme.Host.Api/Acme.Host.Api.csproj" />
-  </Folder>
-  <Folder Name="/apps/backend/gma/framework/.tmp/composition-tooling-e210fe4ca4a14c1985b81aef52e4fa97/src/Modules/Billing/">
-    <Project Path="apps/backend/gma/framework/.tmp/composition-tooling-e210fe4ca4a14c1985b81aef52e4fa97/src/Modules/Billing/Acme.Modules.Billing.Admin.Contracts/Acme.Modules.Billing.Admin.Contracts.csproj" />
-    <Project Path="apps/backend/gma/framework/.tmp/composition-tooling-e210fe4ca4a14c1985b81aef52e4fa97/src/Modules/Billing/Acme.Modules.Billing.AdminApi/Acme.Modules.Billing.AdminApi.csproj" />
-    <Project Path="apps/backend/gma/framework/.tmp/composition-tooling-e210fe4ca4a14c1985b81aef52e4fa97/src/Modules/Billing/Acme.Modules.Billing.AdminCli/Acme.Modules.Billing.AdminCli.csproj" />
-    <Project Path="apps/backend/gma/framework/.tmp/composition-tooling-e210fe4ca4a14c1985b81aef52e4fa97/src/Modules/Billing/Acme.Modules.Billing.Api/Acme.Modules.Billing.Api.csproj" />
-    <Project Path="apps/backend/gma/framework/.tmp/composition-tooling-e210fe4ca4a14c1985b81aef52e4fa97/src/Modules/Billing/Acme.Modules.Billing.Application/Acme.Modules.Billing.Application.csproj" />
-    <Project Path="apps/backend/gma/framework/.tmp/composition-tooling-e210fe4ca4a14c1985b81aef52e4fa97/src/Modules/Billing/Acme.Modules.Billing.Contracts/Acme.Modules.Billing.Contracts.csproj" />
-    <Project Path="apps/backend/gma/framework/.tmp/composition-tooling-e210fe4ca4a14c1985b81aef52e4fa97/src/Modules/Billing/Acme.Modules.Billing.Domain/Acme.Modules.Billing.Domain.csproj" />
-    <Project Path="apps/backend/gma/framework/.tmp/composition-tooling-e210fe4ca4a14c1985b81aef52e4fa97/src/Modules/Billing/Acme.Modules.Billing.Persistence.PostgreSqlMigrations/Acme.Modules.Billing.Persistence.PostgreSqlMigrations.csproj" />
-    <Project Path="apps/backend/gma/framework/.tmp/composition-tooling-e210fe4ca4a14c1985b81aef52e4fa97/src/Modules/Billing/Acme.Modules.Billing.Persistence/Acme.Modules.Billing.Persistence.csproj" />
   </Folder>
   <Folder Name="/apps/backend/gma/framework/src/Administration/">
     <Project Path="apps/backend/gma/framework/src/Administration/Gma.Framework.Administration.AccessControl/Gma.Framework.Administration.AccessControl.csproj" />
@@ -431,6 +428,7 @@
     <Project Path="apps/backend/src/Shared/BunkFy.Adapter.Abstractions/BunkFy.Adapter.Abstractions.csproj" />
     <Project Path="apps/backend/src/Shared/BunkFy.Adapter.Abstractions/tests/BunkFy.Adapter.Abstractions.Tests/BunkFy.Adapter.Abstractions.Tests.csproj" />
     <Project Path="apps/backend/src/Shared/BunkFy.Adapter.Runtime/BunkFy.Adapter.Runtime.csproj" />
+    <Project Path="apps/backend/src/Shared/BunkFy.AppHost.Composition/BunkFy.AppHost.Composition.csproj" />
     <Project Path="apps/backend/src/Shared/BunkFy.Ingestion.Parsing.Abstractions/BunkFy.Ingestion.Parsing.Abstractions.csproj" />
   </Folder>
   <Folder Name="/apps/backend/tests/">
@@ -439,9 +437,9 @@
     <Project Path="apps/backend/tests/Integration.Tests/Integration.Tests.csproj" />
   </Folder>
   <Folder Name="/apps/web/">
+    <File Path="apps/web/README.md" />
     <File Path="apps/web/package.json" />
     <File Path="apps/web/pnpm-lock.yaml" />
-    <File Path="apps/web/README.md" />
     <File Path="apps/web/tsconfig.json" />
     <File Path="apps/web/vite.config.ts" />
   </Folder>
@@ -449,8 +447,8 @@
     <File Path="docs/brand/README.md" />
   </Folder>
   <Folder Name="/docs/brand/house-q/">
-    <File Path="docs/brand/house-q/design-qa.md" />
     <File Path="docs/brand/house-q/README.md" />
+    <File Path="docs/brand/house-q/design-qa.md" />
   </Folder>
   <Folder Name="/docs/planning/">
     <File Path="docs/planning/bunkfy-repository-stack-and-workflow-plan.md" />
@@ -464,17 +462,8 @@
     <File Path="eng/sync-github-modules.ps1" />
     <File Path="eng/sync-submodules.ps1" />
     <File Path="eng/update-gma.ps1" />
+    <File Path="eng/update-web-contracts.ps1" />
     <File Path="eng/verify.ps1" />
-  </Folder>
-  <Folder Name="/Solution Items/">
-    <File Path=".gitignore" />
-    <File Path=".gitmodules" />
-    <File Path="Directory.Build.props" />
-    <File Path="Directory.Packages.props" />
-    <File Path="global.json" />
-    <File Path="LICENSE" />
-    <File Path="nuget.config" />
-    <File Path="README.md" />
   </Folder>
   <Folder Name="/src/">
     <Project Path="src/BunkFy.AppHost/BunkFy.AppHost.csproj" />

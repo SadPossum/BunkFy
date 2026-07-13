@@ -30,7 +30,7 @@ if (-not $SkipFrontendInstall) {
 if (-not $SkipRestore) {
     Invoke-BunkFyCommand `
         -FilePath (Resolve-BunkFyDotNet) `
-        -Arguments @('restore', (Join-BunkFyPath 'BunkFy.Workspace.slnx')) `
+        -Arguments @('restore', (Join-BunkFyPath 'BunkFy.Workspace.slnx'), '--disable-parallel', '-m:1', '-p:BuildInParallel=false') `
         -WorkingDirectory $root
 }
 

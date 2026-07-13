@@ -44,12 +44,18 @@ Start the full local graph:
 .\eng\run-aspire.ps1
 ```
 
-The Aspire AppHost starts the backend API and the web smoke shell. The current graph is intentionally minimal: it proves full-stack orchestration without product business logic.
+The Aspire AppHost starts the shared backend graph (PostgreSQL, NATS JetStream, MinIO, API, and opt-in worker/admin resources) plus the web client. Backend-only and full-stack AppHosts consume the same composition code so their infrastructure and worker settings cannot drift.
 
 Run the integrated validation pass:
 
 ```powershell
 .\eng\verify.ps1
+```
+
+The root verification checks backend and web builds/tests, solution drift, and the checked-in OpenAPI snapshot/generated TypeScript contract. After an intentional public API change, refresh those web artifacts with:
+
+```powershell
+.\eng\update-web-contracts.ps1
 ```
 
 Inspect root and submodule state:
