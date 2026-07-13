@@ -1,0 +1,312 @@
+name: bunkfy-preview
+
+x-database-environment: &database-environment
+  Persistence__Provider: PostgreSql
+  ConnectionStrings__PostgreSql: "Host=postgres;Port=5432;Database=bunkfy;Username=bunkfy;Password=${BUNKFY_POSTGRES_PASSWORD:?set BUNKFY_POSTGRES_PASSWORD};Include Error Detail=false"
+
+x-runtime-environment: &runtime-environment
+  DOTNET_ENVIRONMENT: Production
+  <<: *database-environment
+  ConnectionStrings__nats: "nats://${BUNKFY_NATS_USER:?set BUNKFY_NATS_USER}:${BUNKFY_NATS_PASSWORD:?set BUNKFY_NATS_PASSWORD}@nats:4222"
+  ConnectionStrings__redis: "redis:6379,password=${BUNKFY_REDIS_PASSWORD:?set BUNKFY_REDIS_PASSWORD},abortConnect=false"
+  Caching__Enabled: "true"
+  Caching__Provider: Redis
+  FileManagement__Enabled: "true"
+  FileManagement__Provider: Minio
+  FileManagement__Minio__Endpoint: minio:9000
+  FileManagement__Minio__AccessKey: "${BUNKFY_MINIO_ROOT_USER:?set BUNKFY_MINIO_ROOT_USER}"
+  FileManagement__Minio__SecretKey: "${BUNKFY_MINIO_ROOT_PASSWORD:?set BUNKFY_MINIO_ROOT_PASSWORD}"
+  FileManagement__Minio__BucketName: bunkfy-files
+  FileManagement__Minio__UseSsl: "false"
+  FileManagement__Minio__CreateBucketIfMissing: "true"
+  NatsJetStream__Enabled: "true"
+  NatsJetStream__ManagementMode: Managed
+  NatsJetStream__Storage: File
+  NatsJetStream__MaxAge: "7.00:00:00"
+  NatsJetStream__MaxBytes: "1073741824"
+  NatsJetStream__MaxMessages: "10000000"
+  NatsJetStream__Replicas: "1"
+  Auth__Jwt__SigningKey: "${BUNKFY_JWT_SIGNING_KEY:?set BUNKFY_JWT_SIGNING_KEY}"
+  Auth__RefreshTokens__Pepper: "${BUNKFY_REFRESH_TOKEN_PEPPER:?set BUNKFY_REFRESH_TOKEN_PEPPER}"
+
+services:
+  postgres:
+    image: postgres:17.5-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: bunkfy
+      POSTGRES_USER: bunkfy
+      POSTGRES_PASSWORD: "${BUNKFY_POSTGRES_PASSWORD:?set BUNKFY_POSTGRES_PASSWORD}"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bunkfy -d bunkfy"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks: [backend]
+
+  redis:
+    image: redis:8.0-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${BUNKFY_REDIS_PASSWORD:?set BUNKFY_REDIS_PASSWORD}"]
+    environment:
+      REDIS_PASSWORD: "${BUNKFY_REDIS_PASSWORD:?set BUNKFY_REDIS_PASSWORD}"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$${REDIS_PASSWORD}\" ping | grep PONG"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks: [backend]
+
+  nats:
+    image: nats:2.11-alpine
+    restart: unless-stopped
+    command:
+      - --jetstream
+      - --store_dir=/data
+      - --http_port=8222
+      - --user=${BUNKFY_NATS_USER:?set BUNKFY_NATS_USER}
+      - --pass=${BUNKFY_NATS_PASSWORD:?set BUNKFY_NATS_PASSWORD}
+    volumes:
+      - nats-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8222/healthz?js-enabled-only=true >/dev/null"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks: [backend]
+
+  minio:
+    image: minio/minio:RELEASE.2025-04-22T22-12-26Z
+    restart: unless-stopped
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: "${BUNKFY_MINIO_ROOT_USER:?set BUNKFY_MINIO_ROOT_USER}"
+      MINIO_ROOT_PASSWORD: "${BUNKFY_MINIO_ROOT_PASSWORD:?set BUNKFY_MINIO_ROOT_PASSWORD}"
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:9000/minio/health/live >/dev/null"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks: [backend]
+
+  migrations:
+    image: bunkfy/backend:preview
+    build:
+      context: ../../apps/backend
+      dockerfile: Dockerfile
+      target: backend
+    working_dir: /opt/bunkfy/migrations
+    command: ["BunkFy.Host.Migrations.dll"]
+    environment:
+      <<: *database-environment
+      DOTNET_ENVIRONMENT: Production
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+    networks: [backend]
+
+  api:
+    image: bunkfy/backend:preview
+    working_dir: /opt/bunkfy/api
+    command: ["BunkFy.Host.Api.dll"]
+    restart: unless-stopped
+    environment:
+      <<: *runtime-environment
+      ASPNETCORE_URLS: http://+:8080
+      NatsConsumers__Enabled: "false"
+      MessageJournalCleanup__Enabled: "false"
+      Auth__Retention__Enabled: "false"
+      Notifications__Delivery__Enabled: "false"
+      Notifications__Retention__Enabled: "false"
+      DataProtection__RequirePersistentKeys: "true"
+      DataProtection__KeyRingPath: /var/lib/bunkfy/data-protection
+      DataProtection__ApplicationName: bunkfy
+      Http__AllowAnyHost: "true"
+      Http__HttpsRedirectionEnabled: "false"
+      Http__HstsEnabled: "false"
+      Http__Cors__Enabled: "false"
+      Http__ForwardedHeaders__Enabled: "true"
+      Http__ForwardedHeaders__AllowUnknownProxies: "true"
+      Auth__OpenIdConnect__AllowedReturnUrls__0: "${BUNKFY_PUBLIC_URL:-http://localhost:8080}/auth/complete"
+      Auth__OpenIdConnect__Providers__google__Enabled: "${BUNKFY_GOOGLE_OIDC_ENABLED:-false}"
+      Auth__OpenIdConnect__Providers__google__ClientId: "${BUNKFY_GOOGLE_OIDC_CLIENT_ID:-}"
+      Auth__OpenIdConnect__Providers__google__ClientSecret: "${BUNKFY_GOOGLE_OIDC_CLIENT_SECRET:-}"
+      Auth__OpenIdConnect__Providers__microsoft__Enabled: "${BUNKFY_MICROSOFT_OIDC_ENABLED:-false}"
+      Auth__OpenIdConnect__Providers__microsoft__ClientId: "${BUNKFY_MICROSOFT_OIDC_CLIENT_ID:-}"
+      Auth__OpenIdConnect__Providers__microsoft__ClientSecret: "${BUNKFY_MICROSOFT_OIDC_CLIENT_SECRET:-}"
+      Notifications__Adapters__Email__Enabled: "false"
+    volumes:
+      - data-protection:/var/lib/bunkfy/data-protection
+    depends_on:
+      migrations:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+      nats:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 15s
+    networks: [backend]
+
+  worker:
+    image: bunkfy/backend:preview
+    working_dir: /opt/bunkfy/worker
+    command: ["BunkFy.Host.Worker.dll"]
+    restart: unless-stopped
+    environment:
+      <<: *runtime-environment
+      Worker__Modules__Auth: "true"
+      Worker__Modules__Notifications: "true"
+      Worker__Modules__Properties: "true"
+      Worker__Modules__Inventory: "true"
+      Worker__Modules__Reservations: "true"
+      Worker__Modules__Guests: "true"
+      Worker__Modules__Staff: "true"
+      Worker__Modules__Ingestion: "true"
+      Worker__Modules__TaskRuntime: "true"
+      NatsConsumers__Enabled: "true"
+      Tasks__Worker__Enabled: "true"
+      MessageJournalCleanup__Enabled: "true"
+      MessageJournalCleanup__ProcessedOutboxRetention: "7.00:00:00"
+      MessageJournalCleanup__ProcessedInboxRetention: "14.00:00:00"
+      MessageJournalCleanup__BrokerReplayHorizon: "7.00:00:00"
+      Auth__Retention__Enabled: "true"
+      Auth__Retention__ExpiredExchangeHistoryHours: "24"
+      Auth__Retention__SessionHistoryDays: "365"
+      Notifications__Delivery__Enabled: "false"
+      Notifications__Retention__Enabled: "true"
+      Notifications__Retention__ReadHistoryDays: "90"
+      Notifications__Retention__UnreadHistoryDays: "365"
+      Notifications__Retention__BroadcastDays: "365"
+      TaskRuntimeRetention__Enabled: "true"
+      TaskRuntimeRetention__SucceededRunRetention: "30.00:00:00"
+      TaskRuntimeRetention__FailedRunRetention: "90.00:00:00"
+      TaskRuntimeRetention__CanceledRunRetention: "30.00:00:00"
+      TaskRuntimeRetention__TimedOutRunRetention: "90.00:00:00"
+      TaskRuntimeRetention__HandledControlRetention: "30.00:00:00"
+      TaskRuntimeRetention__FailedControlRetention: "90.00:00:00"
+      TaskRuntimeRetention__ExpiredControlRetention: "30.00:00:00"
+      Adapters__JsonFileDrop__RootPath: /var/lib/bunkfy/file-drop
+      Adapters__JsonFileDrop__RetentionEnabled: "true"
+    volumes:
+      - adapter-file-drop:/var/lib/bunkfy/file-drop
+    depends_on:
+      migrations:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+      nats:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    networks: [backend]
+
+  web:
+    build:
+      context: ../../apps/web
+      dockerfile: Dockerfile
+      target: web
+      args:
+        VITE_BUNKFY_API_BASE_URL: /
+        VITE_BUNKFY_EMAIL_VERIFICATION_ENABLED: "${BUNKFY_EMAIL_VERIFICATION_ENABLED:-false}"
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${BUNKFY_PUBLIC_PORT:-8080}:8080"
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks: [backend, edge]
+
+  admin-api:
+    image: bunkfy/backend:preview
+    profiles: [operations]
+    working_dir: /opt/bunkfy/admin-api
+    command: ["BunkFy.Host.AdminApi.dll"]
+    restart: unless-stopped
+    environment:
+      <<: *runtime-environment
+      ASPNETCORE_URLS: http://+:8080
+      NatsConsumers__Enabled: "false"
+      MessageJournalCleanup__Enabled: "false"
+      Auth__Retention__Enabled: "false"
+      Notifications__Delivery__Enabled: "false"
+      Notifications__Retention__Enabled: "false"
+      Administration__Api__AllowGeneratedPasswordResponses: "${BUNKFY_ALLOW_GENERATED_ADMIN_PASSWORDS:-false}"
+      Http__AllowAnyHost: "true"
+      Http__HttpsRedirectionEnabled: "false"
+      Http__HstsEnabled: "false"
+      Http__PrivateNetwork__Enabled: "false"
+    ports:
+      - "127.0.0.1:${BUNKFY_ADMIN_PORT:-5195}:8080"
+    depends_on:
+      migrations:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+      nats:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 15s
+    networks: [backend, edge]
+
+  admin-cli:
+    image: bunkfy/backend:preview
+    profiles: [tools]
+    working_dir: /opt/bunkfy/admin-cli
+    entrypoint: ["dotnet", "/opt/bunkfy/admin-cli/BunkFy.Host.AdminCli.dll"]
+    command: ["--help"]
+    environment:
+      <<: *runtime-environment
+      MessageJournalCleanup__Enabled: "false"
+      Logging__LogLevel__Default: Warning
+    depends_on:
+      migrations:
+        condition: service_completed_successfully
+      nats:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    networks: [backend]
+
+networks:
+  backend:
+    internal: true
+  edge:
+
+volumes:
+  postgres-data:
+    name: bunkfy-preview-postgres-data
+  redis-data:
+    name: bunkfy-preview-redis-data
+  nats-data:
+    name: bunkfy-preview-nats-data
+  minio-data:
+    name: bunkfy-preview-minio-data
+  data-protection:
+    name: bunkfy-preview-data-protection
+  adapter-file-drop:
+    name: bunkfy-preview-adapter-file-drop

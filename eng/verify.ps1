@@ -19,6 +19,7 @@ if (-not $SkipSubmoduleGuard) {
 }
 
 & (Join-BunkFyPath 'apps\backend\eng\update-solutions.ps1') -IncludeRootWorkspace -Check
+& (Join-Path $PSScriptRoot 'verify-operations.ps1')
 
 if (-not $SkipRestore) {
     Invoke-BunkFyCommand -FilePath $dotnet -Arguments @('restore', (Join-BunkFyPath 'BunkFy.Workspace.slnx'), '--disable-parallel', '-m:1', '-p:BuildInParallel=false') -WorkingDirectory $root

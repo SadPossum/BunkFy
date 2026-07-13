@@ -1,0 +1,78 @@
+param(
+    [ValidateSet('config', 'build', 'up', 'down', 'logs', 'status', 'migrate')]
+    [string] $Action = 'up',
+    [switch] $Operations,
+    [switch] $Tools
+)
+
+. (Join-Path $PSScriptRoot 'common.ps1')
+
+$root = Get-BunkFyRepositoryRoot
+$composeFile = Join-BunkFyPath 'deploy\preview\compose.yaml'
+$environmentFile = Join-BunkFyPath 'deploy\preview\.env'
+if (-not (Test-Path -LiteralPath $environmentFile -PathType Leaf)) {
+    throw "Run eng/new-preview-env.ps1 before starting the preview stack."
+}
+
+$settings = @{}
+foreach ($line in Get-Content -LiteralPath $environmentFile) {
+    if ([string]::IsNullOrWhiteSpace($line) -or $line.TrimStart().StartsWith('#')) {
+        continue
+    }
+
+    $parts = $line.Split('=', 2)
+    if ($parts.Count -eq 2) {
+        $settings[$parts[0].Trim()] = $parts[1].Trim()
+    }
+}
+
+$minimumSecretLengths = @{
+    BUNKFY_POSTGRES_PASSWORD = 16
+    BUNKFY_REDIS_PASSWORD = 16
+    BUNKFY_NATS_PASSWORD = 16
+    BUNKFY_MINIO_ROOT_PASSWORD = 16
+    BUNKFY_JWT_SIGNING_KEY = 32
+    BUNKFY_REFRESH_TOKEN_PEPPER = 32
+}
+foreach ($entry in $minimumSecretLengths.GetEnumerator()) {
+    $value = [string]$settings[$entry.Key]
+    if ([string]::IsNullOrWhiteSpace($value) -or
+        $value.Contains('replace-with-') -or
+        $value.Length -lt $entry.Value) {
+        throw "$($entry.Key) must be a non-placeholder secret of at least $($entry.Value) characters."
+    }
+}
+
+$publicUrl = [Uri]([string]$settings['BUNKFY_PUBLIC_URL'])
+$isLoopbackHttp = $publicUrl.Scheme -eq 'http' -and $publicUrl.IsLoopback
+if ($publicUrl.Scheme -ne 'https' -and -not $isLoopbackHttp) {
+    throw 'BUNKFY_PUBLIC_URL must use HTTPS unless it targets loopback.'
+}
+
+foreach ($provider in @('GOOGLE', 'MICROSOFT')) {
+    if ([string]$settings["BUNKFY_${provider}_OIDC_ENABLED"] -ieq 'true' -and
+        ([string]::IsNullOrWhiteSpace([string]$settings["BUNKFY_${provider}_OIDC_CLIENT_ID"]) -or
+         [string]::IsNullOrWhiteSpace([string]$settings["BUNKFY_${provider}_OIDC_CLIENT_SECRET"]))) {
+        throw "$provider OIDC is enabled but its client id or secret is missing."
+    }
+}
+
+$arguments = @('compose', '--env-file', $environmentFile, '-f', $composeFile)
+if ($Operations) {
+    $arguments += @('--profile', 'operations')
+}
+if ($Tools) {
+    $arguments += @('--profile', 'tools')
+}
+
+switch ($Action) {
+    'config' { $arguments += @('config', '--quiet') }
+    'build' { $arguments += @('build') }
+    'up' { $arguments += @('up', '--detach', '--build', '--wait') }
+    'down' { $arguments += @('down') }
+    'logs' { $arguments += @('logs', '--follow', '--tail', '200') }
+    'status' { $arguments += @('ps') }
+    'migrate' { $arguments += @('run', '--rm', 'migrations') }
+}
+
+Invoke-BunkFyCommand -FilePath 'docker' -Arguments $arguments -WorkingDirectory $root

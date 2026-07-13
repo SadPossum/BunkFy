@@ -3,6 +3,7 @@ obj/
 .vs/
 .idea/
 .tmp/
+deploy/preview/.env
 gma/
 node_modules/
 dist/

@@ -27,6 +27,7 @@
     <File Path="apps/backend/docs/README.md" />
   </Folder>
   <Folder Name="/apps/backend/docs/architecture/">
+    <File Path="apps/backend/docs/architecture/auth-and-notifications.md" />
     <File Path="apps/backend/docs/architecture/ingestion-adapter-boundary.md" />
     <File Path="apps/backend/docs/architecture/overview.md" />
   </Folder>
@@ -99,6 +100,12 @@
     <File Path="apps/backend/eng/update-solutions.ps1" />
     <File Path="apps/backend/eng/verify.ps1" />
   </Folder>
+  <Folder Name="/apps/backend/gma/extensions/src/">
+    <Project Path="apps/backend/gma/extensions/src/Gma.Extensions.Auth.Notifications/Gma.Extensions.Auth.Notifications.csproj" />
+  </Folder>
+  <Folder Name="/apps/backend/gma/extensions/tests/">
+    <Project Path="apps/backend/gma/extensions/tests/Gma.Extensions.Auth.Notifications.Tests/Gma.Extensions.Auth.Notifications.Tests.csproj" />
+  </Folder>
   <Folder Name="/apps/backend/gma/framework/src/Administration/">
     <Project Path="apps/backend/gma/framework/src/Administration/Gma.Framework.Administration.AccessControl/Gma.Framework.Administration.AccessControl.csproj" />
     <Project Path="apps/backend/gma/framework/src/Administration/Gma.Framework.Administration.Api/Gma.Framework.Administration.Api.csproj" />
@@ -129,6 +136,9 @@
   </Folder>
   <Folder Name="/apps/backend/gma/framework/src/Domain/">
     <Project Path="apps/backend/gma/framework/src/Domain/Gma.Framework.Domain/Gma.Framework.Domain.csproj" />
+  </Folder>
+  <Folder Name="/apps/backend/gma/framework/src/Email/">
+    <Project Path="apps/backend/gma/framework/src/Email/Gma.Framework.Email/Gma.Framework.Email.csproj" />
   </Folder>
   <Folder Name="/apps/backend/gma/framework/src/FileManagement/">
     <Project Path="apps/backend/gma/framework/src/FileManagement/Gma.Framework.FileManagement.LocalStorage/Gma.Framework.FileManagement.LocalStorage.csproj" />
@@ -259,6 +269,7 @@
     <Project Path="apps/backend/gma/modules/auth/src/Gma.Modules.Auth.Persistence.PostgreSqlMigrations/Gma.Modules.Auth.Persistence.PostgreSqlMigrations.csproj" />
     <Project Path="apps/backend/gma/modules/auth/src/Gma.Modules.Auth.Persistence.SqlServerMigrations/Gma.Modules.Auth.Persistence.SqlServerMigrations.csproj" />
     <Project Path="apps/backend/gma/modules/auth/src/Gma.Modules.Auth.Persistence/Gma.Modules.Auth.Persistence.csproj" />
+    <Project Path="apps/backend/gma/modules/auth/src/Gma.Modules.Auth.Providers.OpenIdConnect/Gma.Modules.Auth.Providers.OpenIdConnect.csproj" />
   </Folder>
   <Folder Name="/apps/backend/gma/modules/auth/tests/">
     <Project Path="apps/backend/gma/modules/auth/tests/Gma.Modules.Auth.Tests/Gma.Modules.Auth.Tests.csproj" />
@@ -269,6 +280,7 @@
     <Project Path="apps/backend/gma/modules/files/src/Gma.Modules.Files.Contracts/Gma.Modules.Files.Contracts.csproj" />
   </Folder>
   <Folder Name="/apps/backend/gma/modules/notifications/src/">
+    <Project Path="apps/backend/gma/modules/notifications/src/Gma.Modules.Notifications.Adapters.Email/Gma.Modules.Notifications.Adapters.Email.csproj" />
     <Project Path="apps/backend/gma/modules/notifications/src/Gma.Modules.Notifications.Admin.Contracts/Gma.Modules.Notifications.Admin.Contracts.csproj" />
     <Project Path="apps/backend/gma/modules/notifications/src/Gma.Modules.Notifications.AdminApi/Gma.Modules.Notifications.AdminApi.csproj" />
     <Project Path="apps/backend/gma/modules/notifications/src/Gma.Modules.Notifications.Api/Gma.Modules.Notifications.Api.csproj" />
@@ -317,11 +329,18 @@
   <Folder Name="/apps/backend/src/Adapters/tests/">
     <Project Path="apps/backend/src/Adapters/tests/BunkFy.Adapters.Tests/BunkFy.Adapters.Tests.csproj" />
   </Folder>
+  <Folder Name="/apps/backend/src/Extensions/">
+    <Project Path="apps/backend/src/Extensions/BunkFy.Extensions.Operations.Notifications/BunkFy.Extensions.Operations.Notifications.csproj" />
+  </Folder>
+  <Folder Name="/apps/backend/src/Extensions/tests/">
+    <Project Path="apps/backend/src/Extensions/tests/BunkFy.Extensions.Operations.Notifications.Tests/BunkFy.Extensions.Operations.Notifications.Tests.csproj" />
+  </Folder>
   <Folder Name="/apps/backend/src/Hosts/">
     <Project Path="apps/backend/src/BunkFy.Host.AdminApi/BunkFy.Host.AdminApi.csproj" />
     <Project Path="apps/backend/src/BunkFy.Host.AdminCli/BunkFy.Host.AdminCli.csproj" />
     <Project Path="apps/backend/src/BunkFy.Host.Api/BunkFy.Host.Api.csproj" />
     <Project Path="apps/backend/src/BunkFy.Host.AppHost/BunkFy.Host.AppHost.csproj" />
+    <Project Path="apps/backend/src/BunkFy.Host.Migrations/BunkFy.Host.Migrations.csproj" />
     <Project Path="apps/backend/src/BunkFy.Host.ServiceDefaults/BunkFy.Host.ServiceDefaults.csproj" />
     <Project Path="apps/backend/src/BunkFy.Host.Worker/BunkFy.Host.Worker.csproj" />
   </Folder>
@@ -450,6 +469,9 @@
     <File Path="docs/brand/house-q/README.md" />
     <File Path="docs/brand/house-q/design-qa.md" />
   </Folder>
+  <Folder Name="/docs/operations/">
+    <File Path="docs/operations/preview-deployment.md" />
+  </Folder>
   <Folder Name="/docs/planning/">
     <File Path="docs/planning/bunkfy-repository-stack-and-workflow-plan.md" />
   </Folder>
@@ -457,13 +479,22 @@
     <File Path="eng/bootstrap.ps1" />
     <File Path="eng/common.ps1" />
     <File Path="eng/guard-submodules-latest.ps1" />
+    <File Path="eng/new-preview-env.ps1" />
+    <File Path="eng/preview.ps1" />
     <File Path="eng/run-aspire.ps1" />
     <File Path="eng/submodule-status.ps1" />
     <File Path="eng/sync-github-modules.ps1" />
     <File Path="eng/sync-submodules.ps1" />
     <File Path="eng/update-gma.ps1" />
     <File Path="eng/update-web-contracts.ps1" />
+    <File Path="eng/verify-operations.ps1" />
     <File Path="eng/verify.ps1" />
+  </Folder>
+  <Folder Name="/eng/operations/">
+    <File Path="eng/operations/admin-api.common.ps1" />
+    <File Path="eng/operations/backup-preview.ps1" />
+    <File Path="eng/operations/offboard-staff-access.ps1" />
+    <File Path="eng/operations/provision-staff-access.ps1" />
   </Folder>
   <Folder Name="/src/">
     <Project Path="src/BunkFy.AppHost/BunkFy.AppHost.csproj" />
