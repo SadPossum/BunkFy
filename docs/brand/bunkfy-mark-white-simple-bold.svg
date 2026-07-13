@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 288 256" role="img" aria-labelledby="title description">
+  <title id="title">BunkFy bold simplified white logo mark</title>
+  <desc id="description">A bold white geometric letter B formed from two stacked rounded bunks, two matching pillows, and one suitcase overlapping the lower rail on the BunkFy primary-green background.</desc>
+
+  <defs>
+    <path id="case-shape" d="M183 171V155H203V171M178 171H208C212 171 215 174 215 178V215C215 220 212 223 207 223H179C174 223 171 220 171 215V179C171 174 174 171 178 171Z"/>
+    <mask id="case-cutout" maskUnits="userSpaceOnUse">
+      <rect width="288" height="256" fill="#FFFFFF"/>
+      <use href="#case-shape" fill="#000000" stroke="#000000" stroke-width="22"/>
+    </mask>
+  </defs>
+  <rect width="288" height="256" rx="30" fill="#084F39"/>
+  <g fill="none" stroke="#FFFFFF" stroke-width="16" stroke-linecap="round" stroke-linejoin="round" mask="url(#case-cutout)">
+    <path d="M48 220V36"/>
+    <path d="M48 36H166C204 36 226 53.5 226 80.5C226 108.5 204 125 166 125H48"/>
+    <path d="M48 125H173C213 125 236 143.5 236 172.5C236 202.5 212.5 220 173 220H48"/>
+    <path d="M70 84L99 108M70 179L99 203"/>
+  </g>
+  <use href="#case-shape" fill="none" stroke="#FFFFFF" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

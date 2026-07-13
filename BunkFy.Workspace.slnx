@@ -1,21 +1,470 @@
 <Solution>
-  <Folder Name="/src/">
-    <Project Path="src/BunkFy.AppHost/BunkFy.AppHost.csproj" />
-    <Project Path="src/BunkFy.ServiceDefaults/BunkFy.ServiceDefaults.csproj" />
+  <Folder Name="/.github/workflows/">
+    <File Path=".github/workflows/validate.yml" />
   </Folder>
-  <Folder Name="/eng/">
-    <File Path="eng/bootstrap.ps1" />
-    <File Path="eng/common.ps1" />
-    <File Path="eng/run-aspire.ps1" />
-    <File Path="eng/submodule-status.ps1" />
-    <File Path="eng/update-gma.ps1" />
-    <File Path="eng/verify.ps1" />
+  <Folder Name="/apps/backend/">
+    <File Path="apps/backend/BunkFy.slnx" />
+  </Folder>
+  <Folder Name="/apps/backend/.github/">
+    <File Path="apps/backend/.github/dependabot.yml" />
+  </Folder>
+  <Folder Name="/apps/backend/.github/workflows/">
+    <File Path="apps/backend/.github/workflows/docker-tests.yml" />
+    <File Path="apps/backend/.github/workflows/release-source-set.yml" />
+    <File Path="apps/backend/.github/workflows/validate.yml" />
+  </Folder>
+  <Folder Name="/apps/backend/docs/">
+    <File Path="apps/backend/docs/README.md" />
+  </Folder>
+  <Folder Name="/apps/backend/docs/architecture/">
+    <File Path="apps/backend/docs/architecture/ingestion-adapter-boundary.md" />
+    <File Path="apps/backend/docs/architecture/overview.md" />
+  </Folder>
+  <Folder Name="/apps/backend/docs/examples/">
+    <File Path="apps/backend/docs/examples/cross-module-integration.md" />
+  </Folder>
+  <Folder Name="/apps/backend/docs/getting-started/">
+    <File Path="apps/backend/docs/getting-started/gma-source-mounts.md" />
+    <File Path="apps/backend/docs/getting-started/local-development.md" />
+    <File Path="apps/backend/docs/getting-started/setup.md" />
+  </Folder>
+  <Folder Name="/apps/backend/docs/operations/">
+    <File Path="apps/backend/docs/operations/ingestion-runtime-baseline.md" />
+  </Folder>
+  <Folder Name="/apps/backend/docs/planning/">
+    <File Path="apps/backend/docs/planning/adapter-http-client-task.md" />
+    <File Path="apps/backend/docs/planning/architecture-cleanup-task.md" />
+    <File Path="apps/backend/docs/planning/development-guidelines.md" />
+    <File Path="apps/backend/docs/planning/gma-access-control-properties-alignment.md" />
+    <File Path="apps/backend/docs/planning/gma-durable-runtime-alignment.md" />
+    <File Path="apps/backend/docs/planning/guest-records-module-task.md" />
+    <File Path="apps/backend/docs/planning/imap-reservation-mail-adapter-task.md" />
+    <File Path="apps/backend/docs/planning/imap-reservation-mail-authentication-task.md" />
+    <File Path="apps/backend/docs/planning/imap-reservation-mail-key-rotation-task.md" />
+    <File Path="apps/backend/docs/planning/ingestion-adapter-ingress-task.md" />
+    <File Path="apps/backend/docs/planning/ingestion-legal-holds-task.md" />
+    <File Path="apps/backend/docs/planning/ingestion-module-task.md" />
+    <File Path="apps/backend/docs/planning/ingestion-pii-minimization-task.md" />
+    <File Path="apps/backend/docs/planning/ingestion-sensitive-history-retention-task.md" />
+    <File Path="apps/backend/docs/planning/ingestion-source-reprocessing-task.md" />
+    <File Path="apps/backend/docs/planning/inventory-module-task.md" />
+    <File Path="apps/backend/docs/planning/json-file-drop-adapter-task.md" />
+    <File Path="apps/backend/docs/planning/json-file-drop-local-retention-task.md" />
+    <File Path="apps/backend/docs/planning/json-file-drop-quarantine-task.md" />
+    <File Path="apps/backend/docs/planning/pre-module-readiness.md" />
+    <File Path="apps/backend/docs/planning/product-domain-map.md" />
+    <File Path="apps/backend/docs/planning/properties-follow-up-notes.md" />
+    <File Path="apps/backend/docs/planning/properties-module-task.md" />
+    <File Path="apps/backend/docs/planning/properties-topology-lifecycle-task.md" />
+    <File Path="apps/backend/docs/planning/remote-adapter-lease-task.md" />
+    <File Path="apps/backend/docs/planning/reservations-module-task.md" />
+    <File Path="apps/backend/docs/planning/reservations-stay-lifecycle-task.md" />
+    <File Path="apps/backend/docs/planning/staff-profiles-module-task.md" />
+    <File Path="apps/backend/docs/planning/standalone-adapter-host-task.md" />
+  </Folder>
+  <Folder Name="/apps/backend/eng/">
+    <File Path="apps/backend/eng/add-migration.ps1" />
+    <File Path="apps/backend/eng/build.ps1" />
+    <File Path="apps/backend/eng/check-migrations.ps1" />
+    <File Path="apps/backend/eng/check-source-packages.ps1" />
+    <File Path="apps/backend/eng/check-submodule-dev-heads.ps1" />
+    <File Path="apps/backend/eng/common.ps1" />
+    <File Path="apps/backend/eng/export-source-set.ps1" />
+    <File Path="apps/backend/eng/gma-bootstrap.ps1" />
+    <File Path="apps/backend/eng/gma-status.ps1" />
+    <File Path="apps/backend/eng/gma-update.ps1" />
+    <File Path="apps/backend/eng/gma-validate.ps1" />
+    <File Path="apps/backend/eng/new-module.ps1" />
+    <File Path="apps/backend/eng/restore.ps1" />
+    <File Path="apps/backend/eng/run-adapter.ps1" />
+    <File Path="apps/backend/eng/run-admin.ps1" />
+    <File Path="apps/backend/eng/run-admin-api.ps1" />
+    <File Path="apps/backend/eng/run-api.ps1" />
+    <File Path="apps/backend/eng/run-aspire.ps1" />
+    <File Path="apps/backend/eng/run-worker.ps1" />
+    <File Path="apps/backend/eng/test-docker.ps1" />
+    <File Path="apps/backend/eng/test-fast.ps1" />
+    <File Path="apps/backend/eng/test-ingestion-runtime.ps1" />
+    <File Path="apps/backend/eng/update-solutions.ps1" />
+    <File Path="apps/backend/eng/verify.ps1" />
+  </Folder>
+  <Folder Name="/apps/backend/gma/framework/.tmp/composition-tooling-e210fe4ca4a14c1985b81aef52e4fa97/src/Hosts/">
+    <Project Path="apps/backend/gma/framework/.tmp/composition-tooling-e210fe4ca4a14c1985b81aef52e4fa97/src/Hosts/Acme.Host.Api/Acme.Host.Api.csproj" />
+  </Folder>
+  <Folder Name="/apps/backend/gma/framework/.tmp/composition-tooling-e210fe4ca4a14c1985b81aef52e4fa97/src/Modules/Billing/">
+    <Project Path="apps/backend/gma/framework/.tmp/composition-tooling-e210fe4ca4a14c1985b81aef52e4fa97/src/Modules/Billing/Acme.Modules.Billing.Admin.Contracts/Acme.Modules.Billing.Admin.Contracts.csproj" />
+    <Project Path="apps/backend/gma/framework/.tmp/composition-tooling-e210fe4ca4a14c1985b81aef52e4fa97/src/Modules/Billing/Acme.Modules.Billing.AdminApi/Acme.Modules.Billing.AdminApi.csproj" />
+    <Project Path="apps/backend/gma/framework/.tmp/composition-tooling-e210fe4ca4a14c1985b81aef52e4fa97/src/Modules/Billing/Acme.Modules.Billing.AdminCli/Acme.Modules.Billing.AdminCli.csproj" />
+    <Project Path="apps/backend/gma/framework/.tmp/composition-tooling-e210fe4ca4a14c1985b81aef52e4fa97/src/Modules/Billing/Acme.Modules.Billing.Api/Acme.Modules.Billing.Api.csproj" />
+    <Project Path="apps/backend/gma/framework/.tmp/composition-tooling-e210fe4ca4a14c1985b81aef52e4fa97/src/Modules/Billing/Acme.Modules.Billing.Application/Acme.Modules.Billing.Application.csproj" />
+    <Project Path="apps/backend/gma/framework/.tmp/composition-tooling-e210fe4ca4a14c1985b81aef52e4fa97/src/Modules/Billing/Acme.Modules.Billing.Contracts/Acme.Modules.Billing.Contracts.csproj" />
+    <Project Path="apps/backend/gma/framework/.tmp/composition-tooling-e210fe4ca4a14c1985b81aef52e4fa97/src/Modules/Billing/Acme.Modules.Billing.Domain/Acme.Modules.Billing.Domain.csproj" />
+    <Project Path="apps/backend/gma/framework/.tmp/composition-tooling-e210fe4ca4a14c1985b81aef52e4fa97/src/Modules/Billing/Acme.Modules.Billing.Persistence.PostgreSqlMigrations/Acme.Modules.Billing.Persistence.PostgreSqlMigrations.csproj" />
+    <Project Path="apps/backend/gma/framework/.tmp/composition-tooling-e210fe4ca4a14c1985b81aef52e4fa97/src/Modules/Billing/Acme.Modules.Billing.Persistence/Acme.Modules.Billing.Persistence.csproj" />
+  </Folder>
+  <Folder Name="/apps/backend/gma/framework/src/Administration/">
+    <Project Path="apps/backend/gma/framework/src/Administration/Gma.Framework.Administration.AccessControl/Gma.Framework.Administration.AccessControl.csproj" />
+    <Project Path="apps/backend/gma/framework/src/Administration/Gma.Framework.Administration.Api/Gma.Framework.Administration.Api.csproj" />
+    <Project Path="apps/backend/gma/framework/src/Administration/Gma.Framework.Administration.Cli/Gma.Framework.Administration.Cli.csproj" />
+    <Project Path="apps/backend/gma/framework/src/Administration/Gma.Framework.Administration/Gma.Framework.Administration.csproj" />
+  </Folder>
+  <Folder Name="/apps/backend/gma/framework/src/Api/">
+    <Project Path="apps/backend/gma/framework/src/Api/Gma.Framework.Api.OpenApi/Gma.Framework.Api.OpenApi.csproj" />
+    <Project Path="apps/backend/gma/framework/src/Api/Gma.Framework.Api.Production.EntityFrameworkCore/Gma.Framework.Api.Production.EntityFrameworkCore.csproj" />
+    <Project Path="apps/backend/gma/framework/src/Api/Gma.Framework.Api.Production/Gma.Framework.Api.Production.csproj" />
+    <Project Path="apps/backend/gma/framework/src/Api/Gma.Framework.Api.Serilog/Gma.Framework.Api.Serilog.csproj" />
+    <Project Path="apps/backend/gma/framework/src/Api/Gma.Framework.Api/Gma.Framework.Api.csproj" />
+  </Folder>
+  <Folder Name="/apps/backend/gma/framework/src/Application/">
+    <Project Path="apps/backend/gma/framework/src/Application/Gma.Framework.Application.Composition/Gma.Framework.Application.Composition.csproj" />
+    <Project Path="apps/backend/gma/framework/src/Application/Gma.Framework.Application.Events.Infrastructure/Gma.Framework.Application.Events.Infrastructure.csproj" />
+    <Project Path="apps/backend/gma/framework/src/Application/Gma.Framework.Application.Events/Gma.Framework.Application.Events.csproj" />
+  </Folder>
+  <Folder Name="/apps/backend/gma/framework/src/Caching/">
+    <Project Path="apps/backend/gma/framework/src/Caching/Gma.Framework.Caching.Cqrs/Gma.Framework.Caching.Cqrs.csproj" />
+    <Project Path="apps/backend/gma/framework/src/Caching/Gma.Framework.Caching.Infrastructure/Gma.Framework.Caching.Infrastructure.csproj" />
+    <Project Path="apps/backend/gma/framework/src/Caching/Gma.Framework.Caching.Redis/Gma.Framework.Caching.Redis.csproj" />
+    <Project Path="apps/backend/gma/framework/src/Caching/Gma.Framework.Caching/Gma.Framework.Caching.csproj" />
+  </Folder>
+  <Folder Name="/apps/backend/gma/framework/src/Cqrs/">
+    <Project Path="apps/backend/gma/framework/src/Cqrs/Gma.Framework.Cqrs.Infrastructure/Gma.Framework.Cqrs.Infrastructure.csproj" />
+    <Project Path="apps/backend/gma/framework/src/Cqrs/Gma.Framework.Cqrs/Gma.Framework.Cqrs.csproj" />
+  </Folder>
+  <Folder Name="/apps/backend/gma/framework/src/Domain/">
+    <Project Path="apps/backend/gma/framework/src/Domain/Gma.Framework.Domain/Gma.Framework.Domain.csproj" />
+  </Folder>
+  <Folder Name="/apps/backend/gma/framework/src/FileManagement/">
+    <Project Path="apps/backend/gma/framework/src/FileManagement/Gma.Framework.FileManagement.LocalStorage/Gma.Framework.FileManagement.LocalStorage.csproj" />
+    <Project Path="apps/backend/gma/framework/src/FileManagement/Gma.Framework.FileManagement.Minio/Gma.Framework.FileManagement.Minio.csproj" />
+    <Project Path="apps/backend/gma/framework/src/FileManagement/Gma.Framework.FileManagement/Gma.Framework.FileManagement.csproj" />
+  </Folder>
+  <Folder Name="/apps/backend/gma/framework/src/Infrastructure/">
+    <Project Path="apps/backend/gma/framework/src/Infrastructure/Gma.Framework.Infrastructure/Gma.Framework.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/apps/backend/gma/framework/src/Logging/">
+    <Project Path="apps/backend/gma/framework/src/Logging/Gma.Framework.Logging.Serilog/Gma.Framework.Logging.Serilog.csproj" />
+  </Folder>
+  <Folder Name="/apps/backend/gma/framework/src/Messaging/">
+    <Project Path="apps/backend/gma/framework/src/Messaging/Gma.Framework.Messaging.Infrastructure/Gma.Framework.Messaging.Infrastructure.csproj" />
+    <Project Path="apps/backend/gma/framework/src/Messaging/Gma.Framework.Messaging.Nats.Aspire/Gma.Framework.Messaging.Nats.Aspire.csproj" />
+    <Project Path="apps/backend/gma/framework/src/Messaging/Gma.Framework.Messaging.Nats/Gma.Framework.Messaging.Nats.csproj" />
+    <Project Path="apps/backend/gma/framework/src/Messaging/Gma.Framework.Messaging/Gma.Framework.Messaging.csproj" />
+  </Folder>
+  <Folder Name="/apps/backend/gma/framework/src/Modules/">
+    <Project Path="apps/backend/gma/framework/src/Modules/Gma.Framework.ModuleComposition/Gma.Framework.ModuleComposition.csproj" />
+    <Project Path="apps/backend/gma/framework/src/Modules/Gma.Framework.Modules/Gma.Framework.Modules.csproj" />
+  </Folder>
+  <Folder Name="/apps/backend/gma/framework/src/Naming/">
+    <Project Path="apps/backend/gma/framework/src/Naming/Gma.Framework.Naming/Gma.Framework.Naming.csproj" />
+  </Folder>
+  <Folder Name="/apps/backend/gma/framework/src/Notifications/">
+    <Project Path="apps/backend/gma/framework/src/Notifications/Gma.Framework.Notifications.Api/Gma.Framework.Notifications.Api.csproj" />
+    <Project Path="apps/backend/gma/framework/src/Notifications/Gma.Framework.Notifications.Cqrs/Gma.Framework.Notifications.Cqrs.csproj" />
+    <Project Path="apps/backend/gma/framework/src/Notifications/Gma.Framework.Notifications.Infrastructure/Gma.Framework.Notifications.Infrastructure.csproj" />
+    <Project Path="apps/backend/gma/framework/src/Notifications/Gma.Framework.Notifications.SignalR/Gma.Framework.Notifications.SignalR.csproj" />
+    <Project Path="apps/backend/gma/framework/src/Notifications/Gma.Framework.Notifications/Gma.Framework.Notifications.csproj" />
+  </Folder>
+  <Folder Name="/apps/backend/gma/framework/src/Numerics/">
+    <Project Path="apps/backend/gma/framework/src/Numerics/Gma.Framework.Numerics/Gma.Framework.Numerics.csproj" />
+  </Folder>
+  <Folder Name="/apps/backend/gma/framework/src/Observability/">
+    <Project Path="apps/backend/gma/framework/src/Observability/Gma.Framework.Observability.Infrastructure/Gma.Framework.Observability.Infrastructure.csproj" />
+    <Project Path="apps/backend/gma/framework/src/Observability/Gma.Framework.Observability/Gma.Framework.Observability.csproj" />
+  </Folder>
+  <Folder Name="/apps/backend/gma/framework/src/Pagination/">
+    <Project Path="apps/backend/gma/framework/src/Pagination/Gma.Framework.Pagination/Gma.Framework.Pagination.csproj" />
+  </Folder>
+  <Folder Name="/apps/backend/gma/framework/src/Persistence/">
+    <Project Path="apps/backend/gma/framework/src/Persistence/Gma.Framework.Persistence.EntityFrameworkCore/Gma.Framework.Persistence.EntityFrameworkCore.csproj" />
+  </Folder>
+  <Folder Name="/apps/backend/gma/framework/src/ProjectionRebuild/">
+    <Project Path="apps/backend/gma/framework/src/ProjectionRebuild/Gma.Framework.ProjectionRebuild.EntityFrameworkCore/Gma.Framework.ProjectionRebuild.EntityFrameworkCore.csproj" />
+    <Project Path="apps/backend/gma/framework/src/ProjectionRebuild/Gma.Framework.ProjectionRebuild.Tasks/Gma.Framework.ProjectionRebuild.Tasks.csproj" />
+    <Project Path="apps/backend/gma/framework/src/ProjectionRebuild/Gma.Framework.ProjectionRebuild/Gma.Framework.ProjectionRebuild.csproj" />
+  </Folder>
+  <Folder Name="/apps/backend/gma/framework/src/Realtime/">
+    <Project Path="apps/backend/gma/framework/src/Realtime/Gma.Framework.Realtime.Infrastructure/Gma.Framework.Realtime.Infrastructure.csproj" />
+    <Project Path="apps/backend/gma/framework/src/Realtime/Gma.Framework.Realtime.Notifications/Gma.Framework.Realtime.Notifications.csproj" />
+    <Project Path="apps/backend/gma/framework/src/Realtime/Gma.Framework.Realtime/Gma.Framework.Realtime.csproj" />
+  </Folder>
+  <Folder Name="/apps/backend/gma/framework/src/Results/">
+    <Project Path="apps/backend/gma/framework/src/Results/Gma.Framework.Results/Gma.Framework.Results.csproj" />
+  </Folder>
+  <Folder Name="/apps/backend/gma/framework/src/Runtime/">
+    <Project Path="apps/backend/gma/framework/src/Runtime/Gma.Framework.Runtime.Infrastructure/Gma.Framework.Runtime.Infrastructure.csproj" />
+    <Project Path="apps/backend/gma/framework/src/Runtime/Gma.Framework.Runtime/Gma.Framework.Runtime.csproj" />
+  </Folder>
+  <Folder Name="/apps/backend/gma/framework/src/Scoping/">
+    <Project Path="apps/backend/gma/framework/src/Scoping/Gma.Framework.Scoping.Infrastructure/Gma.Framework.Scoping.Infrastructure.csproj" />
+    <Project Path="apps/backend/gma/framework/src/Scoping/Gma.Framework.Scoping/Gma.Framework.Scoping.csproj" />
+  </Folder>
+  <Folder Name="/apps/backend/gma/framework/src/Security/">
+    <Project Path="apps/backend/gma/framework/src/Security/Gma.Framework.AccessControl.AspNetCore/Gma.Framework.AccessControl.AspNetCore.csproj" />
+    <Project Path="apps/backend/gma/framework/src/Security/Gma.Framework.AccessControl/Gma.Framework.AccessControl.csproj" />
+    <Project Path="apps/backend/gma/framework/src/Security/Gma.Framework.Permissions/Gma.Framework.Permissions.csproj" />
+    <Project Path="apps/backend/gma/framework/src/Security/Gma.Framework.Security/Gma.Framework.Security.csproj" />
+  </Folder>
+  <Folder Name="/apps/backend/gma/framework/src/Tasks/">
+    <Project Path="apps/backend/gma/framework/src/Tasks/Gma.Framework.Tasks.Cqrs/Gma.Framework.Tasks.Cqrs.csproj" />
+    <Project Path="apps/backend/gma/framework/src/Tasks/Gma.Framework.Tasks.Infrastructure/Gma.Framework.Tasks.Infrastructure.csproj" />
+    <Project Path="apps/backend/gma/framework/src/Tasks/Gma.Framework.Tasks/Gma.Framework.Tasks.csproj" />
+  </Folder>
+  <Folder Name="/apps/backend/gma/framework/src/Tenancy/">
+    <Project Path="apps/backend/gma/framework/src/Tenancy/Gma.Framework.Tenancy.AccessControl.AspNetCore/Gma.Framework.Tenancy.AccessControl.AspNetCore.csproj" />
+    <Project Path="apps/backend/gma/framework/src/Tenancy/Gma.Framework.Tenancy.Api.Serilog/Gma.Framework.Tenancy.Api.Serilog.csproj" />
+    <Project Path="apps/backend/gma/framework/src/Tenancy/Gma.Framework.Tenancy.Caching/Gma.Framework.Tenancy.Caching.csproj" />
+    <Project Path="apps/backend/gma/framework/src/Tenancy/Gma.Framework.Tenancy.Cqrs/Gma.Framework.Tenancy.Cqrs.csproj" />
+    <Project Path="apps/backend/gma/framework/src/Tenancy/Gma.Framework.Tenancy.Infrastructure/Gma.Framework.Tenancy.Infrastructure.csproj" />
+    <Project Path="apps/backend/gma/framework/src/Tenancy/Gma.Framework.Tenancy.Messaging.Infrastructure/Gma.Framework.Tenancy.Messaging.Infrastructure.csproj" />
+    <Project Path="apps/backend/gma/framework/src/Tenancy/Gma.Framework.Tenancy.Messaging/Gma.Framework.Tenancy.Messaging.csproj" />
+    <Project Path="apps/backend/gma/framework/src/Tenancy/Gma.Framework.Tenancy.Scoping/Gma.Framework.Tenancy.Scoping.csproj" />
+    <Project Path="apps/backend/gma/framework/src/Tenancy/Gma.Framework.Tenancy.Tasks/Gma.Framework.Tenancy.Tasks.csproj" />
+    <Project Path="apps/backend/gma/framework/src/Tenancy/Gma.Framework.Tenancy/Gma.Framework.Tenancy.csproj" />
+  </Folder>
+  <Folder Name="/apps/backend/gma/framework/tests/">
+    <Project Path="apps/backend/gma/framework/tests/Gma.Framework.Tests/Gma.Framework.Tests.csproj" />
+  </Folder>
+  <Folder Name="/apps/backend/gma/modules/access-control/src/">
+    <Project Path="apps/backend/gma/modules/access-control/src/Gma.Modules.AccessControl.Admin.Contracts/Gma.Modules.AccessControl.Admin.Contracts.csproj" />
+    <Project Path="apps/backend/gma/modules/access-control/src/Gma.Modules.AccessControl.AdminApi/Gma.Modules.AccessControl.AdminApi.csproj" />
+    <Project Path="apps/backend/gma/modules/access-control/src/Gma.Modules.AccessControl.AdminCli/Gma.Modules.AccessControl.AdminCli.csproj" />
+    <Project Path="apps/backend/gma/modules/access-control/src/Gma.Modules.AccessControl.Application/Gma.Modules.AccessControl.Application.csproj" />
+    <Project Path="apps/backend/gma/modules/access-control/src/Gma.Modules.AccessControl.Contracts/Gma.Modules.AccessControl.Contracts.csproj" />
+    <Project Path="apps/backend/gma/modules/access-control/src/Gma.Modules.AccessControl.Persistence.PostgreSqlMigrations/Gma.Modules.AccessControl.Persistence.PostgreSqlMigrations.csproj" />
+    <Project Path="apps/backend/gma/modules/access-control/src/Gma.Modules.AccessControl.Persistence.SqlServerMigrations/Gma.Modules.AccessControl.Persistence.SqlServerMigrations.csproj" />
+    <Project Path="apps/backend/gma/modules/access-control/src/Gma.Modules.AccessControl.Persistence/Gma.Modules.AccessControl.Persistence.csproj" />
+  </Folder>
+  <Folder Name="/apps/backend/gma/modules/access-control/tests/">
+    <Project Path="apps/backend/gma/modules/access-control/tests/Gma.Modules.AccessControl.Tests/Gma.Modules.AccessControl.Tests.csproj" />
+  </Folder>
+  <Folder Name="/apps/backend/gma/modules/administration/src/">
+    <Project Path="apps/backend/gma/modules/administration/src/Gma.Modules.Administration.AdminApi/Gma.Modules.Administration.AdminApi.csproj" />
+    <Project Path="apps/backend/gma/modules/administration/src/Gma.Modules.Administration.AdminCli/Gma.Modules.Administration.AdminCli.csproj" />
+    <Project Path="apps/backend/gma/modules/administration/src/Gma.Modules.Administration.Application/Gma.Modules.Administration.Application.csproj" />
+    <Project Path="apps/backend/gma/modules/administration/src/Gma.Modules.Administration.Contracts/Gma.Modules.Administration.Contracts.csproj" />
+    <Project Path="apps/backend/gma/modules/administration/src/Gma.Modules.Administration.Persistence.PostgreSqlMigrations/Gma.Modules.Administration.Persistence.PostgreSqlMigrations.csproj" />
+    <Project Path="apps/backend/gma/modules/administration/src/Gma.Modules.Administration.Persistence.SqlServerMigrations/Gma.Modules.Administration.Persistence.SqlServerMigrations.csproj" />
+    <Project Path="apps/backend/gma/modules/administration/src/Gma.Modules.Administration.Persistence/Gma.Modules.Administration.Persistence.csproj" />
+  </Folder>
+  <Folder Name="/apps/backend/gma/modules/administration/tests/">
+    <Project Path="apps/backend/gma/modules/administration/tests/Gma.Modules.Administration.Tests/Gma.Modules.Administration.Tests.csproj" />
+  </Folder>
+  <Folder Name="/apps/backend/gma/modules/auth/src/">
+    <Project Path="apps/backend/gma/modules/auth/src/Gma.Modules.Auth.Admin.Contracts/Gma.Modules.Auth.Admin.Contracts.csproj" />
+    <Project Path="apps/backend/gma/modules/auth/src/Gma.Modules.Auth.AdminApi/Gma.Modules.Auth.AdminApi.csproj" />
+    <Project Path="apps/backend/gma/modules/auth/src/Gma.Modules.Auth.AdminCli/Gma.Modules.Auth.AdminCli.csproj" />
+    <Project Path="apps/backend/gma/modules/auth/src/Gma.Modules.Auth.Api/Gma.Modules.Auth.Api.csproj" />
+    <Project Path="apps/backend/gma/modules/auth/src/Gma.Modules.Auth.Application/Gma.Modules.Auth.Application.csproj" />
+    <Project Path="apps/backend/gma/modules/auth/src/Gma.Modules.Auth.Contracts/Gma.Modules.Auth.Contracts.csproj" />
+    <Project Path="apps/backend/gma/modules/auth/src/Gma.Modules.Auth.Domain/Gma.Modules.Auth.Domain.csproj" />
+    <Project Path="apps/backend/gma/modules/auth/src/Gma.Modules.Auth.Infrastructure.JwtBearer/Gma.Modules.Auth.Infrastructure.JwtBearer.csproj" />
+    <Project Path="apps/backend/gma/modules/auth/src/Gma.Modules.Auth.Infrastructure/Gma.Modules.Auth.Infrastructure.csproj" />
+    <Project Path="apps/backend/gma/modules/auth/src/Gma.Modules.Auth.Persistence.PostgreSqlMigrations/Gma.Modules.Auth.Persistence.PostgreSqlMigrations.csproj" />
+    <Project Path="apps/backend/gma/modules/auth/src/Gma.Modules.Auth.Persistence.SqlServerMigrations/Gma.Modules.Auth.Persistence.SqlServerMigrations.csproj" />
+    <Project Path="apps/backend/gma/modules/auth/src/Gma.Modules.Auth.Persistence/Gma.Modules.Auth.Persistence.csproj" />
+  </Folder>
+  <Folder Name="/apps/backend/gma/modules/auth/tests/">
+    <Project Path="apps/backend/gma/modules/auth/tests/Gma.Modules.Auth.Tests/Gma.Modules.Auth.Tests.csproj" />
+  </Folder>
+  <Folder Name="/apps/backend/gma/modules/files/src/">
+    <Project Path="apps/backend/gma/modules/files/src/Gma.Modules.Files.Api/Gma.Modules.Files.Api.csproj" />
+    <Project Path="apps/backend/gma/modules/files/src/Gma.Modules.Files.Application/Gma.Modules.Files.Application.csproj" />
+    <Project Path="apps/backend/gma/modules/files/src/Gma.Modules.Files.Contracts/Gma.Modules.Files.Contracts.csproj" />
+  </Folder>
+  <Folder Name="/apps/backend/gma/modules/notifications/src/">
+    <Project Path="apps/backend/gma/modules/notifications/src/Gma.Modules.Notifications.Admin.Contracts/Gma.Modules.Notifications.Admin.Contracts.csproj" />
+    <Project Path="apps/backend/gma/modules/notifications/src/Gma.Modules.Notifications.AdminApi/Gma.Modules.Notifications.AdminApi.csproj" />
+    <Project Path="apps/backend/gma/modules/notifications/src/Gma.Modules.Notifications.Api/Gma.Modules.Notifications.Api.csproj" />
+    <Project Path="apps/backend/gma/modules/notifications/src/Gma.Modules.Notifications.Application/Gma.Modules.Notifications.Application.csproj" />
+    <Project Path="apps/backend/gma/modules/notifications/src/Gma.Modules.Notifications.Contracts/Gma.Modules.Notifications.Contracts.csproj" />
+    <Project Path="apps/backend/gma/modules/notifications/src/Gma.Modules.Notifications.Domain/Gma.Modules.Notifications.Domain.csproj" />
+    <Project Path="apps/backend/gma/modules/notifications/src/Gma.Modules.Notifications.Persistence.PostgreSqlMigrations/Gma.Modules.Notifications.Persistence.PostgreSqlMigrations.csproj" />
+    <Project Path="apps/backend/gma/modules/notifications/src/Gma.Modules.Notifications.Persistence.SqlServerMigrations/Gma.Modules.Notifications.Persistence.SqlServerMigrations.csproj" />
+    <Project Path="apps/backend/gma/modules/notifications/src/Gma.Modules.Notifications.Persistence/Gma.Modules.Notifications.Persistence.csproj" />
+  </Folder>
+  <Folder Name="/apps/backend/gma/modules/notifications/tests/">
+    <Project Path="apps/backend/gma/modules/notifications/tests/Gma.Modules.Notifications.Tests/Gma.Modules.Notifications.Tests.csproj" />
+  </Folder>
+  <Folder Name="/apps/backend/gma/modules/task-runtime/src/">
+    <Project Path="apps/backend/gma/modules/task-runtime/src/Gma.Modules.TaskRuntime.Admin.Contracts/Gma.Modules.TaskRuntime.Admin.Contracts.csproj" />
+    <Project Path="apps/backend/gma/modules/task-runtime/src/Gma.Modules.TaskRuntime.AdminApi/Gma.Modules.TaskRuntime.AdminApi.csproj" />
+    <Project Path="apps/backend/gma/modules/task-runtime/src/Gma.Modules.TaskRuntime.AdminCli/Gma.Modules.TaskRuntime.AdminCli.csproj" />
+    <Project Path="apps/backend/gma/modules/task-runtime/src/Gma.Modules.TaskRuntime.Application/Gma.Modules.TaskRuntime.Application.csproj" />
+    <Project Path="apps/backend/gma/modules/task-runtime/src/Gma.Modules.TaskRuntime.Contracts/Gma.Modules.TaskRuntime.Contracts.csproj" />
+    <Project Path="apps/backend/gma/modules/task-runtime/src/Gma.Modules.TaskRuntime.Persistence.PostgreSqlMigrations/Gma.Modules.TaskRuntime.Persistence.PostgreSqlMigrations.csproj" />
+    <Project Path="apps/backend/gma/modules/task-runtime/src/Gma.Modules.TaskRuntime.Persistence.SqlServerMigrations/Gma.Modules.TaskRuntime.Persistence.SqlServerMigrations.csproj" />
+    <Project Path="apps/backend/gma/modules/task-runtime/src/Gma.Modules.TaskRuntime.Persistence/Gma.Modules.TaskRuntime.Persistence.csproj" />
+  </Folder>
+  <Folder Name="/apps/backend/gma/modules/tenancy/src/">
+    <Project Path="apps/backend/gma/modules/tenancy/src/Gma.Modules.Tenancy.Api/Gma.Modules.Tenancy.Api.csproj" />
+    <Project Path="apps/backend/gma/modules/tenancy/src/Gma.Modules.Tenancy.Contracts/Gma.Modules.Tenancy.Contracts.csproj" />
+  </Folder>
+  <Folder Name="/apps/backend/requests/">
+    <File Path="apps/backend/requests/admin-api.http" />
+    <File Path="apps/backend/requests/auth.http" />
+  </Folder>
+  <Folder Name="/apps/backend/src/">
+    <Project Path="apps/backend/src/BunkFy.AdapterHost/BunkFy.AdapterHost.csproj" />
+  </Folder>
+  <Folder Name="/apps/backend/src/Adapters/">
+    <Project Path="apps/backend/src/Adapters/BunkFy.Adapters.Configuration/BunkFy.Adapters.Configuration.csproj" />
+    <Project Path="apps/backend/src/Adapters/BunkFy.Adapters.FakeHttp/BunkFy.Adapters.FakeHttp.csproj" />
+    <Project Path="apps/backend/src/Adapters/BunkFy.Adapters.Http/BunkFy.Adapters.Http.csproj" />
+    <Project Path="apps/backend/src/Adapters/BunkFy.Adapters.ImapReservationMail/BunkFy.Adapters.ImapReservationMail.csproj" />
+    <Project Path="apps/backend/src/Adapters/BunkFy.Adapters.JsonFileDrop/BunkFy.Adapters.JsonFileDrop.csproj" />
+    <Project Path="apps/backend/src/Adapters/BunkFy.Parsers.ReservationMail/BunkFy.Parsers.ReservationMail.csproj" />
+  </Folder>
+  <Folder Name="/apps/backend/src/Adapters/docs/">
+    <File Path="apps/backend/src/Adapters/docs/README.md" />
+  </Folder>
+  <Folder Name="/apps/backend/src/Adapters/tests/">
+    <Project Path="apps/backend/src/Adapters/tests/BunkFy.Adapters.Tests/BunkFy.Adapters.Tests.csproj" />
+  </Folder>
+  <Folder Name="/apps/backend/src/Hosts/">
+    <Project Path="apps/backend/src/BunkFy.Host.AdminApi/BunkFy.Host.AdminApi.csproj" />
+    <Project Path="apps/backend/src/BunkFy.Host.AdminCli/BunkFy.Host.AdminCli.csproj" />
+    <Project Path="apps/backend/src/BunkFy.Host.Api/BunkFy.Host.Api.csproj" />
+    <Project Path="apps/backend/src/BunkFy.Host.AppHost/BunkFy.Host.AppHost.csproj" />
+    <Project Path="apps/backend/src/BunkFy.Host.ServiceDefaults/BunkFy.Host.ServiceDefaults.csproj" />
+    <Project Path="apps/backend/src/BunkFy.Host.Worker/BunkFy.Host.Worker.csproj" />
+  </Folder>
+  <Folder Name="/apps/backend/src/Modules/Guests/">
+    <Project Path="apps/backend/src/Modules/Guests/BunkFy.Modules.Guests.Admin.Contracts/BunkFy.Modules.Guests.Admin.Contracts.csproj" />
+    <Project Path="apps/backend/src/Modules/Guests/BunkFy.Modules.Guests.AdminApi/BunkFy.Modules.Guests.AdminApi.csproj" />
+    <Project Path="apps/backend/src/Modules/Guests/BunkFy.Modules.Guests.AdminCli/BunkFy.Modules.Guests.AdminCli.csproj" />
+    <Project Path="apps/backend/src/Modules/Guests/BunkFy.Modules.Guests.Api/BunkFy.Modules.Guests.Api.csproj" />
+    <Project Path="apps/backend/src/Modules/Guests/BunkFy.Modules.Guests.Application/BunkFy.Modules.Guests.Application.csproj" />
+    <Project Path="apps/backend/src/Modules/Guests/BunkFy.Modules.Guests.Contracts/BunkFy.Modules.Guests.Contracts.csproj" />
+    <Project Path="apps/backend/src/Modules/Guests/BunkFy.Modules.Guests.Domain/BunkFy.Modules.Guests.Domain.csproj" />
+    <Project Path="apps/backend/src/Modules/Guests/BunkFy.Modules.Guests.Persistence.PostgreSqlMigrations/BunkFy.Modules.Guests.Persistence.PostgreSqlMigrations.csproj" />
+    <Project Path="apps/backend/src/Modules/Guests/BunkFy.Modules.Guests.Persistence/BunkFy.Modules.Guests.Persistence.csproj" />
+  </Folder>
+  <Folder Name="/apps/backend/src/Modules/Guests/docs/">
+    <File Path="apps/backend/src/Modules/Guests/docs/README.md" />
+  </Folder>
+  <Folder Name="/apps/backend/src/Modules/Guests/tests/">
+    <Project Path="apps/backend/src/Modules/Guests/tests/BunkFy.Modules.Guests.Tests/BunkFy.Modules.Guests.Tests.csproj" />
+  </Folder>
+  <Folder Name="/apps/backend/src/Modules/Ingestion/">
+    <Project Path="apps/backend/src/Modules/Ingestion/BunkFy.Modules.Ingestion.Admin.Contracts/BunkFy.Modules.Ingestion.Admin.Contracts.csproj" />
+    <Project Path="apps/backend/src/Modules/Ingestion/BunkFy.Modules.Ingestion.AdminApi/BunkFy.Modules.Ingestion.AdminApi.csproj" />
+    <Project Path="apps/backend/src/Modules/Ingestion/BunkFy.Modules.Ingestion.AdminCli/BunkFy.Modules.Ingestion.AdminCli.csproj" />
+    <Project Path="apps/backend/src/Modules/Ingestion/BunkFy.Modules.Ingestion.Api/BunkFy.Modules.Ingestion.Api.csproj" />
+    <Project Path="apps/backend/src/Modules/Ingestion/BunkFy.Modules.Ingestion.Application/BunkFy.Modules.Ingestion.Application.csproj" />
+    <Project Path="apps/backend/src/Modules/Ingestion/BunkFy.Modules.Ingestion.Contracts/BunkFy.Modules.Ingestion.Contracts.csproj" />
+    <Project Path="apps/backend/src/Modules/Ingestion/BunkFy.Modules.Ingestion.Domain/BunkFy.Modules.Ingestion.Domain.csproj" />
+    <Project Path="apps/backend/src/Modules/Ingestion/BunkFy.Modules.Ingestion.Persistence.PostgreSqlMigrations/BunkFy.Modules.Ingestion.Persistence.PostgreSqlMigrations.csproj" />
+    <Project Path="apps/backend/src/Modules/Ingestion/BunkFy.Modules.Ingestion.Persistence/BunkFy.Modules.Ingestion.Persistence.csproj" />
+  </Folder>
+  <Folder Name="/apps/backend/src/Modules/Ingestion/docs/">
+    <File Path="apps/backend/src/Modules/Ingestion/docs/README.md" />
+  </Folder>
+  <Folder Name="/apps/backend/src/Modules/Ingestion/tests/">
+    <Project Path="apps/backend/src/Modules/Ingestion/tests/BunkFy.Modules.Ingestion.Tests/BunkFy.Modules.Ingestion.Tests.csproj" />
+  </Folder>
+  <Folder Name="/apps/backend/src/Modules/Inventory/">
+    <Project Path="apps/backend/src/Modules/Inventory/BunkFy.Modules.Inventory.Admin.Contracts/BunkFy.Modules.Inventory.Admin.Contracts.csproj" />
+    <Project Path="apps/backend/src/Modules/Inventory/BunkFy.Modules.Inventory.AdminApi/BunkFy.Modules.Inventory.AdminApi.csproj" />
+    <Project Path="apps/backend/src/Modules/Inventory/BunkFy.Modules.Inventory.AdminCli/BunkFy.Modules.Inventory.AdminCli.csproj" />
+    <Project Path="apps/backend/src/Modules/Inventory/BunkFy.Modules.Inventory.Api/BunkFy.Modules.Inventory.Api.csproj" />
+    <Project Path="apps/backend/src/Modules/Inventory/BunkFy.Modules.Inventory.Application/BunkFy.Modules.Inventory.Application.csproj" />
+    <Project Path="apps/backend/src/Modules/Inventory/BunkFy.Modules.Inventory.Contracts/BunkFy.Modules.Inventory.Contracts.csproj" />
+    <Project Path="apps/backend/src/Modules/Inventory/BunkFy.Modules.Inventory.Domain/BunkFy.Modules.Inventory.Domain.csproj" />
+    <Project Path="apps/backend/src/Modules/Inventory/BunkFy.Modules.Inventory.Persistence.PostgreSqlMigrations/BunkFy.Modules.Inventory.Persistence.PostgreSqlMigrations.csproj" />
+    <Project Path="apps/backend/src/Modules/Inventory/BunkFy.Modules.Inventory.Persistence/BunkFy.Modules.Inventory.Persistence.csproj" />
+  </Folder>
+  <Folder Name="/apps/backend/src/Modules/Inventory/docs/">
+    <File Path="apps/backend/src/Modules/Inventory/docs/README.md" />
+  </Folder>
+  <Folder Name="/apps/backend/src/Modules/Inventory/tests/">
+    <Project Path="apps/backend/src/Modules/Inventory/tests/BunkFy.Modules.Inventory.Tests/BunkFy.Modules.Inventory.Tests.csproj" />
+  </Folder>
+  <Folder Name="/apps/backend/src/Modules/Properties/">
+    <Project Path="apps/backend/src/Modules/Properties/BunkFy.Modules.Properties.Admin.Contracts/BunkFy.Modules.Properties.Admin.Contracts.csproj" />
+    <Project Path="apps/backend/src/Modules/Properties/BunkFy.Modules.Properties.AdminApi/BunkFy.Modules.Properties.AdminApi.csproj" />
+    <Project Path="apps/backend/src/Modules/Properties/BunkFy.Modules.Properties.AdminCli/BunkFy.Modules.Properties.AdminCli.csproj" />
+    <Project Path="apps/backend/src/Modules/Properties/BunkFy.Modules.Properties.Api/BunkFy.Modules.Properties.Api.csproj" />
+    <Project Path="apps/backend/src/Modules/Properties/BunkFy.Modules.Properties.Application/BunkFy.Modules.Properties.Application.csproj" />
+    <Project Path="apps/backend/src/Modules/Properties/BunkFy.Modules.Properties.Contracts/BunkFy.Modules.Properties.Contracts.csproj" />
+    <Project Path="apps/backend/src/Modules/Properties/BunkFy.Modules.Properties.Domain/BunkFy.Modules.Properties.Domain.csproj" />
+    <Project Path="apps/backend/src/Modules/Properties/BunkFy.Modules.Properties.Persistence.PostgreSqlMigrations/BunkFy.Modules.Properties.Persistence.PostgreSqlMigrations.csproj" />
+    <Project Path="apps/backend/src/Modules/Properties/BunkFy.Modules.Properties.Persistence/BunkFy.Modules.Properties.Persistence.csproj" />
+  </Folder>
+  <Folder Name="/apps/backend/src/Modules/Properties/tests/">
+    <Project Path="apps/backend/src/Modules/Properties/tests/BunkFy.Modules.Properties.Tests/BunkFy.Modules.Properties.Tests.csproj" />
+  </Folder>
+  <Folder Name="/apps/backend/src/Modules/Reservations/">
+    <Project Path="apps/backend/src/Modules/Reservations/BunkFy.Modules.Reservations.Admin.Contracts/BunkFy.Modules.Reservations.Admin.Contracts.csproj" />
+    <Project Path="apps/backend/src/Modules/Reservations/BunkFy.Modules.Reservations.AdminApi/BunkFy.Modules.Reservations.AdminApi.csproj" />
+    <Project Path="apps/backend/src/Modules/Reservations/BunkFy.Modules.Reservations.AdminCli/BunkFy.Modules.Reservations.AdminCli.csproj" />
+    <Project Path="apps/backend/src/Modules/Reservations/BunkFy.Modules.Reservations.Api/BunkFy.Modules.Reservations.Api.csproj" />
+    <Project Path="apps/backend/src/Modules/Reservations/BunkFy.Modules.Reservations.Application/BunkFy.Modules.Reservations.Application.csproj" />
+    <Project Path="apps/backend/src/Modules/Reservations/BunkFy.Modules.Reservations.Contracts/BunkFy.Modules.Reservations.Contracts.csproj" />
+    <Project Path="apps/backend/src/Modules/Reservations/BunkFy.Modules.Reservations.Domain/BunkFy.Modules.Reservations.Domain.csproj" />
+    <Project Path="apps/backend/src/Modules/Reservations/BunkFy.Modules.Reservations.Persistence.PostgreSqlMigrations/BunkFy.Modules.Reservations.Persistence.PostgreSqlMigrations.csproj" />
+    <Project Path="apps/backend/src/Modules/Reservations/BunkFy.Modules.Reservations.Persistence/BunkFy.Modules.Reservations.Persistence.csproj" />
+  </Folder>
+  <Folder Name="/apps/backend/src/Modules/Reservations/docs/">
+    <File Path="apps/backend/src/Modules/Reservations/docs/README.md" />
+  </Folder>
+  <Folder Name="/apps/backend/src/Modules/Reservations/tests/">
+    <Project Path="apps/backend/src/Modules/Reservations/tests/BunkFy.Modules.Reservations.Tests/BunkFy.Modules.Reservations.Tests.csproj" />
+  </Folder>
+  <Folder Name="/apps/backend/src/Modules/Staff/">
+    <Project Path="apps/backend/src/Modules/Staff/BunkFy.Modules.Staff.Admin.Contracts/BunkFy.Modules.Staff.Admin.Contracts.csproj" />
+    <Project Path="apps/backend/src/Modules/Staff/BunkFy.Modules.Staff.AdminApi/BunkFy.Modules.Staff.AdminApi.csproj" />
+    <Project Path="apps/backend/src/Modules/Staff/BunkFy.Modules.Staff.AdminCli/BunkFy.Modules.Staff.AdminCli.csproj" />
+    <Project Path="apps/backend/src/Modules/Staff/BunkFy.Modules.Staff.Api/BunkFy.Modules.Staff.Api.csproj" />
+    <Project Path="apps/backend/src/Modules/Staff/BunkFy.Modules.Staff.Application/BunkFy.Modules.Staff.Application.csproj" />
+    <Project Path="apps/backend/src/Modules/Staff/BunkFy.Modules.Staff.Contracts/BunkFy.Modules.Staff.Contracts.csproj" />
+    <Project Path="apps/backend/src/Modules/Staff/BunkFy.Modules.Staff.Domain/BunkFy.Modules.Staff.Domain.csproj" />
+    <Project Path="apps/backend/src/Modules/Staff/BunkFy.Modules.Staff.Persistence.PostgreSqlMigrations/BunkFy.Modules.Staff.Persistence.PostgreSqlMigrations.csproj" />
+    <Project Path="apps/backend/src/Modules/Staff/BunkFy.Modules.Staff.Persistence/BunkFy.Modules.Staff.Persistence.csproj" />
+  </Folder>
+  <Folder Name="/apps/backend/src/Modules/Staff/docs/">
+    <File Path="apps/backend/src/Modules/Staff/docs/README.md" />
+  </Folder>
+  <Folder Name="/apps/backend/src/Modules/Staff/tests/">
+    <Project Path="apps/backend/src/Modules/Staff/tests/BunkFy.Modules.Staff.Tests/BunkFy.Modules.Staff.Tests.csproj" />
+  </Folder>
+  <Folder Name="/apps/backend/src/Shared/">
+    <Project Path="apps/backend/src/Shared/BunkFy.Adapter.Abstractions/BunkFy.Adapter.Abstractions.csproj" />
+    <Project Path="apps/backend/src/Shared/BunkFy.Adapter.Abstractions/tests/BunkFy.Adapter.Abstractions.Tests/BunkFy.Adapter.Abstractions.Tests.csproj" />
+    <Project Path="apps/backend/src/Shared/BunkFy.Adapter.Runtime/BunkFy.Adapter.Runtime.csproj" />
+    <Project Path="apps/backend/src/Shared/BunkFy.Ingestion.Parsing.Abstractions/BunkFy.Ingestion.Parsing.Abstractions.csproj" />
+  </Folder>
+  <Folder Name="/apps/backend/tests/">
+    <Project Path="apps/backend/tests/Architecture.Tests/Architecture.Tests.csproj" />
+    <Project Path="apps/backend/tests/BunkFy.Host.ServiceDefaults.Tests/BunkFy.Host.ServiceDefaults.Tests.csproj" />
+    <Project Path="apps/backend/tests/Integration.Tests/Integration.Tests.csproj" />
+  </Folder>
+  <Folder Name="/apps/web/">
+    <File Path="apps/web/package.json" />
+    <File Path="apps/web/pnpm-lock.yaml" />
+    <File Path="apps/web/README.md" />
+    <File Path="apps/web/tsconfig.json" />
+    <File Path="apps/web/vite.config.ts" />
+  </Folder>
+  <Folder Name="/docs/brand/">
+    <File Path="docs/brand/README.md" />
+  </Folder>
+  <Folder Name="/docs/brand/house-q/">
+    <File Path="docs/brand/house-q/design-qa.md" />
+    <File Path="docs/brand/house-q/README.md" />
   </Folder>
   <Folder Name="/docs/planning/">
     <File Path="docs/planning/bunkfy-repository-stack-and-workflow-plan.md" />
   </Folder>
-  <Folder Name="/.github/workflows/">
-    <File Path=".github/workflows/validate.yml" />
+  <Folder Name="/eng/">
+    <File Path="eng/bootstrap.ps1" />
+    <File Path="eng/common.ps1" />
+    <File Path="eng/guard-submodules-latest.ps1" />
+    <File Path="eng/run-aspire.ps1" />
+    <File Path="eng/submodule-status.ps1" />
+    <File Path="eng/sync-github-modules.ps1" />
+    <File Path="eng/sync-submodules.ps1" />
+    <File Path="eng/update-gma.ps1" />
+    <File Path="eng/verify.ps1" />
   </Folder>
   <Folder Name="/Solution Items/">
     <File Path=".gitignore" />
@@ -27,5 +476,8 @@
     <File Path="nuget.config" />
     <File Path="README.md" />
   </Folder>
+  <Folder Name="/src/">
+    <Project Path="src/BunkFy.AppHost/BunkFy.AppHost.csproj" />
+    <Project Path="src/BunkFy.ServiceDefaults/BunkFy.ServiceDefaults.csproj" />
+  </Folder>
 </Solution>
-

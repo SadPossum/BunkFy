@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 288 256" role="img" aria-labelledby="title description">
+  <title id="title">House QS logo mark</title>
+  <desc id="description">A bold white monoline house and letter Q drawn as one connected outline, with an architectural S following the same roof, wall, and base geometry, on a forest-green field.</desc>
+
+  <rect width="288" height="256" rx="30" fill="#084F39"/>
+  <g fill="none" stroke="#FFFFFF" stroke-width="16" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M144 36L228 102V202C228 214 218 224 206 224H82C70 224 60 214 60 202V102Z"/>
+    <path d="M202 198L232 228"/>
+    <path d="M151 82L101 123V151H151V187H105"/>
+  </g>
+</svg>

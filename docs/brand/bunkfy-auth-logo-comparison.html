@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>BunkFy logo context comparison</title>
+    <style>
+      :root { font-family: Inter, "Segoe UI", sans-serif; color: #20342e; background: #e9ece7; }
+      * { box-sizing: border-box; }
+      body { margin: 0; }
+      main { display: flex; flex-wrap: wrap; width: 1240px; gap: 20px; padding: 24px; }
+      figure { flex: 0 0 586px; margin: 0; padding: 14px; border: 1px solid #d9ded8; border-radius: 18px; background: #fff; box-shadow: 0 8px 28px rgb(27 56 47 / 8%); }
+      figcaption { margin: 0 0 10px 2px; font-size: 15px; font-weight: 700; }
+      img { display: block; width: 100%; height: auto; border-radius: 10px; }
+      .focus { flex-basis: 586px; }
+      .crop { width: 100%; height: 118px; overflow: hidden; border-radius: 10px; background: #f5f1e9; }
+      .crop img { width: 1280px; max-width: none; transform: translate(-36px, -28px); }
+    </style>
+  </head>
+  <body>
+    <main>
+      <figure>
+        <figcaption>Current bed icon</figcaption>
+        <img src="./bunkfy-auth-source.png" alt="Current BunkFy sign-in screen with the bed icon" />
+      </figure>
+      <figure>
+        <figcaption>White BunkFy mark</figcaption>
+        <img src="./bunkfy-auth-logo-white.png" alt="BunkFy sign-in screen with the new white logo mark" />
+      </figure>
+      <figure class="focus">
+        <figcaption>Current brand area · focused</figcaption>
+        <div class="crop"><img src="./bunkfy-auth-source.png" alt="Close view of the current BunkFy brand area" /></div>
+      </figure>
+      <figure class="focus">
+        <figcaption>White mark · focused</figcaption>
+        <div class="crop"><img src="./bunkfy-auth-logo-white.png" alt="Close view of the new BunkFy brand area" /></div>
+      </figure>
+    </main>
+  </body>
+</html>
