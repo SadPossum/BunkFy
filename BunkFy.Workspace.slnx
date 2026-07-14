@@ -30,6 +30,7 @@
     <File Path="apps/backend/docs/architecture/auth-and-notifications.md" />
     <File Path="apps/backend/docs/architecture/ingestion-adapter-boundary.md" />
     <File Path="apps/backend/docs/architecture/overview.md" />
+    <File Path="apps/backend/docs/architecture/workspaces-and-onboarding.md" />
   </Folder>
   <Folder Name="/apps/backend/docs/examples/">
     <File Path="apps/backend/docs/examples/cross-module-integration.md" />
@@ -72,6 +73,7 @@
     <File Path="apps/backend/docs/planning/reservations-stay-lifecycle-task.md" />
     <File Path="apps/backend/docs/planning/staff-profiles-module-task.md" />
     <File Path="apps/backend/docs/planning/standalone-adapter-host-task.md" />
+    <File Path="apps/backend/docs/planning/workspace-onboarding-task.md" />
   </Folder>
   <Folder Name="/apps/backend/eng/">
     <File Path="apps/backend/eng/add-migration.ps1" />
@@ -102,9 +104,11 @@
   </Folder>
   <Folder Name="/apps/backend/gma/extensions/src/">
     <Project Path="apps/backend/gma/extensions/src/Gma.Extensions.Auth.Notifications/Gma.Extensions.Auth.Notifications.csproj" />
+    <Project Path="apps/backend/gma/extensions/src/Gma.Extensions.Auth.Organizations/Gma.Extensions.Auth.Organizations.csproj" />
   </Folder>
   <Folder Name="/apps/backend/gma/extensions/tests/">
     <Project Path="apps/backend/gma/extensions/tests/Gma.Extensions.Auth.Notifications.Tests/Gma.Extensions.Auth.Notifications.Tests.csproj" />
+    <Project Path="apps/backend/gma/extensions/tests/Gma.Extensions.Auth.Organizations.Tests/Gma.Extensions.Auth.Organizations.Tests.csproj" />
   </Folder>
   <Folder Name="/apps/backend/gma/framework/src/Administration/">
     <Project Path="apps/backend/gma/framework/src/Administration/Gma.Framework.Administration.AccessControl/Gma.Framework.Administration.AccessControl.csproj" />
@@ -294,6 +298,22 @@
   <Folder Name="/apps/backend/gma/modules/notifications/tests/">
     <Project Path="apps/backend/gma/modules/notifications/tests/Gma.Modules.Notifications.Tests/Gma.Modules.Notifications.Tests.csproj" />
   </Folder>
+  <Folder Name="/apps/backend/gma/modules/organizations/src/">
+    <Project Path="apps/backend/gma/modules/organizations/src/Gma.Modules.Organizations.Admin.Contracts/Gma.Modules.Organizations.Admin.Contracts.csproj" />
+    <Project Path="apps/backend/gma/modules/organizations/src/Gma.Modules.Organizations.AdminApi/Gma.Modules.Organizations.AdminApi.csproj" />
+    <Project Path="apps/backend/gma/modules/organizations/src/Gma.Modules.Organizations.AdminCli/Gma.Modules.Organizations.AdminCli.csproj" />
+    <Project Path="apps/backend/gma/modules/organizations/src/Gma.Modules.Organizations.Api/Gma.Modules.Organizations.Api.csproj" />
+    <Project Path="apps/backend/gma/modules/organizations/src/Gma.Modules.Organizations.Application/Gma.Modules.Organizations.Application.csproj" />
+    <Project Path="apps/backend/gma/modules/organizations/src/Gma.Modules.Organizations.Contracts/Gma.Modules.Organizations.Contracts.csproj" />
+    <Project Path="apps/backend/gma/modules/organizations/src/Gma.Modules.Organizations.Domain/Gma.Modules.Organizations.Domain.csproj" />
+    <Project Path="apps/backend/gma/modules/organizations/src/Gma.Modules.Organizations.Persistence.PostgreSqlMigrations/Gma.Modules.Organizations.Persistence.PostgreSqlMigrations.csproj" />
+    <Project Path="apps/backend/gma/modules/organizations/src/Gma.Modules.Organizations.Persistence.SqlServerMigrations/Gma.Modules.Organizations.Persistence.SqlServerMigrations.csproj" />
+    <Project Path="apps/backend/gma/modules/organizations/src/Gma.Modules.Organizations.Persistence/Gma.Modules.Organizations.Persistence.csproj" />
+  </Folder>
+  <Folder Name="/apps/backend/gma/modules/organizations/tests/">
+    <Project Path="apps/backend/gma/modules/organizations/tests/Gma.Modules.Organizations.IntegrationTests/Gma.Modules.Organizations.IntegrationTests.csproj" />
+    <Project Path="apps/backend/gma/modules/organizations/tests/Gma.Modules.Organizations.Tests/Gma.Modules.Organizations.Tests.csproj" />
+  </Folder>
   <Folder Name="/apps/backend/gma/modules/task-runtime/src/">
     <Project Path="apps/backend/gma/modules/task-runtime/src/Gma.Modules.TaskRuntime.Admin.Contracts/Gma.Modules.TaskRuntime.Admin.Contracts.csproj" />
     <Project Path="apps/backend/gma/modules/task-runtime/src/Gma.Modules.TaskRuntime.AdminApi/Gma.Modules.TaskRuntime.AdminApi.csproj" />
@@ -331,9 +351,11 @@
   </Folder>
   <Folder Name="/apps/backend/src/Extensions/">
     <Project Path="apps/backend/src/Extensions/BunkFy.Extensions.Operations.Notifications/BunkFy.Extensions.Operations.Notifications.csproj" />
+    <Project Path="apps/backend/src/Extensions/BunkFy.Extensions.Workspaces/BunkFy.Extensions.Workspaces.csproj" />
   </Folder>
   <Folder Name="/apps/backend/src/Extensions/tests/">
     <Project Path="apps/backend/src/Extensions/tests/BunkFy.Extensions.Operations.Notifications.Tests/BunkFy.Extensions.Operations.Notifications.Tests.csproj" />
+    <Project Path="apps/backend/src/Extensions/tests/BunkFy.Extensions.Workspaces.Tests/BunkFy.Extensions.Workspaces.Tests.csproj" />
   </Folder>
   <Folder Name="/apps/backend/src/Hosts/">
     <Project Path="apps/backend/src/BunkFy.Host.AdminApi/BunkFy.Host.AdminApi.csproj" />

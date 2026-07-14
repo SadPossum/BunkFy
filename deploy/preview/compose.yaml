@@ -169,7 +169,9 @@ services:
     environment:
       <<: *runtime-environment
       Worker__Modules__Auth: "true"
+      Worker__Modules__AccessControl: "true"
       Worker__Modules__Notifications: "true"
+      Worker__Modules__Organizations: "true"
       Worker__Modules__Properties: "true"
       Worker__Modules__Inventory: "true"
       Worker__Modules__Reservations: "true"
