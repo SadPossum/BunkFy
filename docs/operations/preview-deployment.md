@@ -42,6 +42,8 @@ Schema rollback is restore-based, not an automatic down-migration. Take and veri
 
 The bootstrap identity is an explicit administration actor, not a hidden default user. Run bootstrap once, create the first Auth member, then grant that member the tenant owner role. The CLI profile is transient and does not publish a port.
 
+The public API has password and external self-registration disabled. Browser users cannot create an unprovisioned staff account or claim a new workspace; after the first owner is created, provision additional staff through the administration workflow.
+
 ```powershell
 $compose = @(
   'compose', '--env-file', 'deploy/preview/.env',
