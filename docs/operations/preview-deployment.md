@@ -40,9 +40,9 @@ Schema rollback is restore-based, not an automatic down-migration. Take and veri
 
 ## First Owner
 
-The bootstrap identity is an explicit administration actor, not a hidden default user. Run bootstrap once, create the first Auth member, then grant that member the tenant owner role. The CLI profile is transient and does not publish a port.
+Password and enabled external-provider registration are available through the browser. A new account has no PMS access until it creates a workspace or accepts an active invitation or enrollment link. Creating a workspace grants its creator the first tenant-scoped owner membership and provisions the linked Staff profile.
 
-The public API has password and external self-registration disabled. Browser users cannot create an unprovisioned staff account or claim a new workspace; after the first owner is created, provision additional staff through the administration workflow.
+The bootstrap identity remains an explicit administration actor, not a hidden default user. Use the CLI path below for recovery, automated provisioning, or deployments that intentionally override the self-registration settings. The CLI profile is transient and does not publish a port.
 
 ```powershell
 $compose = @(

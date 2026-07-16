@@ -181,6 +181,7 @@ services:
       Worker__Modules__TaskRuntime: "true"
       NatsConsumers__Enabled: "true"
       Tasks__Worker__Enabled: "true"
+      Tasks__Scheduler__Enabled: "true"
       MessageJournalCleanup__Enabled: "true"
       MessageJournalCleanup__ProcessedOutboxRetention: "7.00:00:00"
       MessageJournalCleanup__ProcessedInboxRetention: "14.00:00:00"
