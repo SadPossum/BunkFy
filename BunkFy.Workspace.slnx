@@ -60,6 +60,8 @@
     <File Path="apps/backend/docs/planning/ingestion-sensitive-history-retention-task.md" />
     <File Path="apps/backend/docs/planning/ingestion-source-reprocessing-task.md" />
     <File Path="apps/backend/docs/planning/inventory-module-task.md" />
+    <File Path="apps/backend/docs/planning/inventory-room-retirement-and-throughput-hardening-task.md" />
+    <File Path="apps/backend/docs/planning/inventory-topology-change-safety-task.md" />
     <File Path="apps/backend/docs/planning/json-file-drop-adapter-task.md" />
     <File Path="apps/backend/docs/planning/json-file-drop-local-retention-task.md" />
     <File Path="apps/backend/docs/planning/json-file-drop-quarantine-task.md" />
@@ -73,6 +75,7 @@
     <File Path="apps/backend/docs/planning/reservations-stay-lifecycle-task.md" />
     <File Path="apps/backend/docs/planning/staff-profiles-module-task.md" />
     <File Path="apps/backend/docs/planning/standalone-adapter-host-task.md" />
+    <File Path="apps/backend/docs/planning/workspace-access-profiles-task.md" />
     <File Path="apps/backend/docs/planning/workspace-onboarding-task.md" />
   </Folder>
   <Folder Name="/apps/backend/eng/">
@@ -105,10 +108,12 @@
   <Folder Name="/apps/backend/gma/extensions/src/">
     <Project Path="apps/backend/gma/extensions/src/Gma.Extensions.Auth.Notifications/Gma.Extensions.Auth.Notifications.csproj" />
     <Project Path="apps/backend/gma/extensions/src/Gma.Extensions.Auth.Organizations/Gma.Extensions.Auth.Organizations.csproj" />
+    <Project Path="apps/backend/gma/extensions/src/Gma.Extensions.Organizations.Tenancy/Gma.Extensions.Organizations.Tenancy.csproj" />
   </Folder>
   <Folder Name="/apps/backend/gma/extensions/tests/">
     <Project Path="apps/backend/gma/extensions/tests/Gma.Extensions.Auth.Notifications.Tests/Gma.Extensions.Auth.Notifications.Tests.csproj" />
     <Project Path="apps/backend/gma/extensions/tests/Gma.Extensions.Auth.Organizations.Tests/Gma.Extensions.Auth.Organizations.Tests.csproj" />
+    <Project Path="apps/backend/gma/extensions/tests/Gma.Extensions.Organizations.Tenancy.Tests/Gma.Extensions.Organizations.Tenancy.Tests.csproj" />
   </Folder>
   <Folder Name="/apps/backend/gma/framework/src/Administration/">
     <Project Path="apps/backend/gma/framework/src/Administration/Gma.Framework.Administration.AccessControl/Gma.Framework.Administration.AccessControl.csproj" />
