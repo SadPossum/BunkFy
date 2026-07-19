@@ -245,13 +245,16 @@
     <Project Path="apps/backend/gma/modules/access-control/src/Gma.Modules.AccessControl.Admin.Contracts/Gma.Modules.AccessControl.Admin.Contracts.csproj" />
     <Project Path="apps/backend/gma/modules/access-control/src/Gma.Modules.AccessControl.AdminApi/Gma.Modules.AccessControl.AdminApi.csproj" />
     <Project Path="apps/backend/gma/modules/access-control/src/Gma.Modules.AccessControl.AdminCli/Gma.Modules.AccessControl.AdminCli.csproj" />
+    <Project Path="apps/backend/gma/modules/access-control/src/Gma.Modules.AccessControl.Api/Gma.Modules.AccessControl.Api.csproj" />
     <Project Path="apps/backend/gma/modules/access-control/src/Gma.Modules.AccessControl.Application/Gma.Modules.AccessControl.Application.csproj" />
     <Project Path="apps/backend/gma/modules/access-control/src/Gma.Modules.AccessControl.Contracts/Gma.Modules.AccessControl.Contracts.csproj" />
+    <Project Path="apps/backend/gma/modules/access-control/src/Gma.Modules.AccessControl.Domain/Gma.Modules.AccessControl.Domain.csproj" />
     <Project Path="apps/backend/gma/modules/access-control/src/Gma.Modules.AccessControl.Persistence.PostgreSqlMigrations/Gma.Modules.AccessControl.Persistence.PostgreSqlMigrations.csproj" />
     <Project Path="apps/backend/gma/modules/access-control/src/Gma.Modules.AccessControl.Persistence.SqlServerMigrations/Gma.Modules.AccessControl.Persistence.SqlServerMigrations.csproj" />
     <Project Path="apps/backend/gma/modules/access-control/src/Gma.Modules.AccessControl.Persistence/Gma.Modules.AccessControl.Persistence.csproj" />
   </Folder>
   <Folder Name="/apps/backend/gma/modules/access-control/tests/">
+    <Project Path="apps/backend/gma/modules/access-control/tests/Gma.Modules.AccessControl.IntegrationTests/Gma.Modules.AccessControl.IntegrationTests.csproj" />
     <Project Path="apps/backend/gma/modules/access-control/tests/Gma.Modules.AccessControl.Tests/Gma.Modules.AccessControl.Tests.csproj" />
   </Folder>
   <Folder Name="/apps/backend/gma/modules/administration/src/">
