@@ -258,6 +258,7 @@
     <Project Path="apps/backend/gma/modules/access-control/tests/Gma.Modules.AccessControl.Tests/Gma.Modules.AccessControl.Tests.csproj" />
   </Folder>
   <Folder Name="/apps/backend/gma/modules/administration/src/">
+    <Project Path="apps/backend/gma/modules/administration/src/Gma.Modules.Administration.Admin.Contracts/Gma.Modules.Administration.Admin.Contracts.csproj" />
     <Project Path="apps/backend/gma/modules/administration/src/Gma.Modules.Administration.AdminApi/Gma.Modules.Administration.AdminApi.csproj" />
     <Project Path="apps/backend/gma/modules/administration/src/Gma.Modules.Administration.AdminCli/Gma.Modules.Administration.AdminCli.csproj" />
     <Project Path="apps/backend/gma/modules/administration/src/Gma.Modules.Administration.Application/Gma.Modules.Administration.Application.csproj" />
@@ -267,6 +268,7 @@
     <Project Path="apps/backend/gma/modules/administration/src/Gma.Modules.Administration.Persistence/Gma.Modules.Administration.Persistence.csproj" />
   </Folder>
   <Folder Name="/apps/backend/gma/modules/administration/tests/">
+    <Project Path="apps/backend/gma/modules/administration/tests/Gma.Modules.Administration.IntegrationTests/Gma.Modules.Administration.IntegrationTests.csproj" />
     <Project Path="apps/backend/gma/modules/administration/tests/Gma.Modules.Administration.Tests/Gma.Modules.Administration.Tests.csproj" />
   </Folder>
   <Folder Name="/apps/backend/gma/modules/auth/src/">
