@@ -288,6 +288,7 @@
     <Project Path="apps/backend/gma/modules/auth/src/Gma.Modules.Auth.Providers.OpenIdConnect/Gma.Modules.Auth.Providers.OpenIdConnect.csproj" />
   </Folder>
   <Folder Name="/apps/backend/gma/modules/auth/tests/">
+    <Project Path="apps/backend/gma/modules/auth/tests/Gma.Modules.Auth.IntegrationTests/Gma.Modules.Auth.IntegrationTests.csproj" />
     <Project Path="apps/backend/gma/modules/auth/tests/Gma.Modules.Auth.Tests/Gma.Modules.Auth.Tests.csproj" />
   </Folder>
   <Folder Name="/apps/backend/gma/modules/files/src/">
