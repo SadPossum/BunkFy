@@ -296,6 +296,9 @@
     <Project Path="apps/backend/gma/modules/files/src/Gma.Modules.Files.Application/Gma.Modules.Files.Application.csproj" />
     <Project Path="apps/backend/gma/modules/files/src/Gma.Modules.Files.Contracts/Gma.Modules.Files.Contracts.csproj" />
   </Folder>
+  <Folder Name="/apps/backend/gma/modules/files/tests/">
+    <Project Path="apps/backend/gma/modules/files/tests/Gma.Modules.Files.Tests/Gma.Modules.Files.Tests.csproj" />
+  </Folder>
   <Folder Name="/apps/backend/gma/modules/notifications/src/">
     <Project Path="apps/backend/gma/modules/notifications/src/Gma.Modules.Notifications.Adapters.Email/Gma.Modules.Notifications.Adapters.Email.csproj" />
     <Project Path="apps/backend/gma/modules/notifications/src/Gma.Modules.Notifications.Admin.Contracts/Gma.Modules.Notifications.Admin.Contracts.csproj" />
