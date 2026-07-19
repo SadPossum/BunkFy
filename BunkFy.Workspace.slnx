@@ -218,6 +218,7 @@
     <Project Path="apps/backend/gma/framework/src/Security/Gma.Framework.AccessControl.AspNetCore/Gma.Framework.AccessControl.AspNetCore.csproj" />
     <Project Path="apps/backend/gma/framework/src/Security/Gma.Framework.AccessControl/Gma.Framework.AccessControl.csproj" />
     <Project Path="apps/backend/gma/framework/src/Security/Gma.Framework.Permissions/Gma.Framework.Permissions.csproj" />
+    <Project Path="apps/backend/gma/framework/src/Security/Gma.Framework.Security.AspNetCore/Gma.Framework.Security.AspNetCore.csproj" />
     <Project Path="apps/backend/gma/framework/src/Security/Gma.Framework.Security/Gma.Framework.Security.csproj" />
   </Folder>
   <Folder Name="/apps/backend/gma/framework/src/Tasks/">
