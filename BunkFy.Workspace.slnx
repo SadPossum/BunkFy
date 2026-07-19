@@ -341,6 +341,9 @@
     <Project Path="apps/backend/gma/modules/tenancy/src/Gma.Modules.Tenancy.Api/Gma.Modules.Tenancy.Api.csproj" />
     <Project Path="apps/backend/gma/modules/tenancy/src/Gma.Modules.Tenancy.Contracts/Gma.Modules.Tenancy.Contracts.csproj" />
   </Folder>
+  <Folder Name="/apps/backend/gma/modules/tenancy/tests/">
+    <Project Path="apps/backend/gma/modules/tenancy/tests/Gma.Modules.Tenancy.Tests/Gma.Modules.Tenancy.Tests.csproj" />
+  </Folder>
   <Folder Name="/apps/backend/requests/">
     <File Path="apps/backend/requests/admin-api.http" />
     <File Path="apps/backend/requests/auth.http" />
