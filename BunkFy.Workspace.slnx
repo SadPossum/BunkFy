@@ -272,6 +272,7 @@
     <Project Path="apps/backend/gma/modules/auth/src/Gma.Modules.Auth.AdminCli/Gma.Modules.Auth.AdminCli.csproj" />
     <Project Path="apps/backend/gma/modules/auth/src/Gma.Modules.Auth.Api/Gma.Modules.Auth.Api.csproj" />
     <Project Path="apps/backend/gma/modules/auth/src/Gma.Modules.Auth.Application/Gma.Modules.Auth.Application.csproj" />
+    <Project Path="apps/backend/gma/modules/auth/src/Gma.Modules.Auth.Authenticators.Totp/Gma.Modules.Auth.Authenticators.Totp.csproj" />
     <Project Path="apps/backend/gma/modules/auth/src/Gma.Modules.Auth.Contracts/Gma.Modules.Auth.Contracts.csproj" />
     <Project Path="apps/backend/gma/modules/auth/src/Gma.Modules.Auth.Domain/Gma.Modules.Auth.Domain.csproj" />
     <Project Path="apps/backend/gma/modules/auth/src/Gma.Modules.Auth.Infrastructure.JwtBearer/Gma.Modules.Auth.Infrastructure.JwtBearer.csproj" />
