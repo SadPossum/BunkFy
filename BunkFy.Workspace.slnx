@@ -108,11 +108,13 @@
   <Folder Name="/apps/backend/gma/extensions/src/">
     <Project Path="apps/backend/gma/extensions/src/Gma.Extensions.Auth.Notifications/Gma.Extensions.Auth.Notifications.csproj" />
     <Project Path="apps/backend/gma/extensions/src/Gma.Extensions.Auth.Organizations/Gma.Extensions.Auth.Organizations.csproj" />
+    <Project Path="apps/backend/gma/extensions/src/Gma.Extensions.Organizations.AccessControl/Gma.Extensions.Organizations.AccessControl.csproj" />
     <Project Path="apps/backend/gma/extensions/src/Gma.Extensions.Organizations.Tenancy/Gma.Extensions.Organizations.Tenancy.csproj" />
   </Folder>
   <Folder Name="/apps/backend/gma/extensions/tests/">
     <Project Path="apps/backend/gma/extensions/tests/Gma.Extensions.Auth.Notifications.Tests/Gma.Extensions.Auth.Notifications.Tests.csproj" />
     <Project Path="apps/backend/gma/extensions/tests/Gma.Extensions.Auth.Organizations.Tests/Gma.Extensions.Auth.Organizations.Tests.csproj" />
+    <Project Path="apps/backend/gma/extensions/tests/Gma.Extensions.Organizations.AccessControl.Tests/Gma.Extensions.Organizations.AccessControl.Tests.csproj" />
     <Project Path="apps/backend/gma/extensions/tests/Gma.Extensions.Organizations.Tenancy.Tests/Gma.Extensions.Organizations.Tenancy.Tests.csproj" />
   </Folder>
   <Folder Name="/apps/backend/gma/framework/src/Administration/">
