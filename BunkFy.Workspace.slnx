@@ -72,6 +72,7 @@
     <File Path="apps/backend/docs/planning/properties-topology-lifecycle-task.md" />
     <File Path="apps/backend/docs/planning/remote-adapter-lease-task.md" />
     <File Path="apps/backend/docs/planning/reservations-module-task.md" />
+    <File Path="apps/backend/docs/planning/reservations-pii-minimization-task.md" />
     <File Path="apps/backend/docs/planning/reservations-stay-lifecycle-task.md" />
     <File Path="apps/backend/docs/planning/staff-profiles-module-task.md" />
     <File Path="apps/backend/docs/planning/standalone-adapter-host-task.md" />
