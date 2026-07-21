@@ -1,5 +1,9 @@
 # BunkFy
 
+[![Validate](https://github.com/SadPossum/BunkFy/actions/workflows/validate.yml/badge.svg?branch=dev)](https://github.com/SadPossum/BunkFy/actions/workflows/validate.yml)
+[![Security Baseline](https://github.com/SadPossum/BunkFy/actions/workflows/security.yml/badge.svg?branch=dev)](https://github.com/SadPossum/BunkFy/actions/workflows/security.yml)
+[![CodeQL](https://github.com/SadPossum/BunkFy/actions/workflows/codeql.yml/badge.svg?branch=dev)](https://github.com/SadPossum/BunkFy/actions/workflows/codeql.yml)
+
 BunkFy is an open-source property management system for hostels.
 
 This repository is the root superproject. It owns full-stack composition, local orchestration, scripts, documentation, and submodule pointers. Product implementation lives in app repositories mounted as submodules.
@@ -59,6 +63,8 @@ The root verification checks backend and web builds/tests, solution drift, and t
 ```powershell
 .\eng\update-web-contracts.ps1
 ```
+
+Repository security policy and private reporting are documented in [SECURITY.md](SECURITY.md). The aggregate security workflow scans the pinned product source set and retains SARIF plus a CycloneDX SBOM; CodeQL analyzes both C# and JavaScript/TypeScript.
 
 Inspect root and submodule state:
 

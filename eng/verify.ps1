@@ -14,6 +14,8 @@ param(
 $root = Get-BunkFyRepositoryRoot
 $dotnet = Resolve-BunkFyDotNet
 
+& (Join-Path $PSScriptRoot 'check-repository-security.ps1')
+
 if (-not $SkipSubmoduleGuard) {
     & (Join-Path $PSScriptRoot 'guard-submodules-latest.ps1') -SkipFetch:$SkipSubmoduleFetch
 }

@@ -1,5 +1,10 @@
 <Solution>
+  <Folder Name="/.github/">
+    <File Path=".github/dependabot.yml" />
+  </Folder>
   <Folder Name="/.github/workflows/">
+    <File Path=".github/workflows/codeql.yml" />
+    <File Path=".github/workflows/security.yml" />
     <File Path=".github/workflows/validate.yml" />
   </Folder>
   <Folder Name="/Solution Items/">
@@ -9,6 +14,7 @@
     <File Path="Directory.Packages.props" />
     <File Path="LICENSE" />
     <File Path="README.md" />
+    <File Path="SECURITY.md" />
     <File Path="global.json" />
     <File Path="nuget.config" />
   </Folder>
@@ -527,6 +533,7 @@
   </Folder>
   <Folder Name="/eng/">
     <File Path="eng/bootstrap.ps1" />
+    <File Path="eng/check-repository-security.ps1" />
     <File Path="eng/common.ps1" />
     <File Path="eng/guard-submodules-latest.ps1" />
     <File Path="eng/new-preview-env.ps1" />
