@@ -436,6 +436,8 @@
   </Folder>
   <Folder Name="/apps/backend/src/Modules/Ingestion/docs/">
     <File Path="apps/backend/src/Modules/Ingestion/docs/README.md" />
+    <File Path="apps/backend/src/Modules/Ingestion/docs/personal-data-catalog.v1.json" />
+    <File Path="apps/backend/src/Modules/Ingestion/docs/personal-data-inventory.v1.md" />
   </Folder>
   <Folder Name="/apps/backend/src/Modules/Ingestion/tests/">
     <Project Path="apps/backend/src/Modules/Ingestion/tests/BunkFy.Modules.Ingestion.Tests/BunkFy.Modules.Ingestion.Tests.csproj" />
@@ -503,6 +505,8 @@
   </Folder>
   <Folder Name="/apps/backend/src/Modules/Staff/docs/">
     <File Path="apps/backend/src/Modules/Staff/docs/README.md" />
+    <File Path="apps/backend/src/Modules/Staff/docs/personal-data-catalog.v1.json" />
+    <File Path="apps/backend/src/Modules/Staff/docs/personal-data-inventory.v1.md" />
   </Folder>
   <Folder Name="/apps/backend/src/Modules/Staff/tests/">
     <Project Path="apps/backend/src/Modules/Staff/tests/BunkFy.Modules.Staff.Tests/BunkFy.Modules.Staff.Tests.csproj" />
