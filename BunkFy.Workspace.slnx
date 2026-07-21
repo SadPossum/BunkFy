@@ -53,6 +53,7 @@
     <File Path="apps/backend/docs/planning/adapter-http-client-task.md" />
     <File Path="apps/backend/docs/planning/architecture-cleanup-task.md" />
     <File Path="apps/backend/docs/planning/development-guidelines.md" />
+    <File Path="apps/backend/docs/planning/executable-personal-data-catalog-task.md" />
     <File Path="apps/backend/docs/planning/gma-access-control-properties-alignment.md" />
     <File Path="apps/backend/docs/planning/gma-durable-runtime-alignment.md" />
     <File Path="apps/backend/docs/planning/guest-records-module-task.md" />
@@ -370,6 +371,7 @@
   </Folder>
   <Folder Name="/apps/backend/src/">
     <Project Path="apps/backend/src/BunkFy.AdapterHost/BunkFy.AdapterHost.csproj" />
+    <Project Path="apps/backend/src/Tools/BunkFy.DataGovernance.Tool/BunkFy.DataGovernance.Tool.csproj" />
   </Folder>
   <Folder Name="/apps/backend/src/Adapters/">
     <Project Path="apps/backend/src/Adapters/BunkFy.Adapters.Configuration/BunkFy.Adapters.Configuration.csproj" />
@@ -415,6 +417,8 @@
   </Folder>
   <Folder Name="/apps/backend/src/Modules/Guests/docs/">
     <File Path="apps/backend/src/Modules/Guests/docs/README.md" />
+    <File Path="apps/backend/src/Modules/Guests/docs/personal-data-catalog.v1.json" />
+    <File Path="apps/backend/src/Modules/Guests/docs/personal-data-inventory.v1.md" />
   </Folder>
   <Folder Name="/apps/backend/src/Modules/Guests/tests/">
     <Project Path="apps/backend/src/Modules/Guests/tests/BunkFy.Modules.Guests.Tests/BunkFy.Modules.Guests.Tests.csproj" />
@@ -517,6 +521,8 @@
     <Project Path="apps/backend/src/Shared/BunkFy.Adapter.Abstractions/tests/BunkFy.Adapter.Abstractions.Tests/BunkFy.Adapter.Abstractions.Tests.csproj" />
     <Project Path="apps/backend/src/Shared/BunkFy.Adapter.Runtime/BunkFy.Adapter.Runtime.csproj" />
     <Project Path="apps/backend/src/Shared/BunkFy.AppHost.Composition/BunkFy.AppHost.Composition.csproj" />
+    <Project Path="apps/backend/src/Shared/BunkFy.DataGovernance/BunkFy.DataGovernance.csproj" />
+    <Project Path="apps/backend/src/Shared/BunkFy.DataGovernance/tests/BunkFy.DataGovernance.Tests/BunkFy.DataGovernance.Tests.csproj" />
     <Project Path="apps/backend/src/Shared/BunkFy.Ingestion.Parsing.Abstractions/BunkFy.Ingestion.Parsing.Abstractions.csproj" />
   </Folder>
   <Folder Name="/apps/backend/tests/">
