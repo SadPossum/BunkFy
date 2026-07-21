@@ -82,6 +82,7 @@
     <File Path="apps/backend/docs/planning/reservations-module-task.md" />
     <File Path="apps/backend/docs/planning/reservations-pii-minimization-task.md" />
     <File Path="apps/backend/docs/planning/reservations-stay-lifecycle-task.md" />
+    <File Path="apps/backend/docs/planning/secure-staff-enrollment-task.md" />
     <File Path="apps/backend/docs/planning/staff-profiles-module-task.md" />
     <File Path="apps/backend/docs/planning/standalone-adapter-host-task.md" />
     <File Path="apps/backend/docs/planning/workspace-access-profiles-task.md" />
@@ -499,6 +500,17 @@
   </Folder>
   <Folder Name="/apps/backend/src/Modules/Staff/tests/">
     <Project Path="apps/backend/src/Modules/Staff/tests/BunkFy.Modules.Staff.Tests/BunkFy.Modules.Staff.Tests.csproj" />
+  </Folder>
+  <Folder Name="/apps/backend/src/Modules/Workspaces/">
+    <Project Path="apps/backend/src/Modules/Workspaces/BunkFy.Modules.Workspaces.Api/BunkFy.Modules.Workspaces.Api.csproj" />
+    <Project Path="apps/backend/src/Modules/Workspaces/BunkFy.Modules.Workspaces.Application/BunkFy.Modules.Workspaces.Application.csproj" />
+    <Project Path="apps/backend/src/Modules/Workspaces/BunkFy.Modules.Workspaces.Contracts/BunkFy.Modules.Workspaces.Contracts.csproj" />
+    <Project Path="apps/backend/src/Modules/Workspaces/BunkFy.Modules.Workspaces.Domain/BunkFy.Modules.Workspaces.Domain.csproj" />
+    <Project Path="apps/backend/src/Modules/Workspaces/BunkFy.Modules.Workspaces.Persistence.PostgreSqlMigrations/BunkFy.Modules.Workspaces.Persistence.PostgreSqlMigrations.csproj" />
+    <Project Path="apps/backend/src/Modules/Workspaces/BunkFy.Modules.Workspaces.Persistence/BunkFy.Modules.Workspaces.Persistence.csproj" />
+  </Folder>
+  <Folder Name="/apps/backend/src/Modules/Workspaces/tests/">
+    <Project Path="apps/backend/src/Modules/Workspaces/tests/BunkFy.Modules.Workspaces.Tests/BunkFy.Modules.Workspaces.Tests.csproj" />
   </Folder>
   <Folder Name="/apps/backend/src/Shared/">
     <Project Path="apps/backend/src/Shared/BunkFy.Adapter.Abstractions/BunkFy.Adapter.Abstractions.csproj" />
