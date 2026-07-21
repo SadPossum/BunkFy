@@ -73,6 +73,7 @@
     <File Path="apps/backend/docs/planning/json-file-drop-quarantine-task.md" />
     <File Path="apps/backend/docs/planning/pre-module-readiness.md" />
     <File Path="apps/backend/docs/planning/product-domain-map.md" />
+    <File Path="apps/backend/docs/planning/production-authentication-admission-task.md" />
     <File Path="apps/backend/docs/planning/production-file-surface-lockdown-task.md" />
     <File Path="apps/backend/docs/planning/properties-follow-up-notes.md" />
     <File Path="apps/backend/docs/planning/properties-module-task.md" />
