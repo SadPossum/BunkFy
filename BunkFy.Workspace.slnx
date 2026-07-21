@@ -87,7 +87,9 @@
     <File Path="apps/backend/docs/planning/staff-profiles-module-task.md" />
     <File Path="apps/backend/docs/planning/standalone-adapter-host-task.md" />
     <File Path="apps/backend/docs/planning/workspace-access-profiles-task.md" />
+    <File Path="apps/backend/docs/planning/workspace-invitation-access-plans-task.md" />
     <File Path="apps/backend/docs/planning/workspace-onboarding-task.md" />
+    <File Path="apps/backend/docs/planning/workspace-staff-access-lifecycle-task.md" />
   </Folder>
   <Folder Name="/apps/backend/eng/">
     <File Path="apps/backend/eng/add-migration.ps1" />
@@ -512,6 +514,9 @@
     <Project Path="apps/backend/src/Modules/Staff/tests/BunkFy.Modules.Staff.Tests/BunkFy.Modules.Staff.Tests.csproj" />
   </Folder>
   <Folder Name="/apps/backend/src/Modules/Workspaces/">
+    <Project Path="apps/backend/src/Modules/Workspaces/BunkFy.Modules.Workspaces.Admin.Contracts/BunkFy.Modules.Workspaces.Admin.Contracts.csproj" />
+    <Project Path="apps/backend/src/Modules/Workspaces/BunkFy.Modules.Workspaces.AdminApi/BunkFy.Modules.Workspaces.AdminApi.csproj" />
+    <Project Path="apps/backend/src/Modules/Workspaces/BunkFy.Modules.Workspaces.AdminCli/BunkFy.Modules.Workspaces.AdminCli.csproj" />
     <Project Path="apps/backend/src/Modules/Workspaces/BunkFy.Modules.Workspaces.Api/BunkFy.Modules.Workspaces.Api.csproj" />
     <Project Path="apps/backend/src/Modules/Workspaces/BunkFy.Modules.Workspaces.Application/BunkFy.Modules.Workspaces.Application.csproj" />
     <Project Path="apps/backend/src/Modules/Workspaces/BunkFy.Modules.Workspaces.Contracts/BunkFy.Modules.Workspaces.Contracts.csproj" />
