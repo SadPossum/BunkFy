@@ -33,7 +33,7 @@ jobs:
           persist-credentials: false
 
       - name: Run pinned GMA repository security baseline
-        uses: SadPossum/GMA-Skeleton/.github/actions/security-baseline@63f071af1ae746883433e795f2130ffcdbbf21f0
+        uses: SadPossum/GMA-Skeleton/.github/actions/security-baseline@85c575cc9394abce110c880aea60d7114a316b00
 
       - name: Publish code-scanning evidence
         if: ${{ always() && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
