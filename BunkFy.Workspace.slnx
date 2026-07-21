@@ -484,6 +484,8 @@
   </Folder>
   <Folder Name="/apps/backend/src/Modules/Reservations/docs/">
     <File Path="apps/backend/src/Modules/Reservations/docs/README.md" />
+    <File Path="apps/backend/src/Modules/Reservations/docs/personal-data-catalog.v1.json" />
+    <File Path="apps/backend/src/Modules/Reservations/docs/personal-data-inventory.v1.md" />
   </Folder>
   <Folder Name="/apps/backend/src/Modules/Reservations/tests/">
     <Project Path="apps/backend/src/Modules/Reservations/tests/BunkFy.Modules.Reservations.Tests/BunkFy.Modules.Reservations.Tests.csproj" />
