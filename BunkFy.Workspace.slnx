@@ -67,6 +67,7 @@
     <File Path="apps/backend/docs/planning/ingestion-sensitive-history-retention-task.md" />
     <File Path="apps/backend/docs/planning/ingestion-source-reprocessing-task.md" />
     <File Path="apps/backend/docs/planning/inventory-module-task.md" />
+    <File Path="apps/backend/docs/planning/inventory-personal-data-catalogue-task.md" />
     <File Path="apps/backend/docs/planning/inventory-room-retirement-and-throughput-hardening-task.md" />
     <File Path="apps/backend/docs/planning/inventory-topology-change-safety-task.md" />
     <File Path="apps/backend/docs/planning/json-file-drop-adapter-task.md" />
@@ -466,6 +467,8 @@
   </Folder>
   <Folder Name="/apps/backend/src/Modules/Inventory/docs/">
     <File Path="apps/backend/src/Modules/Inventory/docs/README.md" />
+    <File Path="apps/backend/src/Modules/Inventory/docs/personal-data-catalog.v1.json" />
+    <File Path="apps/backend/src/Modules/Inventory/docs/personal-data-inventory.v1.md" />
   </Folder>
   <Folder Name="/apps/backend/src/Modules/Inventory/tests/">
     <Project Path="apps/backend/src/Modules/Inventory/tests/BunkFy.Modules.Inventory.Tests/BunkFy.Modules.Inventory.Tests.csproj" />
