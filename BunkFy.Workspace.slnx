@@ -72,6 +72,7 @@
     <File Path="apps/backend/docs/planning/json-file-drop-adapter-task.md" />
     <File Path="apps/backend/docs/planning/json-file-drop-local-retention-task.md" />
     <File Path="apps/backend/docs/planning/json-file-drop-quarantine-task.md" />
+    <File Path="apps/backend/docs/planning/operations-notifications-personal-data-catalogue-task.md" />
     <File Path="apps/backend/docs/planning/pre-module-readiness.md" />
     <File Path="apps/backend/docs/planning/product-domain-map.md" />
     <File Path="apps/backend/docs/planning/production-authentication-admission-task.md" />
@@ -395,6 +396,11 @@
   <Folder Name="/apps/backend/src/Extensions/">
     <Project Path="apps/backend/src/Extensions/BunkFy.Extensions.Operations.Notifications/BunkFy.Extensions.Operations.Notifications.csproj" />
     <Project Path="apps/backend/src/Extensions/BunkFy.Extensions.Workspaces/BunkFy.Extensions.Workspaces.csproj" />
+  </Folder>
+  <Folder Name="/apps/backend/src/Extensions/BunkFy.Extensions.Operations.Notifications/docs/">
+    <File Path="apps/backend/src/Extensions/BunkFy.Extensions.Operations.Notifications/docs/README.md" />
+    <File Path="apps/backend/src/Extensions/BunkFy.Extensions.Operations.Notifications/docs/personal-data-catalog.v1.json" />
+    <File Path="apps/backend/src/Extensions/BunkFy.Extensions.Operations.Notifications/docs/personal-data-inventory.v1.md" />
   </Folder>
   <Folder Name="/apps/backend/src/Extensions/tests/">
     <Project Path="apps/backend/src/Extensions/tests/BunkFy.Extensions.Operations.Notifications.Tests/BunkFy.Extensions.Operations.Notifications.Tests.csproj" />
