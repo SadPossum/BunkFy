@@ -137,7 +137,8 @@ services:
       BunkFy__WorkspaceAdmission__AccountRegistration: Public
       BunkFy__WorkspaceAdmission__WorkspaceCreation: SelfService
       BunkFy__WorkspaceAdmission__RequireVerifiedEmailForWorkspaceCreation: "false"
-      Auth__OpenIdConnect__AllowedReturnUrls__0: "${BUNKFY_PUBLIC_URL:-http://localhost:8080}/auth/complete"
+      Auth__OpenIdConnect__AllowedReturnUrls__0: /auth/complete
+      Auth__OpenIdConnect__AllowedReturnUrls__1: "${BUNKFY_PUBLIC_URL:-http://localhost:8080}/auth/complete"
       Auth__OpenIdConnect__Providers__google__Enabled: "${BUNKFY_GOOGLE_OIDC_ENABLED:-false}"
       Auth__OpenIdConnect__Providers__google__ClientId: "${BUNKFY_GOOGLE_OIDC_CLIENT_ID:-}"
       Auth__OpenIdConnect__Providers__google__ClientSecret: "${BUNKFY_GOOGLE_OIDC_CLIENT_SECRET:-}"
