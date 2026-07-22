@@ -92,6 +92,7 @@
     <File Path="apps/backend/docs/planning/workspace-onboarding-production-proof-task.md" />
     <File Path="apps/backend/docs/planning/workspace-onboarding-task.md" />
     <File Path="apps/backend/docs/planning/workspace-staff-access-lifecycle-task.md" />
+    <File Path="apps/backend/docs/planning/workspaces-personal-data-catalogue-task.md" />
   </Folder>
   <Folder Name="/apps/backend/eng/">
     <File Path="apps/backend/eng/add-migration.ps1" />
@@ -525,6 +526,11 @@
     <Project Path="apps/backend/src/Modules/Workspaces/BunkFy.Modules.Workspaces.Domain/BunkFy.Modules.Workspaces.Domain.csproj" />
     <Project Path="apps/backend/src/Modules/Workspaces/BunkFy.Modules.Workspaces.Persistence.PostgreSqlMigrations/BunkFy.Modules.Workspaces.Persistence.PostgreSqlMigrations.csproj" />
     <Project Path="apps/backend/src/Modules/Workspaces/BunkFy.Modules.Workspaces.Persistence/BunkFy.Modules.Workspaces.Persistence.csproj" />
+  </Folder>
+  <Folder Name="/apps/backend/src/Modules/Workspaces/docs/">
+    <File Path="apps/backend/src/Modules/Workspaces/docs/README.md" />
+    <File Path="apps/backend/src/Modules/Workspaces/docs/personal-data-catalog.v1.json" />
+    <File Path="apps/backend/src/Modules/Workspaces/docs/personal-data-inventory.v1.md" />
   </Folder>
   <Folder Name="/apps/backend/src/Modules/Workspaces/tests/">
     <Project Path="apps/backend/src/Modules/Workspaces/tests/BunkFy.Modules.Workspaces.Tests/BunkFy.Modules.Workspaces.Tests.csproj" />
