@@ -80,6 +80,7 @@
     <File Path="apps/backend/docs/planning/production-file-surface-lockdown-task.md" />
     <File Path="apps/backend/docs/planning/properties-follow-up-notes.md" />
     <File Path="apps/backend/docs/planning/properties-module-task.md" />
+    <File Path="apps/backend/docs/planning/properties-personal-data-catalogue-task.md" />
     <File Path="apps/backend/docs/planning/properties-topology-lifecycle-task.md" />
     <File Path="apps/backend/docs/planning/remote-adapter-lease-task.md" />
     <File Path="apps/backend/docs/planning/reservations-module-task.md" />
@@ -483,6 +484,11 @@
     <Project Path="apps/backend/src/Modules/Properties/BunkFy.Modules.Properties.Domain/BunkFy.Modules.Properties.Domain.csproj" />
     <Project Path="apps/backend/src/Modules/Properties/BunkFy.Modules.Properties.Persistence.PostgreSqlMigrations/BunkFy.Modules.Properties.Persistence.PostgreSqlMigrations.csproj" />
     <Project Path="apps/backend/src/Modules/Properties/BunkFy.Modules.Properties.Persistence/BunkFy.Modules.Properties.Persistence.csproj" />
+  </Folder>
+  <Folder Name="/apps/backend/src/Modules/Properties/docs/">
+    <File Path="apps/backend/src/Modules/Properties/docs/README.md" />
+    <File Path="apps/backend/src/Modules/Properties/docs/personal-data-catalog.v1.json" />
+    <File Path="apps/backend/src/Modules/Properties/docs/personal-data-inventory.v1.md" />
   </Folder>
   <Folder Name="/apps/backend/src/Modules/Properties/tests/">
     <Project Path="apps/backend/src/Modules/Properties/tests/BunkFy.Modules.Properties.Tests/BunkFy.Modules.Properties.Tests.csproj" />
