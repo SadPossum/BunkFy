@@ -421,6 +421,25 @@
     <Project Path="apps/backend/src/BunkFy.Host.ServiceDefaults/BunkFy.Host.ServiceDefaults.csproj" />
     <Project Path="apps/backend/src/BunkFy.Host.Worker/BunkFy.Host.Worker.csproj" />
   </Folder>
+  <Folder Name="/apps/backend/src/Modules/DataRights/">
+    <Project Path="apps/backend/src/Modules/DataRights/BunkFy.Modules.DataRights.Admin.Contracts/BunkFy.Modules.DataRights.Admin.Contracts.csproj" />
+    <Project Path="apps/backend/src/Modules/DataRights/BunkFy.Modules.DataRights.AdminApi/BunkFy.Modules.DataRights.AdminApi.csproj" />
+    <Project Path="apps/backend/src/Modules/DataRights/BunkFy.Modules.DataRights.AdminCli/BunkFy.Modules.DataRights.AdminCli.csproj" />
+    <Project Path="apps/backend/src/Modules/DataRights/BunkFy.Modules.DataRights.Api/BunkFy.Modules.DataRights.Api.csproj" />
+    <Project Path="apps/backend/src/Modules/DataRights/BunkFy.Modules.DataRights.Application/BunkFy.Modules.DataRights.Application.csproj" />
+    <Project Path="apps/backend/src/Modules/DataRights/BunkFy.Modules.DataRights.Contracts/BunkFy.Modules.DataRights.Contracts.csproj" />
+    <Project Path="apps/backend/src/Modules/DataRights/BunkFy.Modules.DataRights.Domain/BunkFy.Modules.DataRights.Domain.csproj" />
+    <Project Path="apps/backend/src/Modules/DataRights/BunkFy.Modules.DataRights.Persistence.PostgreSqlMigrations/BunkFy.Modules.DataRights.Persistence.PostgreSqlMigrations.csproj" />
+    <Project Path="apps/backend/src/Modules/DataRights/BunkFy.Modules.DataRights.Persistence/BunkFy.Modules.DataRights.Persistence.csproj" />
+  </Folder>
+  <Folder Name="/apps/backend/src/Modules/DataRights/docs/">
+    <File Path="apps/backend/src/Modules/DataRights/docs/README.md" />
+    <File Path="apps/backend/src/Modules/DataRights/docs/personal-data-catalog.v1.json" />
+    <File Path="apps/backend/src/Modules/DataRights/docs/personal-data-inventory.v1.md" />
+  </Folder>
+  <Folder Name="/apps/backend/src/Modules/DataRights/tests/">
+    <Project Path="apps/backend/src/Modules/DataRights/tests/BunkFy.Modules.DataRights.Tests/BunkFy.Modules.DataRights.Tests.csproj" />
+  </Folder>
   <Folder Name="/apps/backend/src/Modules/Guests/">
     <Project Path="apps/backend/src/Modules/Guests/BunkFy.Modules.Guests.Admin.Contracts/BunkFy.Modules.Guests.Admin.Contracts.csproj" />
     <Project Path="apps/backend/src/Modules/Guests/BunkFy.Modules.Guests.AdminApi/BunkFy.Modules.Guests.AdminApi.csproj" />
