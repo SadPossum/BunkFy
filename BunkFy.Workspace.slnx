@@ -56,6 +56,7 @@
     <File Path="apps/backend/docs/planning/executable-personal-data-catalog-task.md" />
     <File Path="apps/backend/docs/planning/gma-access-control-properties-alignment.md" />
     <File Path="apps/backend/docs/planning/gma-durable-runtime-alignment.md" />
+    <File Path="apps/backend/docs/planning/guest-data-rights-and-lifecycle-workflow-task.md" />
     <File Path="apps/backend/docs/planning/guest-records-module-task.md" />
     <File Path="apps/backend/docs/planning/imap-reservation-mail-adapter-task.md" />
     <File Path="apps/backend/docs/planning/imap-reservation-mail-authentication-task.md" />
