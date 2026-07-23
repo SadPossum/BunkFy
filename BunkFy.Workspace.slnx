@@ -66,6 +66,7 @@
     <File Path="apps/backend/docs/planning/ingestion-pii-minimization-task.md" />
     <File Path="apps/backend/docs/planning/ingestion-sensitive-history-retention-task.md" />
     <File Path="apps/backend/docs/planning/ingestion-source-reprocessing-task.md" />
+    <File Path="apps/backend/docs/planning/international-market-gate-task.md" />
     <File Path="apps/backend/docs/planning/inventory-module-task.md" />
     <File Path="apps/backend/docs/planning/inventory-personal-data-catalogue-task.md" />
     <File Path="apps/backend/docs/planning/inventory-room-retirement-and-throughput-hardening-task.md" />
@@ -303,6 +304,7 @@
     <Project Path="apps/backend/gma/modules/auth/src/Gma.Modules.Auth.Contracts/Gma.Modules.Auth.Contracts.csproj" />
     <Project Path="apps/backend/gma/modules/auth/src/Gma.Modules.Auth.Domain/Gma.Modules.Auth.Domain.csproj" />
     <Project Path="apps/backend/gma/modules/auth/src/Gma.Modules.Auth.Infrastructure.JwtBearer/Gma.Modules.Auth.Infrastructure.JwtBearer.csproj" />
+    <Project Path="apps/backend/gma/modules/auth/src/Gma.Modules.Auth.Infrastructure.TokenHashing/Gma.Modules.Auth.Infrastructure.TokenHashing.csproj" />
     <Project Path="apps/backend/gma/modules/auth/src/Gma.Modules.Auth.Infrastructure/Gma.Modules.Auth.Infrastructure.csproj" />
     <Project Path="apps/backend/gma/modules/auth/src/Gma.Modules.Auth.Persistence.PostgreSqlMigrations/Gma.Modules.Auth.Persistence.PostgreSqlMigrations.csproj" />
     <Project Path="apps/backend/gma/modules/auth/src/Gma.Modules.Auth.Persistence.SqlServerMigrations/Gma.Modules.Auth.Persistence.SqlServerMigrations.csproj" />

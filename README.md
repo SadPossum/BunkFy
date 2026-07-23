@@ -50,7 +50,7 @@ Start the full local graph:
 
 For the single-node, production-shaped preview path, use the concise [preview deployment runbook](docs/operations/preview-deployment.md).
 
-The Aspire AppHost starts the shared backend graph (PostgreSQL, NATS JetStream, MinIO, API, and opt-in worker/admin resources) plus the web client. Backend-only and full-stack AppHosts consume the same composition code so their infrastructure and worker settings cannot drift.
+The Aspire AppHost starts the shared backend graph (PostgreSQL, NATS JetStream, MinIO, a one-shot migration gate, API, and opt-in worker/admin resources) plus the web client at `http://localhost:5173`. API and background processes wait for successful migrations, and backend-only and full-stack AppHosts consume the same composition code so their infrastructure and worker settings cannot drift.
 
 Run the integrated validation pass:
 
