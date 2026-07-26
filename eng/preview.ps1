@@ -43,6 +43,39 @@ foreach ($entry in $minimumSecretLengths.GetEnumerator()) {
     }
 }
 
+$dataRightsKeyNames = @(
+    'BUNKFY_DATA_RIGHTS_PSEUDONYMISATION_KEY',
+    'BUNKFY_DATA_RIGHTS_REPLAY_ENVELOPE_KEY',
+    'BUNKFY_DATA_RIGHTS_LEDGER_INTEGRITY_KEY'
+)
+$dataRightsKeyDigests = [Collections.Generic.HashSet[string]]::new(
+    [StringComparer]::Ordinal)
+foreach ($keyName in $dataRightsKeyNames) {
+    $encodedKey = [string]$settings[$keyName]
+    try {
+        $key = [Convert]::FromBase64String($encodedKey)
+    }
+    catch {
+        throw "$keyName must be a base64-encoded 32-byte key."
+    }
+
+    if ($key.Length -ne 32) {
+        throw "$keyName must be a base64-encoded 32-byte key."
+    }
+
+    $sha256 = [Security.Cryptography.SHA256]::Create()
+    try {
+        $digest = (
+            [BitConverter]::ToString($sha256.ComputeHash($key)) -replace '-', '')
+    }
+    finally {
+        $sha256.Dispose()
+    }
+    if (-not $dataRightsKeyDigests.Add($digest)) {
+        throw 'Data-rights preview keys must use distinct key material.'
+    }
+}
+
 $publicUrl = [Uri]([string]$settings['BUNKFY_PUBLIC_URL'])
 $isLoopbackHttp = $publicUrl.Scheme -eq 'http' -and $publicUrl.IsLoopback
 if ($publicUrl.Scheme -ne 'https' -and -not $isLoopbackHttp) {

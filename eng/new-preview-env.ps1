@@ -25,6 +25,18 @@ function New-BunkFySecret {
     return ([BitConverter]::ToString($bytes) -replace '-', '').ToLowerInvariant()
 }
 
+function New-BunkFyBase64Secret {
+    $bytes = New-Object byte[] 32
+    $random = [Security.Cryptography.RandomNumberGenerator]::Create()
+    try {
+        $random.GetBytes($bytes)
+        return [Convert]::ToBase64String($bytes)
+    }
+    finally {
+        $random.Dispose()
+    }
+}
+
 if (-not $PSCmdlet.ShouldProcess($environmentPath, 'Generate local preview environment')) {
     return
 }
@@ -37,6 +49,9 @@ $replacements = @{
     'replace-with-random-minio-password' = New-BunkFySecret
     'replace-with-at-least-32-random-characters' = New-BunkFySecret
     'replace-with-a-separate-random-secret' = New-BunkFySecret
+    'replace-with-base64-pseudonymisation-key' = New-BunkFyBase64Secret
+    'replace-with-base64-replay-envelope-key' = New-BunkFyBase64Secret
+    'replace-with-base64-ledger-integrity-key' = New-BunkFyBase64Secret
 }
 foreach ($placeholder in $replacements.Keys) {
     $content = $content.Replace($placeholder, $replacements[$placeholder])

@@ -99,6 +99,7 @@ try {
         'bunkfy-preview-redis-data' = 'redis-data.tar.gz'
         'bunkfy-preview-data-protection' = 'data-protection.tar.gz'
         'bunkfy-preview-adapter-file-drop' = 'adapter-file-drop.tar.gz'
+        'bunkfy-preview-data-rights-ledger-delta' = 'data-rights-ledger-delta.tar.gz'
     }
     foreach ($entry in $volumes.GetEnumerator()) {
         Backup-BunkFyVolume -Volume $entry.Key -Archive $entry.Value

@@ -2,6 +2,12 @@
 
 This is the production-shaped single-node preview path for BunkFy. It packages the current domains without introducing another business module. Aspire remains the local development path.
 
+The stack uses the explicit `Preview` environment so its protected
+data-rights replay ledger can use one integrity-keyed local provider shared by
+API, Worker and management hosts. The provider lives on its own named volume
+and is never a production topology: Production still requires a separately
+registered external, production-grade ledger provider.
+
 ## Prepare
 
 Requirements: Docker with Compose v2 and PowerShell 7.
@@ -126,7 +132,11 @@ Create a consistent backup during a brief write outage:
 .\eng\operations\backup-preview.ps1 -Confirm:$false
 ```
 
-The script stops the application writers, takes a PostgreSQL custom dump, archives MinIO, NATS, Redis, Data Protection, and adapter input volumes, writes SHA-256 hashes, and restores the previous default stack. Copy the resulting `.tmp/backups/preview-*` directory to independent encrypted storage.
+The script stops the application writers, takes a PostgreSQL custom dump,
+archives MinIO, NATS, Redis, Data Protection, the protected data-rights ledger
+and adapter input volumes, writes SHA-256 hashes, and restores the previous
+default stack. Copy the resulting `.tmp/backups/preview-*` directory to
+independent encrypted storage.
 
 Restore only into an empty, stopped preview deployment:
 

@@ -5,7 +5,7 @@ x-database-environment: &database-environment
   ConnectionStrings__PostgreSql: "Host=postgres;Port=5432;Database=bunkfy;Username=bunkfy;Password=${BUNKFY_POSTGRES_PASSWORD:?set BUNKFY_POSTGRES_PASSWORD};Include Error Detail=false"
 
 x-runtime-environment: &runtime-environment
-  DOTNET_ENVIRONMENT: Production
+  DOTNET_ENVIRONMENT: Preview
   <<: *database-environment
   ConnectionStrings__nats: "nats://${BUNKFY_NATS_USER:?set BUNKFY_NATS_USER}:${BUNKFY_NATS_PASSWORD:?set BUNKFY_NATS_PASSWORD}@nats:4222"
   ConnectionStrings__redis: "redis:6379,password=${BUNKFY_REDIS_PASSWORD:?set BUNKFY_REDIS_PASSWORD},abortConnect=false"
@@ -28,6 +28,14 @@ x-runtime-environment: &runtime-environment
   NatsJetStream__Replicas: "1"
   Auth__Jwt__SigningKey: "${BUNKFY_JWT_SIGNING_KEY:?set BUNKFY_JWT_SIGNING_KEY}"
   Auth__RefreshTokens__Pepper: "${BUNKFY_REFRESH_TOKEN_PEPPER:?set BUNKFY_REFRESH_TOKEN_PEPPER}"
+  DataRights__Pseudonymisation__ActiveKeyVersion: "1"
+  DataRights__Pseudonymisation__Keys__1: "${BUNKFY_DATA_RIGHTS_PSEUDONYMISATION_KEY:?set BUNKFY_DATA_RIGHTS_PSEUDONYMISATION_KEY}"
+  DataRights__ReplayEnvelope__ActiveKeyVersion: "1"
+  DataRights__ReplayEnvelope__Keys__1: "${BUNKFY_DATA_RIGHTS_REPLAY_ENVELOPE_KEY:?set BUNKFY_DATA_RIGHTS_REPLAY_ENVELOPE_KEY}"
+  DataRights__LedgerDelta__Provider: LocalFile
+  DataRights__LedgerDelta__LocalFilePath: /var/lib/bunkfy/data-rights-ledger-delta
+  DataRights__LedgerDelta__ActiveIntegrityKeyVersion: "1"
+  DataRights__LedgerDelta__IntegrityKeys__1: "${BUNKFY_DATA_RIGHTS_LEDGER_INTEGRITY_KEY:?set BUNKFY_DATA_RIGHTS_LEDGER_INTEGRITY_KEY}"
 
 services:
   postgres:
@@ -148,6 +156,7 @@ services:
       Notifications__Adapters__Email__Enabled: "false"
     volumes:
       - data-protection:/var/lib/bunkfy/data-protection
+      - data-rights-ledger-delta:/var/lib/bunkfy/data-rights-ledger-delta
     depends_on:
       migrations:
         condition: service_completed_successfully
@@ -210,6 +219,7 @@ services:
       Adapters__JsonFileDrop__RetentionEnabled: "true"
     volumes:
       - adapter-file-drop:/var/lib/bunkfy/file-drop
+      - data-rights-ledger-delta:/var/lib/bunkfy/data-rights-ledger-delta
     depends_on:
       migrations:
         condition: service_completed_successfully
@@ -261,6 +271,8 @@ services:
       Http__HttpsRedirectionEnabled: "false"
       Http__HstsEnabled: "false"
       Http__PrivateNetwork__Enabled: "false"
+    volumes:
+      - data-rights-ledger-delta:/var/lib/bunkfy/data-rights-ledger-delta
     ports:
       - "127.0.0.1:${BUNKFY_ADMIN_PORT:-5195}:8080"
     depends_on:
@@ -290,6 +302,8 @@ services:
       <<: *runtime-environment
       MessageJournalCleanup__Enabled: "false"
       Logging__LogLevel__Default: Warning
+    volumes:
+      - data-rights-ledger-delta:/var/lib/bunkfy/data-rights-ledger-delta
     depends_on:
       migrations:
         condition: service_completed_successfully
@@ -317,3 +331,5 @@ volumes:
     name: bunkfy-preview-data-protection
   adapter-file-drop:
     name: bunkfy-preview-adapter-file-drop
+  data-rights-ledger-delta:
+    name: bunkfy-preview-data-rights-ledger-delta
