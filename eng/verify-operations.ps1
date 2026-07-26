@@ -24,9 +24,38 @@ Write-Host 'BunkFy operations scripts are syntactically valid.'
 
 $composeFile = Join-Path $PSScriptRoot '..\deploy\preview\compose.yaml'
 $environmentFile = Join-Path $PSScriptRoot '..\deploy\preview\.env.example'
-& docker compose --env-file $environmentFile -f $composeFile config --quiet
+$resolvedComposeJson = & docker compose `
+    --env-file $environmentFile `
+    -f $composeFile `
+    config `
+    --format json
 if ($LASTEXITCODE -ne 0) {
     throw 'Preview Compose configuration is invalid.'
+}
+
+$resolvedCompose = $resolvedComposeJson | ConvertFrom-Json
+$workerEnvironment = $resolvedCompose.services.worker.environment
+$requiredWorkerModules = @(
+    'Auth',
+    'AccessControl',
+    'Notifications',
+    'Organizations',
+    'Properties',
+    'Inventory',
+    'Reservations',
+    'Guests',
+    'DataRights',
+    'Staff',
+    'Ingestion',
+    'TaskRuntime'
+)
+
+foreach ($module in $requiredWorkerModules) {
+    $setting = "Worker__Modules__$module"
+    $configuredValue = $workerEnvironment.PSObject.Properties[$setting].Value
+    if ($configuredValue -ne 'true') {
+        throw "Preview worker module '$module' must be enabled through '$setting'."
+    }
 }
 
 Write-Host 'BunkFy preview Compose configuration is valid.'

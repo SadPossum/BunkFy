@@ -189,6 +189,7 @@ services:
       Worker__Modules__Inventory: "true"
       Worker__Modules__Reservations: "true"
       Worker__Modules__Guests: "true"
+      Worker__Modules__DataRights: "true"
       Worker__Modules__Staff: "true"
       Worker__Modules__Ingestion: "true"
       Worker__Modules__TaskRuntime: "true"
