@@ -46,7 +46,8 @@ foreach ($entry in $minimumSecretLengths.GetEnumerator()) {
 $dataRightsKeyNames = @(
     'BUNKFY_DATA_RIGHTS_PSEUDONYMISATION_KEY',
     'BUNKFY_DATA_RIGHTS_REPLAY_ENVELOPE_KEY',
-    'BUNKFY_DATA_RIGHTS_LEDGER_INTEGRITY_KEY'
+    'BUNKFY_DATA_RIGHTS_LEDGER_INTEGRITY_KEY',
+    'BUNKFY_DATA_RIGHTS_EXPORT_ARTIFACT_KEY'
 )
 $dataRightsKeyDigests = [Collections.Generic.HashSet[string]]::new(
     [StringComparer]::Ordinal)

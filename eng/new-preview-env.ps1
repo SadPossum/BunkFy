@@ -52,6 +52,7 @@ $replacements = @{
     'replace-with-base64-pseudonymisation-key' = New-BunkFyBase64Secret
     'replace-with-base64-replay-envelope-key' = New-BunkFyBase64Secret
     'replace-with-base64-ledger-integrity-key' = New-BunkFyBase64Secret
+    'replace-with-base64-export-artifact-key' = New-BunkFyBase64Secret
 }
 foreach ($placeholder in $replacements.Keys) {
     $content = $content.Replace($placeholder, $replacements[$placeholder])
