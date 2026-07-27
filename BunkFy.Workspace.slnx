@@ -98,6 +98,7 @@
     <File Path="apps/backend/docs/planning/secure-staff-enrollment-task.md" />
     <File Path="apps/backend/docs/planning/staff-profiles-module-task.md" />
     <File Path="apps/backend/docs/planning/standalone-adapter-host-task.md" />
+    <File Path="apps/backend/docs/planning/tenant-scoped-data-rights-cases-task.md" />
     <File Path="apps/backend/docs/planning/workspace-access-management-facade-task.md" />
     <File Path="apps/backend/docs/planning/workspace-access-profiles-task.md" />
     <File Path="apps/backend/docs/planning/workspace-invitation-access-plans-task.md" />
