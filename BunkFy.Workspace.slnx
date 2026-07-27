@@ -52,6 +52,7 @@
   <Folder Name="/apps/backend/docs/planning/">
     <File Path="apps/backend/docs/planning/adapter-http-client-task.md" />
     <File Path="apps/backend/docs/planning/architecture-cleanup-task.md" />
+    <File Path="apps/backend/docs/planning/data-rights-multi-owner-execution-task.md" />
     <File Path="apps/backend/docs/planning/development-guidelines.md" />
     <File Path="apps/backend/docs/planning/executable-personal-data-catalog-task.md" />
     <File Path="apps/backend/docs/planning/gma-access-control-properties-alignment.md" />
@@ -71,6 +72,7 @@
     <File Path="apps/backend/docs/planning/ingestion-sensitive-history-retention-task.md" />
     <File Path="apps/backend/docs/planning/ingestion-source-reprocessing-task.md" />
     <File Path="apps/backend/docs/planning/international-market-gate-task.md" />
+    <File Path="apps/backend/docs/planning/inventory-data-rights-owner-capability-task.md" />
     <File Path="apps/backend/docs/planning/inventory-module-task.md" />
     <File Path="apps/backend/docs/planning/inventory-personal-data-catalogue-task.md" />
     <File Path="apps/backend/docs/planning/inventory-room-retirement-and-throughput-hardening-task.md" />
