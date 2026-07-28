@@ -15,8 +15,6 @@ concurrency:
 
 env:
   EVIDENCE_DIRECTORY: artifacts/image-evidence
-  BACKEND_OCI_ARCHIVE: ${{ runner.temp }}/bunkfy-backend.oci.tar
-  WEB_OCI_ARCHIVE: ${{ runner.temp }}/bunkfy-web.oci.tar
   IMAGE_PLATFORM: linux/amd64
   DOCKER_BUILD_RECORD_UPLOAD: 'false'
 
@@ -74,7 +72,7 @@ jobs:
           push: false
           pull: true
           provenance: mode=max
-          outputs: type=oci,dest=${{ env.BACKEND_OCI_ARCHIVE }}
+          outputs: type=oci,dest=${{ runner.temp }}/bunkfy-backend.oci.tar
           cache-from: type=gha,scope=bunkfy-backend
           cache-to: type=gha,mode=max,scope=bunkfy-backend
 
@@ -93,7 +91,7 @@ jobs:
           push: false
           pull: true
           provenance: mode=max
-          outputs: type=oci,dest=${{ env.WEB_OCI_ARCHIVE }}
+          outputs: type=oci,dest=${{ runner.temp }}/bunkfy-web.oci.tar
           cache-from: type=gha,scope=bunkfy-web
           cache-to: type=gha,mode=max,scope=bunkfy-web
 
@@ -120,7 +118,7 @@ jobs:
         run: |
           ./eng/scan-oci-image.ps1 `
             -ArtifactName backend `
-            -InputPath $env:BACKEND_OCI_ARCHIVE `
+            -InputPath "$env:RUNNER_TEMP/bunkfy-backend.oci.tar" `
             -OutputDirectory $env:EVIDENCE_DIRECTORY
 
       - name: Scan web OCI candidate
@@ -130,7 +128,7 @@ jobs:
         run: |
           ./eng/scan-oci-image.ps1 `
             -ArtifactName web `
-            -InputPath $env:WEB_OCI_ARCHIVE `
+            -InputPath "$env:RUNNER_TEMP/bunkfy-web.oci.tar" `
             -OutputDirectory $env:EVIDENCE_DIRECTORY
 
       - name: Create closed image evidence
