@@ -47,7 +47,7 @@ jobs:
           }
 
       - name: Scan release source and create SBOM
-        uses: SadPossum/GMA-Skeleton/.github/actions/security-baseline@32ec053c78a87f5b5941068eb449e7ae10f51f59
+        uses: SadPossum/GMA-Skeleton/.github/actions/security-baseline@ef80f698cbce927ce352967061442ebdf73e4da9
         with:
           output-directory: artifacts/release-security
           exception-file: .gma/security-exceptions.json
