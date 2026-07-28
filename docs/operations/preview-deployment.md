@@ -113,16 +113,18 @@ The Worker owns bounded cleanup. Current preview windows are:
 | Ingestion raw evidence / sensitive history | 30 / 90 days |
 | File-drop processed / failed artifacts | 7 / 30 days |
 
-Ingestion retention tasks are tenant-scoped and must be scheduled for every active tenant. Until recurring TaskRuntime schedules are provisioned, enqueue both operations from a trusted scheduler or maintenance window:
+The Retention module now reconciles tenant-scoped schedules automatically for
+every active workspace and property-scoped schedules for each
+processing-enabled property. TaskRuntime owns occurrences, leases, retries,
+and worker recovery; no recurring Admin CLI enqueue is required.
 
 ```powershell
-docker @compose run --rm admin-cli -t default -a bootstrap-owner `
-  ingestion retention purge-raw-payloads
-docker @compose run --rm admin-cli -t default -a bootstrap-owner `
-  ingestion retention redact-reservation-history
+docker @compose run --rm admin-cli -t default -a bootstrap-owner retention list
 ```
 
-Legal holds remain authoritative and exclude protected evidence from deletion/redaction.
+Use that recovery-oriented view, or Workspace settings in the browser, to
+inspect due, overdue, held, or repeatedly failing schedules. Legal holds remain
+authoritative and exclude protected evidence from deletion or redaction.
 
 ## Backup And Restore
 

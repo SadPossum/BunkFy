@@ -6,6 +6,7 @@ x-database-environment: &database-environment
 
 x-runtime-environment: &runtime-environment
   DOTNET_ENVIRONMENT: Preview
+  BunkFy__Deployment__Profile: Preview
   <<: *database-environment
   ConnectionStrings__nats: "nats://${BUNKFY_NATS_USER:?set BUNKFY_NATS_USER}:${BUNKFY_NATS_PASSWORD:?set BUNKFY_NATS_PASSWORD}@nats:4222"
   ConnectionStrings__redis: "redis:6379,password=${BUNKFY_REDIS_PASSWORD:?set BUNKFY_REDIS_PASSWORD},abortConnect=false"

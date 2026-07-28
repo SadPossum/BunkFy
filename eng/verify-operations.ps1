@@ -34,6 +34,12 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 $resolvedCompose = $resolvedComposeJson | ConvertFrom-Json
+$apiEnvironment = $resolvedCompose.services.api.environment
+if ($apiEnvironment.DOTNET_ENVIRONMENT -ne 'Preview' -or
+    $apiEnvironment.BunkFy__Deployment__Profile -ne 'Preview') {
+    throw 'The preview API must retain both the Preview host environment and deployment profile.'
+}
+
 $workerEnvironment = $resolvedCompose.services.worker.environment
 $requiredWorkerModules = @(
     'Auth',
