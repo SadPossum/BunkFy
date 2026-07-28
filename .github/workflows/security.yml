@@ -45,7 +45,7 @@ jobs:
         run: ./eng/check-product-image-evidence.ps1
 
       - name: Run pinned GMA repository security baseline
-        uses: SadPossum/GMA-Skeleton/.github/actions/security-baseline@32ec053c78a87f5b5941068eb449e7ae10f51f59
+        uses: SadPossum/GMA-Skeleton/.github/actions/security-baseline@ec0e1345ce36f2d2e25e6fad231bc031f690b255
         with:
           exception-file: .gma/security-exceptions.json
 

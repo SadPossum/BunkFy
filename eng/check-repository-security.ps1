@@ -4,7 +4,7 @@ param()
 . (Join-Path $PSScriptRoot 'common.ps1')
 
 $root = Get-BunkFyRepositoryRoot
-$skeletonSecurityRevision = '32ec053c78a87f5b5941068eb449e7ae10f51f59'
+$skeletonSecurityRevision = 'ec0e1345ce36f2d2e25e6fad231bc031f690b255'
 $requiredFiles = @(
     '.github\dependabot.yml',
     '.github\workflows\codeql.yml',
