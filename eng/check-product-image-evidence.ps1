@@ -191,6 +191,7 @@ foreach ($script in @(
 $scanner = Read-TextFile -RelativePath 'eng/scan-oci-image.ps1'
 foreach ($token in @(
         'Get-Command tar -CommandType Application',
+        'Select-Object -First 1',
         "'oci-layout'",
         "'index.json'",
         "'blobs'",

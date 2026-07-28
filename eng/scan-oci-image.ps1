@@ -50,7 +50,8 @@ $resolvedOutputDirectory = [System.IO.Path]::GetFullPath($OutputDirectory)
 [System.IO.Directory]::CreateDirectory($resolvedOutputDirectory) | Out-Null
 
 $trivy = Get-Command trivy -CommandType Application -ErrorAction Stop
-$tar = Get-Command tar -CommandType Application -ErrorAction Stop
+$tar = Get-Command tar -CommandType Application -ErrorAction Stop |
+    Select-Object -First 1
 $expandedOciDirectory = Join-Path `
     ([System.IO.Path]::GetTempPath()) `
     "bunkfy-$ArtifactName-oci-$([Guid]::NewGuid().ToString('N'))"
