@@ -23,11 +23,13 @@ channel.
 2. generates the backend's deterministic local GMA source-root maps;
 3. builds the backend and web exactly once for `linux/amd64`;
 4. exports each build as a local OCI archive;
-5. blocks on HIGH and CRITICAL vulnerability, secret, configuration, or
-   license findings;
-6. emits a CycloneDX SBOM, SARIF, bounded scan summary, Buildx metadata,
+5. blocks on HIGH and CRITICAL vulnerability, secret, or configuration
+   findings;
+6. records HIGH and CRITICAL license classifications as non-blocking evidence
+   until an approved license policy and allowlist exist;
+7. emits a CycloneDX SBOM, SARIF, bounded scan summary, Buildx metadata,
    immutable OCI manifest digest, closed manifest, and SHA-256 checksums;
-7. attests and retains the evidence, then discards the local OCI archives.
+8. attests and retains the evidence, then discards the local OCI archives.
 
 The backend image contains API, Worker, Admin API, Admin CLI, and migrations
 outputs. Those processes therefore share one exact backend digest. The web has
@@ -44,6 +46,8 @@ so development uses focused tests and one end-of-slice Docker gate.
 - No deployment or environment promotion occurs.
 - No hosted-production declaration is generated.
 - No OCI archive is uploaded as a large workflow artifact.
+- No legal conclusion is inferred from Trivy license risk classes; license
+  enforcement requires an approved project policy and allowlist.
 - No image-security exception path exists yet; blocking findings must be fixed
   before this gate can pass.
 

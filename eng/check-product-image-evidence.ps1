@@ -196,6 +196,9 @@ foreach ($token in @(
         "'index.json'",
         "'blobs'",
         '--input', '$expandedOciDirectory',
+        "'--exit-code', '0'",
+        '$blockingSecurityFindingCount',
+        'blockingSecurityFindings',
         '[System.IO.Directory]::Delete($expandedOciDirectory, $true)'
     )) {
     if ($scanner.IndexOf(

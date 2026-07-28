@@ -78,6 +78,7 @@ $findingTypeCounts = [ordered]@{
     secrets = 0
     licenses = 0
 }
+$blockingSecurityFindingCount = 0
 
 try {
     [System.IO.Directory]::CreateDirectory($expandedOciDirectory) | Out-Null
@@ -109,7 +110,7 @@ try {
         '--scanners', 'vuln,secret,misconfig,license',
         '--severity', $Severity,
         '--ignore-unfixed=false',
-        '--exit-code', '1',
+        '--exit-code', '0',
         '--format', 'json',
         '--output', $rawReportPath,
         '--timeout', $Timeout,
@@ -151,6 +152,9 @@ try {
                         $severityKey = 'unknown'
                     }
                     $severityCounts[$severityKey]++
+                    if ($findingGroup.Bucket -ne 'licenses') {
+                        $blockingSecurityFindingCount++
+                    }
                 }
             }
         }
@@ -179,12 +183,12 @@ try {
     $sbomExitCode = $LASTEXITCODE
 
     $gateStatus = if (
-        $scanExitCode -notin @(0, 1) -or
+        $scanExitCode -ne 0 -or
         $convertExitCode -ne 0 -or
         $sbomExitCode -ne 0) {
         'error'
     }
-    elseif ($scanExitCode -eq 1) {
+    elseif ($blockingSecurityFindingCount -gt 0) {
         'blocked'
     }
     else {
@@ -199,6 +203,7 @@ try {
             generatedAtUtc = [DateTimeOffset]::UtcNow.ToString('O')
             gateStatus = $gateStatus
             blockingSeverities = @($Severity.Split(','))
+            blockingSecurityFindings = $blockingSecurityFindingCount
             scannerExitCodes = [ordered]@{
                 scan = $scanExitCode
                 sarif = $convertExitCode
@@ -219,13 +224,13 @@ finally {
     }
 }
 
-if ($scanExitCode -notin @(0, 1) -or
+if ($scanExitCode -ne 0 -or
     $convertExitCode -ne 0 -or
     $sbomExitCode -ne 0) {
     throw "Image evidence generation failed for '$ArtifactName'."
 }
 
-if ($scanExitCode -eq 1) {
+if ($blockingSecurityFindingCount -gt 0) {
     throw "Image security findings block '$ArtifactName'."
 }
 
