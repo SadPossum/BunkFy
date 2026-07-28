@@ -50,6 +50,10 @@ $resolvedOutputDirectory = [System.IO.Path]::GetFullPath($OutputDirectory)
 [System.IO.Directory]::CreateDirectory($resolvedOutputDirectory) | Out-Null
 
 $trivy = Get-Command trivy -CommandType Application -ErrorAction Stop
+$tar = Get-Command tar -CommandType Application -ErrorAction Stop
+$expandedOciDirectory = Join-Path `
+    ([System.IO.Path]::GetTempPath()) `
+    "bunkfy-$ArtifactName-oci-$([Guid]::NewGuid().ToString('N'))"
 $rawReportPath = Join-Path `
     ([System.IO.Path]::GetTempPath()) `
     "bunkfy-$ArtifactName-$([Guid]::NewGuid().ToString('N')).json"
@@ -75,9 +79,32 @@ $findingTypeCounts = [ordered]@{
 }
 
 try {
+    [System.IO.Directory]::CreateDirectory($expandedOciDirectory) | Out-Null
+    & $tar.Source `
+        '-xf' `
+        $resolvedInputPath `
+        '-C' `
+        $expandedOciDirectory
+    if ($LASTEXITCODE -ne 0) {
+        throw "Could not expand OCI image archive '$resolvedInputPath'."
+    }
+
+    foreach ($requiredPath in @(
+            (Join-Path $expandedOciDirectory 'oci-layout'),
+            (Join-Path $expandedOciDirectory 'index.json')
+        )) {
+        if (-not [System.IO.File]::Exists($requiredPath)) {
+            throw "OCI image archive '$resolvedInputPath' is missing '$requiredPath'."
+        }
+    }
+    if (-not [System.IO.Directory]::Exists(
+            (Join-Path $expandedOciDirectory 'blobs'))) {
+        throw "OCI image archive '$resolvedInputPath' is missing its blob store."
+    }
+
     $scanArguments = @(
         'image',
-        '--input', $resolvedInputPath,
+        '--input', $expandedOciDirectory,
         '--scanners', 'vuln,secret,misconfig,license',
         '--severity', $Severity,
         '--ignore-unfixed=false',
@@ -139,7 +166,7 @@ try {
 
     $sbomArguments = @(
         'image',
-        '--input', $resolvedInputPath,
+        '--input', $expandedOciDirectory,
         '--scanners', 'vuln',
         '--list-all-pkgs',
         '--format', 'cyclonedx',
@@ -185,6 +212,9 @@ try {
 finally {
     if ([System.IO.File]::Exists($rawReportPath)) {
         [System.IO.File]::Delete($rawReportPath)
+    }
+    if ([System.IO.Directory]::Exists($expandedOciDirectory)) {
+        [System.IO.Directory]::Delete($expandedOciDirectory, $true)
     }
 }
 

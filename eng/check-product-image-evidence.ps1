@@ -188,6 +188,22 @@ foreach ($script in @(
     Assert-PowerShellSyntax -RelativePath $script
 }
 
+$scanner = Read-TextFile -RelativePath 'eng/scan-oci-image.ps1'
+foreach ($token in @(
+        'Get-Command tar -CommandType Application',
+        "'oci-layout'",
+        "'index.json'",
+        "'blobs'",
+        '--input', '$expandedOciDirectory',
+        '[System.IO.Directory]::Delete($expandedOciDirectory, $true)'
+    )) {
+    if ($scanner.IndexOf(
+            $token,
+            [System.StringComparison]::Ordinal) -lt 0) {
+        throw "OCI image scanner is missing '$token'."
+    }
+}
+
 Assert-DigestPinnedDockerfile `
     -RelativePath 'apps/backend/Dockerfile' `
     -ExpectedExternalBaseImageCount 2
