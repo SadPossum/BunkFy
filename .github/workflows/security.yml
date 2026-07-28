@@ -32,8 +32,14 @@ jobs:
           token: ${{ secrets.GMA_CI_TOKEN || github.token }}
           persist-credentials: false
 
+      - name: Validate repository security policy
+        shell: pwsh
+        run: ./eng/check-repository-security.ps1
+
       - name: Run pinned GMA repository security baseline
-        uses: SadPossum/GMA-Skeleton/.github/actions/security-baseline@63f071af1ae746883433e795f2130ffcdbbf21f0
+        uses: SadPossum/GMA-Skeleton/.github/actions/security-baseline@32ec053c78a87f5b5941068eb449e7ae10f51f59
+        with:
+          exception-file: .gma/security-exceptions.json
 
       - name: Publish code-scanning evidence
         if: ${{ always() && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}

@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "repository": "SadPossum/BunkFy",
+  "securityBaseline": {
+    "repository": "SadPossum/GMA-Skeleton",
+    "commit": "32ec053c78a87f5b5941068eb449e7ae10f51f59"
+  },
+  "dependencyEcosystems": [
+    "github-actions",
+    "gitsubmodule"
+  ]
+}
