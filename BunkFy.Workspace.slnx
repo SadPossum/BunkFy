@@ -123,6 +123,7 @@
     <File Path="apps/backend/docs/planning/workspace-onboarding-production-proof-task.md" />
     <File Path="apps/backend/docs/planning/workspace-onboarding-task.md" />
     <File Path="apps/backend/docs/planning/workspace-staff-access-lifecycle-task.md" />
+    <File Path="apps/backend/docs/planning/workspaces-natural-expiry-consumer-task.md" />
     <File Path="apps/backend/docs/planning/workspaces-personal-data-catalogue-task.md" />
   </Folder>
   <Folder Name="/apps/backend/eng/">
