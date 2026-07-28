@@ -1,0 +1,11 @@
+{
+    "schemaVersion":  1,
+    "repository":  "SadPossum/BunkFy",
+    "artifactName":  "bunkfy",
+    "releaseKind":  "composition",
+    "releaseEvidence":  {
+                            "repository":  "SadPossum/GMA-Skeleton",
+                            "commit":  "4a1a6a857eff7524bc25821a89fe8b0260cb95a0"
+                        },
+    "sourceSetPath":  "artifacts/gma-source-set.json"
+}

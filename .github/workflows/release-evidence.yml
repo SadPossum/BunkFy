@@ -1,0 +1,132 @@
+name: Release Evidence
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  evidence:
+    name: Build and attest source evidence
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      attestations: write
+      id-token: write
+    steps:
+      - name: Checkout release source
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+          submodules: recursive
+          token: ${{ secrets.GMA_CI_TOKEN || github.token }}
+          persist-credentials: false
+
+      - name: Validate release policy
+        shell: pwsh
+        run: ./eng/check-repository-release.ps1
+
+      - name: Export source bill of materials
+        shell: pwsh
+        run: ./eng/export-source-set.ps1 -RequireClean
+
+      - name: Resolve candidate identity
+        id: identity
+        shell: pwsh
+        run: |
+          if ('${{ github.ref_type }}' -eq 'tag') {
+            "version=${{ github.ref_name }}" >> $env:GITHUB_OUTPUT
+            "require-tag=true" >> $env:GITHUB_OUTPUT
+          }
+          else {
+            $shortCommit = '${{ github.sha }}'.Substring(0, 12)
+            "version=candidate-$shortCommit" >> $env:GITHUB_OUTPUT
+            "require-tag=false" >> $env:GITHUB_OUTPUT
+          }
+
+      - name: Scan release source and create SBOM
+        uses: SadPossum/GMA-Skeleton/.github/actions/security-baseline@32ec053c78a87f5b5941068eb449e7ae10f51f59
+        with:
+          output-directory: artifacts/release-security
+          exception-file: .gma/security-exceptions.json
+
+      - name: Create source release evidence
+        id: release-evidence
+        uses: SadPossum/GMA-Skeleton/.github/actions/source-release-evidence@4a1a6a857eff7524bc25821a89fe8b0260cb95a0
+        with:
+          release-version: ${{ steps.identity.outputs.version }}
+          source-ref: ${{ github.ref }}
+          security-evidence-directory: artifacts/release-security
+          output-directory: artifacts/release
+          require-tag: ${{ steps.identity.outputs.require-tag }}
+
+      - name: Attest release provenance
+        uses: actions/attest@f7c74d28b9d84cb8768d0b8ca14a4bac6ef463e6 # v4.2.0
+        with:
+          subject-checksums: ${{ steps.release-evidence.outputs.checksums-path }}
+
+      - name: Attest source SBOM
+        uses: actions/attest@f7c74d28b9d84cb8768d0b8ca14a4bac6ef463e6 # v4.2.0
+        with:
+          subject-path: ${{ steps.release-evidence.outputs.archive-path }}
+          sbom-path: ${{ steps.release-evidence.outputs.sbom-path }}
+
+      - name: Retain release evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-evidence-${{ github.sha }}
+          path: ${{ steps.release-evidence.outputs.evidence-directory }}
+          if-no-files-found: error
+          retention-days: 90
+
+  publish:
+    name: Publish immutable tag assets
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: evidence
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Download attested evidence
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: release-evidence-${{ github.sha }}
+          path: artifacts/release
+
+      - name: Create GitHub release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          & gh release view $env:RELEASE_TAG --json tagName 2>$null |
+            Out-Null
+          if ($LASTEXITCODE -eq 0) {
+            throw "Release '$env:RELEASE_TAG' already exists; assets are immutable."
+          }
+
+          $arguments = @(
+            'release',
+            'create',
+            $env:RELEASE_TAG,
+            '--verify-tag',
+            '--generate-notes',
+            '--title',
+            $env:RELEASE_TAG
+          )
+          if ($env:RELEASE_TAG.Contains('-')) {
+            $arguments += '--prerelease'
+          }
+          $arguments += @(
+            Get-ChildItem -LiteralPath 'artifacts/release' -File |
+              Sort-Object Name |
+              ForEach-Object FullName
+          )
+
+          & gh @arguments
+          if ($LASTEXITCODE -ne 0) {
+            throw 'GitHub release creation failed.'
+          }
