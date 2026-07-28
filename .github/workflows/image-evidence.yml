@@ -1,0 +1,198 @@
+name: Product Image Evidence
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write
+  attestations: write
+  id-token: write
+
+concurrency:
+  group: product-image-evidence-${{ github.sha }}
+  cancel-in-progress: false
+
+env:
+  EVIDENCE_DIRECTORY: artifacts/image-evidence
+  BACKEND_OCI_ARCHIVE: ${{ runner.temp }}/bunkfy-backend.oci.tar
+  WEB_OCI_ARCHIVE: ${{ runner.temp }}/bunkfy-web.oci.tar
+  IMAGE_PLATFORM: linux/amd64
+  DOCKER_BUILD_RECORD_UPLOAD: 'false'
+
+jobs:
+  candidate:
+    name: Build and scan unpublished OCI candidates
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Checkout complete product source set
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+          submodules: recursive
+          token: ${{ secrets.GMA_CI_TOKEN || github.token }}
+          persist-credentials: false
+
+      - name: Validate candidate policy
+        shell: pwsh
+        run: |
+          ./eng/check-repository-release.ps1
+          ./eng/check-product-image-evidence.ps1
+
+      - name: Record recursive source set
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path $env:EVIDENCE_DIRECTORY |
+            Out-Null
+          ./eng/export-source-set.ps1 `
+            -OutputPath "$env:EVIDENCE_DIRECTORY/source-set.json" `
+            -RequireClean
+
+      - name: Prepare backend source composition
+        shell: pwsh
+        run: ./apps/backend/eng/gma-bootstrap.ps1
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+
+      - name: Install Trivy
+        uses: aquasecurity/setup-trivy@3fb12ec12f41e471780db15c232d5dd185dcb514 # v0.2.6
+        with:
+          version: v0.70.0
+          cache: 'true'
+
+      - name: Build backend OCI candidate
+        id: build-backend
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        with:
+          context: apps/backend
+          file: apps/backend/Dockerfile
+          target: backend
+          platforms: ${{ env.IMAGE_PLATFORM }}
+          tags: bunkfy/backend:candidate-${{ github.sha }}
+          push: false
+          pull: true
+          provenance: mode=max
+          outputs: type=oci,dest=${{ env.BACKEND_OCI_ARCHIVE }}
+          cache-from: type=gha,scope=bunkfy-backend
+          cache-to: type=gha,mode=max,scope=bunkfy-backend
+
+      - name: Build web OCI candidate
+        id: build-web
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        with:
+          context: apps/web
+          file: apps/web/Dockerfile
+          target: web
+          platforms: ${{ env.IMAGE_PLATFORM }}
+          build-args: |
+            VITE_BUNKFY_API_BASE_URL=/
+            VITE_BUNKFY_EMAIL_VERIFICATION_ENABLED=false
+          tags: bunkfy/web:candidate-${{ github.sha }}
+          push: false
+          pull: true
+          provenance: mode=max
+          outputs: type=oci,dest=${{ env.WEB_OCI_ARCHIVE }}
+          cache-from: type=gha,scope=bunkfy-web
+          cache-to: type=gha,mode=max,scope=bunkfy-web
+
+      - name: Record build metadata
+        shell: pwsh
+        env:
+          BACKEND_BUILD_METADATA: ${{ steps.build-backend.outputs.metadata }}
+          WEB_BUILD_METADATA: ${{ steps.build-web.outputs.metadata }}
+        run: |
+          $encoding = [System.Text.UTF8Encoding]::new($false)
+          [System.IO.File]::WriteAllText(
+            "$env:EVIDENCE_DIRECTORY/backend-build-metadata.json",
+            $env:BACKEND_BUILD_METADATA.TrimEnd() + "`n",
+            $encoding)
+          [System.IO.File]::WriteAllText(
+            "$env:EVIDENCE_DIRECTORY/web-build-metadata.json",
+            $env:WEB_BUILD_METADATA.TrimEnd() + "`n",
+            $encoding)
+
+      - name: Scan backend OCI candidate
+        id: scan-backend
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          ./eng/scan-oci-image.ps1 `
+            -ArtifactName backend `
+            -InputPath $env:BACKEND_OCI_ARCHIVE `
+            -OutputDirectory $env:EVIDENCE_DIRECTORY
+
+      - name: Scan web OCI candidate
+        id: scan-web
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          ./eng/scan-oci-image.ps1 `
+            -ArtifactName web `
+            -InputPath $env:WEB_OCI_ARCHIVE `
+            -OutputDirectory $env:EVIDENCE_DIRECTORY
+
+      - name: Create closed image evidence
+        id: evidence
+        if: ${{ always() && steps.build-backend.outcome == 'success' && steps.build-web.outcome == 'success' }}
+        shell: pwsh
+        run: |
+          ./eng/write-image-evidence.ps1 `
+            -SourceSetPath "$env:EVIDENCE_DIRECTORY/source-set.json" `
+            -BackendMetadataPath "$env:EVIDENCE_DIRECTORY/backend-build-metadata.json" `
+            -WebMetadataPath "$env:EVIDENCE_DIRECTORY/web-build-metadata.json" `
+            -BackendScanSummaryPath "$env:EVIDENCE_DIRECTORY/backend-scan-summary.json" `
+            -WebScanSummaryPath "$env:EVIDENCE_DIRECTORY/web-scan-summary.json" `
+            -BackendSbomPath "$env:EVIDENCE_DIRECTORY/backend-sbom.cdx.json" `
+            -WebSbomPath "$env:EVIDENCE_DIRECTORY/web-sbom.cdx.json" `
+            -OutputDirectory $env:EVIDENCE_DIRECTORY
+
+      - name: Publish backend image scan
+        if: ${{ always() && hashFiles('artifacts/image-evidence/backend-trivy.sarif') != '' }}
+        uses: github/codeql-action/upload-sarif@7188fc363630916deb702c7fdcf4e481b751f97a # v4.37.1
+        with:
+          sarif_file: artifacts/image-evidence/backend-trivy.sarif
+          category: trivy-bunkfy-backend-image
+
+      - name: Publish web image scan
+        if: ${{ always() && hashFiles('artifacts/image-evidence/web-trivy.sarif') != '' }}
+        uses: github/codeql-action/upload-sarif@7188fc363630916deb702c7fdcf4e481b751f97a # v4.37.1
+        with:
+          sarif_file: artifacts/image-evidence/web-trivy.sarif
+          category: trivy-bunkfy-web-image
+
+      - name: Attest candidate image evidence
+        if: ${{ steps.evidence.outcome == 'success' && steps.scan-backend.outcome == 'success' && steps.scan-web.outcome == 'success' }}
+        uses: actions/attest@f7c74d28b9d84cb8768d0b8ca14a4bac6ef463e6 # v4.2.0
+        with:
+          subject-checksums: artifacts/image-evidence/checksums.sha256
+
+      - name: Retain candidate image evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: product-image-evidence-${{ github.sha }}
+          path: artifacts/image-evidence
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Enforce candidate image gate
+        if: ${{ always() }}
+        shell: pwsh
+        run: |
+          $failures = [System.Collections.Generic.List[string]]::new()
+          foreach ($step in @(
+              @{ Name = 'backend build'; Outcome = '${{ steps.build-backend.outcome }}' },
+              @{ Name = 'web build'; Outcome = '${{ steps.build-web.outcome }}' },
+              @{ Name = 'backend scan'; Outcome = '${{ steps.scan-backend.outcome }}' },
+              @{ Name = 'web scan'; Outcome = '${{ steps.scan-web.outcome }}' },
+              @{ Name = 'evidence'; Outcome = '${{ steps.evidence.outcome }}' }
+            )) {
+            if ($step.Outcome -ne 'success') {
+              $failures.Add("$($step.Name): $($step.Outcome)")
+            }
+          }
+          if ($failures.Count -gt 0) {
+            throw "Product image evidence gate failed: $($failures -join '; ')"
+          }

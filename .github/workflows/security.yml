@@ -40,6 +40,10 @@ jobs:
         shell: pwsh
         run: ./eng/check-repository-release.ps1
 
+      - name: Validate product image evidence policy
+        shell: pwsh
+        run: ./eng/check-product-image-evidence.ps1
+
       - name: Run pinned GMA repository security baseline
         uses: SadPossum/GMA-Skeleton/.github/actions/security-baseline@32ec053c78a87f5b5941068eb449e7ae10f51f59
         with:

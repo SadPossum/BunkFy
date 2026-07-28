@@ -4,6 +4,7 @@
   </Folder>
   <Folder Name="/.github/workflows/">
     <File Path=".github/workflows/codeql.yml" />
+    <File Path=".github/workflows/image-evidence.yml" />
     <File Path=".github/workflows/release-evidence.yml" />
     <File Path=".github/workflows/security.yml" />
     <File Path=".github/workflows/validate.yml" />
@@ -652,12 +653,14 @@
   </Folder>
   <Folder Name="/docs/operations/">
     <File Path="docs/operations/preview-deployment.md" />
+    <File Path="docs/operations/product-image-evidence.md" />
   </Folder>
   <Folder Name="/docs/planning/">
     <File Path="docs/planning/bunkfy-repository-stack-and-workflow-plan.md" />
   </Folder>
   <Folder Name="/eng/">
     <File Path="eng/bootstrap.ps1" />
+    <File Path="eng/check-product-image-evidence.ps1" />
     <File Path="eng/check-repository-release.ps1" />
     <File Path="eng/check-repository-security.ps1" />
     <File Path="eng/common.ps1" />
@@ -666,6 +669,7 @@
     <File Path="eng/new-preview-env.ps1" />
     <File Path="eng/preview.ps1" />
     <File Path="eng/run-aspire.ps1" />
+    <File Path="eng/scan-oci-image.ps1" />
     <File Path="eng/submodule-status.ps1" />
     <File Path="eng/sync-github-modules.ps1" />
     <File Path="eng/sync-submodules.ps1" />
@@ -673,6 +677,7 @@
     <File Path="eng/update-web-contracts.ps1" />
     <File Path="eng/verify-operations.ps1" />
     <File Path="eng/verify.ps1" />
+    <File Path="eng/write-image-evidence.ps1" />
   </Folder>
   <Folder Name="/eng/operations/">
     <File Path="eng/operations/admin-api.common.ps1" />
