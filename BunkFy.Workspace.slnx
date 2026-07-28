@@ -4,17 +4,22 @@
   </Folder>
   <Folder Name="/.github/workflows/">
     <File Path=".github/workflows/codeql.yml" />
+    <File Path=".github/workflows/release-evidence.yml" />
     <File Path=".github/workflows/security.yml" />
     <File Path=".github/workflows/validate.yml" />
   </Folder>
   <Folder Name="/Solution Items/">
     <File Path=".gitignore" />
     <File Path=".gitmodules" />
+    <File Path=".gma/release-evidence.json" />
+    <File Path=".gma/repository-security.json" />
+    <File Path=".gma/security-exceptions.json" />
     <File Path="Directory.Build.props" />
     <File Path="Directory.Packages.props" />
     <File Path="LICENSE" />
     <File Path="README.md" />
     <File Path="SECURITY.md" />
+    <File Path="SUPPORT.md" />
     <File Path="global.json" />
     <File Path="nuget.config" />
   </Folder>
@@ -26,7 +31,8 @@
   </Folder>
   <Folder Name="/apps/backend/.github/workflows/">
     <File Path="apps/backend/.github/workflows/docker-tests.yml" />
-    <File Path="apps/backend/.github/workflows/release-source-set.yml" />
+    <File Path="apps/backend/.github/workflows/release-evidence.yml" />
+    <File Path="apps/backend/.github/workflows/security.yml" />
     <File Path="apps/backend/.github/workflows/validate.yml" />
   </Folder>
   <Folder Name="/apps/backend/docs/">
@@ -47,11 +53,16 @@
     <File Path="apps/backend/docs/getting-started/setup.md" />
   </Folder>
   <Folder Name="/apps/backend/docs/operations/">
+    <File Path="apps/backend/docs/operations/adapter-ingress-stop-and-recovery.md" />
+    <File Path="apps/backend/docs/operations/hosted-production-deployment-contract.md" />
     <File Path="apps/backend/docs/operations/ingestion-runtime-baseline.md" />
   </Folder>
   <Folder Name="/apps/backend/docs/planning/">
     <File Path="apps/backend/docs/planning/adapter-http-client-task.md" />
+    <File Path="apps/backend/docs/planning/adapter-ingress-trust-boundary-task.md" />
     <File Path="apps/backend/docs/planning/architecture-cleanup-task.md" />
+    <File Path="apps/backend/docs/planning/automatic-retention-control-plane-task.md" />
+    <File Path="apps/backend/docs/planning/data-rights-correction-execution-task.md" />
     <File Path="apps/backend/docs/planning/data-rights-multi-owner-execution-task.md" />
     <File Path="apps/backend/docs/planning/data-rights-protected-export-artifacts-task.md" />
     <File Path="apps/backend/docs/planning/data-rights-restriction-execution-task.md" />
@@ -63,6 +74,7 @@
     <File Path="apps/backend/docs/planning/guest-data-rights-anonymisation-and-ledger-task.md" />
     <File Path="apps/backend/docs/planning/guest-data-rights-restriction-task.md" />
     <File Path="apps/backend/docs/planning/guest-records-module-task.md" />
+    <File Path="apps/backend/docs/planning/hosted-production-foundation-task.md" />
     <File Path="apps/backend/docs/planning/imap-reservation-mail-adapter-task.md" />
     <File Path="apps/backend/docs/planning/imap-reservation-mail-authentication-task.md" />
     <File Path="apps/backend/docs/planning/imap-reservation-mail-key-rotation-task.md" />
@@ -98,9 +110,11 @@
     <File Path="apps/backend/docs/planning/reservations-pii-minimization-task.md" />
     <File Path="apps/backend/docs/planning/reservations-stay-lifecycle-task.md" />
     <File Path="apps/backend/docs/planning/secure-staff-enrollment-task.md" />
+    <File Path="apps/backend/docs/planning/security-signals-and-incident-correlation-task.md" />
     <File Path="apps/backend/docs/planning/staff-data-rights-owner-capability-task.md" />
     <File Path="apps/backend/docs/planning/staff-profiles-module-task.md" />
     <File Path="apps/backend/docs/planning/standalone-adapter-host-task.md" />
+    <File Path="apps/backend/docs/planning/support-admin-access-task.md" />
     <File Path="apps/backend/docs/planning/tenant-scoped-data-rights-cases-task.md" />
     <File Path="apps/backend/docs/planning/workspace-access-management-facade-task.md" />
     <File Path="apps/backend/docs/planning/workspace-access-profiles-task.md" />
@@ -114,6 +128,8 @@
     <File Path="apps/backend/eng/add-migration.ps1" />
     <File Path="apps/backend/eng/build.ps1" />
     <File Path="apps/backend/eng/check-migrations.ps1" />
+    <File Path="apps/backend/eng/check-repository-release.ps1" />
+    <File Path="apps/backend/eng/check-repository-security.ps1" />
     <File Path="apps/backend/eng/check-source-packages.ps1" />
     <File Path="apps/backend/eng/check-submodule-dev-heads.ps1" />
     <File Path="apps/backend/eng/common.ps1" />
@@ -231,6 +247,11 @@
     <Project Path="apps/backend/gma/framework/src/ProjectionRebuild/Gma.Framework.ProjectionRebuild.EntityFrameworkCore/Gma.Framework.ProjectionRebuild.EntityFrameworkCore.csproj" />
     <Project Path="apps/backend/gma/framework/src/ProjectionRebuild/Gma.Framework.ProjectionRebuild.Tasks/Gma.Framework.ProjectionRebuild.Tasks.csproj" />
     <Project Path="apps/backend/gma/framework/src/ProjectionRebuild/Gma.Framework.ProjectionRebuild/Gma.Framework.ProjectionRebuild.csproj" />
+  </Folder>
+  <Folder Name="/apps/backend/gma/framework/src/RateLimiting/">
+    <Project Path="apps/backend/gma/framework/src/RateLimiting/Gma.Framework.RateLimiting.Infrastructure/Gma.Framework.RateLimiting.Infrastructure.csproj" />
+    <Project Path="apps/backend/gma/framework/src/RateLimiting/Gma.Framework.RateLimiting.Redis/Gma.Framework.RateLimiting.Redis.csproj" />
+    <Project Path="apps/backend/gma/framework/src/RateLimiting/Gma.Framework.RateLimiting/Gma.Framework.RateLimiting.csproj" />
   </Folder>
   <Folder Name="/apps/backend/gma/framework/src/Realtime/">
     <Project Path="apps/backend/gma/framework/src/Realtime/Gma.Framework.Realtime.Infrastructure/Gma.Framework.Realtime.Infrastructure.csproj" />
@@ -545,6 +566,24 @@
   <Folder Name="/apps/backend/src/Modules/Reservations/tests/">
     <Project Path="apps/backend/src/Modules/Reservations/tests/BunkFy.Modules.Reservations.Tests/BunkFy.Modules.Reservations.Tests.csproj" />
   </Folder>
+  <Folder Name="/apps/backend/src/Modules/Retention/">
+    <Project Path="apps/backend/src/Modules/Retention/BunkFy.Modules.Retention.Admin.Contracts/BunkFy.Modules.Retention.Admin.Contracts.csproj" />
+    <Project Path="apps/backend/src/Modules/Retention/BunkFy.Modules.Retention.AdminApi/BunkFy.Modules.Retention.AdminApi.csproj" />
+    <Project Path="apps/backend/src/Modules/Retention/BunkFy.Modules.Retention.AdminCli/BunkFy.Modules.Retention.AdminCli.csproj" />
+    <Project Path="apps/backend/src/Modules/Retention/BunkFy.Modules.Retention.Api/BunkFy.Modules.Retention.Api.csproj" />
+    <Project Path="apps/backend/src/Modules/Retention/BunkFy.Modules.Retention.Application/BunkFy.Modules.Retention.Application.csproj" />
+    <Project Path="apps/backend/src/Modules/Retention/BunkFy.Modules.Retention.Contracts/BunkFy.Modules.Retention.Contracts.csproj" />
+    <Project Path="apps/backend/src/Modules/Retention/BunkFy.Modules.Retention.Domain/BunkFy.Modules.Retention.Domain.csproj" />
+    <Project Path="apps/backend/src/Modules/Retention/BunkFy.Modules.Retention.Persistence.PostgreSqlMigrations/BunkFy.Modules.Retention.Persistence.PostgreSqlMigrations.csproj" />
+    <Project Path="apps/backend/src/Modules/Retention/BunkFy.Modules.Retention.Persistence/BunkFy.Modules.Retention.Persistence.csproj" />
+  </Folder>
+  <Folder Name="/apps/backend/src/Modules/Retention/docs/">
+    <File Path="apps/backend/src/Modules/Retention/docs/personal-data-catalog.v1.json" />
+    <File Path="apps/backend/src/Modules/Retention/docs/personal-data-inventory.v1.md" />
+  </Folder>
+  <Folder Name="/apps/backend/src/Modules/Retention/tests/">
+    <Project Path="apps/backend/src/Modules/Retention/tests/BunkFy.Modules.Retention.Tests/BunkFy.Modules.Retention.Tests.csproj" />
+  </Folder>
   <Folder Name="/apps/backend/src/Modules/Staff/">
     <Project Path="apps/backend/src/Modules/Staff/BunkFy.Modules.Staff.Admin.Contracts/BunkFy.Modules.Staff.Admin.Contracts.csproj" />
     <Project Path="apps/backend/src/Modules/Staff/BunkFy.Modules.Staff.AdminApi/BunkFy.Modules.Staff.AdminApi.csproj" />
@@ -619,8 +658,10 @@
   </Folder>
   <Folder Name="/eng/">
     <File Path="eng/bootstrap.ps1" />
+    <File Path="eng/check-repository-release.ps1" />
     <File Path="eng/check-repository-security.ps1" />
     <File Path="eng/common.ps1" />
+    <File Path="eng/export-source-set.ps1" />
     <File Path="eng/guard-submodules-latest.ps1" />
     <File Path="eng/new-preview-env.ps1" />
     <File Path="eng/preview.ps1" />
