@@ -114,6 +114,7 @@
     <File Path="apps/backend/docs/planning/reservations-stay-lifecycle-task.md" />
     <File Path="apps/backend/docs/planning/secure-staff-enrollment-task.md" />
     <File Path="apps/backend/docs/planning/security-signals-and-incident-correlation-task.md" />
+    <File Path="apps/backend/docs/planning/staff-data-rights-anonymisation-task.md" />
     <File Path="apps/backend/docs/planning/staff-data-rights-correction-task.md" />
     <File Path="apps/backend/docs/planning/staff-data-rights-owner-capability-task.md" />
     <File Path="apps/backend/docs/planning/staff-data-rights-restriction-task.md" />
