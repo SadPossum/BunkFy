@@ -74,6 +74,7 @@
     <File Path="apps/backend/docs/planning/guest-data-rights-and-lifecycle-workflow-task.md" />
     <File Path="apps/backend/docs/planning/guest-data-rights-anonymisation-and-ledger-task.md" />
     <File Path="apps/backend/docs/planning/guest-data-rights-restriction-task.md" />
+    <File Path="apps/backend/docs/planning/guest-record-retention-task.md" />
     <File Path="apps/backend/docs/planning/guest-records-module-task.md" />
     <File Path="apps/backend/docs/planning/hosted-production-foundation-task.md" />
     <File Path="apps/backend/docs/planning/imap-reservation-mail-adapter-task.md" />
