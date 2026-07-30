@@ -130,6 +130,7 @@
     <File Path="apps/backend/docs/planning/workspace-onboarding-task.md" />
     <File Path="apps/backend/docs/planning/workspace-staff-access-lifecycle-task.md" />
     <File Path="apps/backend/docs/planning/workspace-staff-onboarding-staging-retention-task.md" />
+    <File Path="apps/backend/docs/planning/workspace-staff-retention-correlation-scrub-task.md" />
     <File Path="apps/backend/docs/planning/workspaces-natural-expiry-consumer-task.md" />
     <File Path="apps/backend/docs/planning/workspaces-personal-data-catalogue-task.md" />
   </Folder>
