@@ -131,6 +131,7 @@
     <File Path="apps/backend/docs/planning/workspace-staff-access-lifecycle-task.md" />
     <File Path="apps/backend/docs/planning/workspace-staff-onboarding-staging-retention-task.md" />
     <File Path="apps/backend/docs/planning/workspace-staff-retention-correlation-scrub-task.md" />
+    <File Path="apps/backend/docs/planning/workspaces-data-rights-anonymisation-task.md" />
     <File Path="apps/backend/docs/planning/workspaces-data-rights-correction-task.md" />
     <File Path="apps/backend/docs/planning/workspaces-data-rights-owner-capability-task.md" />
     <File Path="apps/backend/docs/planning/workspaces-data-rights-restriction-task.md" />
