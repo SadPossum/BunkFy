@@ -119,6 +119,7 @@
     <File Path="apps/backend/docs/planning/staff-data-rights-owner-capability-task.md" />
     <File Path="apps/backend/docs/planning/staff-data-rights-restriction-task.md" />
     <File Path="apps/backend/docs/planning/staff-profiles-module-task.md" />
+    <File Path="apps/backend/docs/planning/staff-record-retention-task.md" />
     <File Path="apps/backend/docs/planning/standalone-adapter-host-task.md" />
     <File Path="apps/backend/docs/planning/support-admin-access-task.md" />
     <File Path="apps/backend/docs/planning/tenant-scoped-data-rights-cases-task.md" />
