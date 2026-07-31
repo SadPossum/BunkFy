@@ -97,6 +97,7 @@
     <File Path="apps/backend/docs/planning/json-file-drop-local-retention-task.md" />
     <File Path="apps/backend/docs/planning/json-file-drop-quarantine-task.md" />
     <File Path="apps/backend/docs/planning/operations-notifications-data-rights-owner-capability-task.md" />
+    <File Path="apps/backend/docs/planning/operations-notifications-ingestion-data-rights-task.md" />
     <File Path="apps/backend/docs/planning/operations-notifications-personal-data-catalogue-task.md" />
     <File Path="apps/backend/docs/planning/operations-notifications-staff-data-rights-task.md" />
     <File Path="apps/backend/docs/planning/personal-data-output-sink-enforcement-task.md" />
