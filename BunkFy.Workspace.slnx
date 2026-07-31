@@ -57,6 +57,7 @@
     <File Path="apps/backend/docs/operations/adapter-ingress-stop-and-recovery.md" />
     <File Path="apps/backend/docs/operations/hosted-production-deployment-contract.md" />
     <File Path="apps/backend/docs/operations/ingestion-runtime-baseline.md" />
+    <File Path="apps/backend/docs/operations/operations-notifications-production-admission.md" />
   </Folder>
   <Folder Name="/apps/backend/docs/planning/">
     <File Path="apps/backend/docs/planning/adapter-http-client-task.md" />
@@ -99,6 +100,7 @@
     <File Path="apps/backend/docs/planning/operations-notifications-data-rights-owner-capability-task.md" />
     <File Path="apps/backend/docs/planning/operations-notifications-ingestion-data-rights-task.md" />
     <File Path="apps/backend/docs/planning/operations-notifications-personal-data-catalogue-task.md" />
+    <File Path="apps/backend/docs/planning/operations-notifications-production-admission-task.md" />
     <File Path="apps/backend/docs/planning/operations-notifications-staff-data-rights-task.md" />
     <File Path="apps/backend/docs/planning/personal-data-output-sink-enforcement-task.md" />
     <File Path="apps/backend/docs/planning/pre-module-readiness.md" />
