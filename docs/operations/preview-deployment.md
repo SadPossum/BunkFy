@@ -169,9 +169,13 @@ Restore only into an empty, stopped preview deployment:
   -Confirm:$false
 ```
 
-The restore command verifies the closed artifact set, lengths, SHA-256 hashes,
-clean and exact root/backend/web commits, and immutable local backend/web image
-IDs before creating state. It refuses a target that already has Compose
+The restore command verifies the versioned state contract, closed artifact set,
+lengths, SHA-256 hashes, a clean operations checkout, and immutable local
+backend/web image IDs before creating state. Root, backend, and web commits are
+retained as provenance; compatible newer operations tooling may restore an
+older backup without rebuilding or substituting its recorded images. Schema 2
+backups map to state-contract version 1, while new backups write schema 3
+explicitly. Restore refuses a target that already has Compose
 containers, networks, or any declared volume, restores the non-database state
 first, runs `pg_restore --exit-on-error`, and then starts the full stack through
 the migration gate. Make the recorded backend and web images available locally

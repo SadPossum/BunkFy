@@ -36,26 +36,19 @@ try {
 catch {
     throw "Backup manifest '$manifestPath' is invalid JSON: $($_.Exception.Message)"
 }
-if ($manifest.schemaVersion -ne 2) {
-    throw "Backup manifest schema '$($manifest.schemaVersion)' is not supported."
-}
+$stateContract = Get-BunkFyPreviewStateContract -Manifest $manifest
+Assert-BunkFyPreviewStateContractCompatible -Contract $stateContract
 
 Assert-BunkFyGitWorktreeClean -RepositoryPath $root
 Assert-BunkFyGitWorktreeClean -RepositoryPath (Join-BunkFyPath 'apps\backend')
 Assert-BunkFyGitWorktreeClean -RepositoryPath (Join-BunkFyPath 'apps\web')
 
-$expectedCommits = [ordered]@{
-    repositoryCommit = Get-BunkFyGitCommit -RepositoryPath $root
-    backendCommit = Get-BunkFyGitCommit `
-        -RepositoryPath (Join-BunkFyPath 'apps\backend')
-    webCommit = Get-BunkFyGitCommit `
-        -RepositoryPath (Join-BunkFyPath 'apps\web')
-}
-foreach ($entry in $expectedCommits.GetEnumerator()) {
-    $recorded = [string]$manifest.PSObject.Properties[$entry.Key].Value
-    if ($recorded -cne [string]$entry.Value) {
-        throw "Backup '$($entry.Key)' is '$recorded', but the checkout is '$($entry.Value)'."
-    }
+foreach ($name in @('repositoryCommit', 'backendCommit', 'webCommit')) {
+    $property = $manifest.PSObject.Properties[$name]
+    $value = if ($null -eq $property) { $null } else { $property.Value }
+    Assert-BunkFyGitCommitRecord `
+        -Value $value `
+        -Name $name
 }
 
 $expectedArtifacts = @('postgres.dump') +
@@ -137,7 +130,7 @@ foreach ($entry in $expectedImages.GetEnumerator()) {
         [string]$_.kind -ceq [string]$entry.Key
     })
     if ($matching.Count -ne 1 -or
-        [string]$matching[0].reference -cne [string]$entry.Value) {
+        [string]::IsNullOrWhiteSpace([string]$matching[0].reference)) {
         throw "Backup image record '$($entry.Key)' is invalid."
     }
     $localImageId = Get-BunkFyDockerImageId -Reference ([string]$entry.Value)

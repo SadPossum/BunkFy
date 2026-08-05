@@ -26,6 +26,7 @@ foreach ($script in $scripts) {
 Write-Host 'BunkFy operations scripts are syntactically valid.'
 
 . (Join-Path $PSScriptRoot 'operations\admin-api.common.ps1')
+. (Join-Path $PSScriptRoot 'operations\preview-state.common.ps1')
 if ((Assert-BunkFyAdminApiBaseUri -BaseUri 'http://127.0.0.1:5195') -ne
     'http://127.0.0.1:5195') {
     throw 'The Admin API loopback origin validator did not preserve a valid origin.'
@@ -42,6 +43,40 @@ if (-not $insecureRemoteRejected) {
 }
 
 Write-Host 'BunkFy Admin API origin validation is valid.'
+
+$legacyStateContract = Get-BunkFyPreviewStateContract -Manifest (
+    [pscustomobject]@{ schemaVersion = 2 })
+$currentStateContract = Get-BunkFyPreviewStateContract -Manifest (
+    [pscustomobject]@{
+        schemaVersion = 3
+        stateContract = [pscustomobject]@{
+            name = $script:BunkFyPreviewStateContractName
+            version = $script:BunkFyPreviewStateContractVersion
+        }
+    })
+foreach ($contract in @($legacyStateContract, $currentStateContract)) {
+    Assert-BunkFyPreviewStateContractCompatible -Contract $contract
+}
+$futureStateContractRejected = $false
+try {
+    $futureStateContract = Get-BunkFyPreviewStateContract -Manifest (
+        [pscustomobject]@{
+            schemaVersion = 3
+            stateContract = [pscustomobject]@{
+                name = $script:BunkFyPreviewStateContractName
+                version = $script:BunkFyPreviewStateContractVersion + 1
+            }
+        })
+    Assert-BunkFyPreviewStateContractCompatible -Contract $futureStateContract
+}
+catch {
+    $futureStateContractRejected = $true
+}
+if (-not $futureStateContractRejected) {
+    throw 'Preview restore accepted an unsupported future state contract.'
+}
+
+Write-Host 'BunkFy preview state-contract compatibility is valid.'
 
 $composeFile = Join-Path $PSScriptRoot '..\deploy\preview\compose.yaml'
 $environmentFile = Join-Path $PSScriptRoot '..\deploy\preview\.env.example'
@@ -235,6 +270,8 @@ foreach ($requiredToken in @(
         'Get-BunkFyPreviewVolumeMap',
         'Assert-BunkFyGitWorktreeClean',
         'Get-BunkFyDockerImageId',
+        'schemaVersion = 3',
+        'stateContract =',
         "docker volume ls --format '{{.Name}}'",
         '$defaultServices')) {
     if (-not $backupScript.Contains($requiredToken, [StringComparison]::Ordinal)) {
@@ -246,7 +283,8 @@ $restoreScript = Get-Content -LiteralPath (
     Join-Path $PSScriptRoot 'operations\restore-preview.ps1') -Raw
 foreach ($requiredToken in @(
         'Get-FileHash',
-        'Get-BunkFyGitCommit',
+        'Get-BunkFyPreviewStateContract',
+        'Assert-BunkFyGitCommitRecord',
         'Assert-BunkFyGitWorktreeClean',
         'Get-BunkFyDockerImageId',
         '--exit-on-error',
@@ -256,6 +294,9 @@ foreach ($requiredToken in @(
     if (-not $restoreScript.Contains($requiredToken, [StringComparison]::Ordinal)) {
         throw "Preview restore guard is missing '$requiredToken'."
     }
+}
+if ($restoreScript.Contains('$expectedCommits', [StringComparison]::Ordinal)) {
+    throw 'Preview restore must treat recorded Git commits as provenance, not an exact runtime binding.'
 }
 
 Write-Host 'BunkFy preview backup and restore guards are valid.'

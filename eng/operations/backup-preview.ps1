@@ -179,9 +179,13 @@ try {
             }
         }
     $manifest = [ordered]@{
-        schemaVersion = 2
+        schemaVersion = 3
         createdAtUtc = [DateTimeOffset]::UtcNow.ToString('O')
         projectName = $projectName
+        stateContract = [ordered]@{
+            name = $script:BunkFyPreviewStateContractName
+            version = $script:BunkFyPreviewStateContractVersion
+        }
         repositoryCommit = Get-BunkFyGitCommit -RepositoryPath $root
         backendCommit = Get-BunkFyGitCommit `
             -RepositoryPath (Join-BunkFyPath 'apps\backend')

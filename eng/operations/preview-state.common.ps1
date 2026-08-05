@@ -1,6 +1,8 @@
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+$script:BunkFyPreviewStateContractName = 'bunkfy-preview-state'
+$script:BunkFyPreviewStateContractVersion = 1
 $script:BunkFyPreviewStateArchives = [ordered]@{
     'minio-data' = 'minio-data.tar.gz'
     'nats-data' = 'nats-data.tar.gz'
@@ -8,6 +10,71 @@ $script:BunkFyPreviewStateArchives = [ordered]@{
     'data-protection' = 'data-protection.tar.gz'
     'adapter-file-drop' = 'adapter-file-drop.tar.gz'
     'data-rights-ledger-delta' = 'data-rights-ledger-delta.tar.gz'
+}
+
+function Get-BunkFyPreviewStateContract {
+    param([Parameter(Mandatory = $true)][object] $Manifest)
+
+    $schemaVersion = 0
+    $schemaProperty = $Manifest.PSObject.Properties['schemaVersion']
+    if ($null -eq $schemaProperty -or
+        -not [int]::TryParse([string]$schemaProperty.Value, [ref]$schemaVersion)) {
+        throw 'Backup manifest schema is missing or invalid.'
+    }
+
+    if ($schemaVersion -eq 2) {
+        return [pscustomobject]@{
+            Name = $script:BunkFyPreviewStateContractName
+            Version = 1
+        }
+    }
+    if ($schemaVersion -ne 3) {
+        throw "Backup manifest schema '$schemaVersion' is not supported."
+    }
+
+    $contractProperty = $Manifest.PSObject.Properties['stateContract']
+    if ($null -eq $contractProperty -or $null -eq $contractProperty.Value) {
+        throw 'Backup manifest state contract is missing.'
+    }
+
+    $contract = $contractProperty.Value
+    $version = 0
+    $nameProperty = $contract.PSObject.Properties['name']
+    $versionProperty = $contract.PSObject.Properties['version']
+    if ($null -eq $nameProperty -or
+        [string]::IsNullOrWhiteSpace([string]$nameProperty.Value) -or
+        $null -eq $versionProperty -or
+        -not [int]::TryParse([string]$versionProperty.Value, [ref]$version) -or
+        $version -lt 1) {
+        throw 'Backup manifest state contract is invalid.'
+    }
+
+    return [pscustomobject]@{
+        Name = [string]$nameProperty.Value
+        Version = $version
+    }
+}
+
+function Assert-BunkFyPreviewStateContractCompatible {
+    param([Parameter(Mandatory = $true)][object] $Contract)
+
+    if ($Contract.Name -cne $script:BunkFyPreviewStateContractName -or
+        $Contract.Version -ne $script:BunkFyPreviewStateContractVersion) {
+        throw "Backup state contract '$($Contract.Name)/$($Contract.Version)' is not supported by this checkout."
+    }
+}
+
+function Assert-BunkFyGitCommitRecord {
+    param(
+        [Parameter(Mandatory = $true)][AllowNull()][object] $Value,
+        [Parameter(Mandatory = $true)][string] $Name
+    )
+
+    if ($Value -isnot [string] -or
+        $Value -notmatch '^[0-9a-f]{40}$' -or
+        $Value -eq ('0' * 40)) {
+        throw "Backup manifest Git record '$Name' is invalid."
+    }
 }
 
 function Get-BunkFyPreviewComposeDefinition {
