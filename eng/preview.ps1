@@ -1,5 +1,14 @@
 param(
-    [ValidateSet('config', 'build', 'up', 'down', 'logs', 'status', 'migrate')]
+    [ValidateSet(
+        'config',
+        'build',
+        'up',
+        'down',
+        'logs',
+        'status',
+        'migrate',
+        'open-operations',
+        'close-operations')]
     [string] $Action = 'up',
     [switch] $Operations,
     [switch] $Tools
@@ -102,6 +111,13 @@ foreach ($provider in @('GOOGLE', 'MICROSOFT')) {
 }
 
 $arguments = @('compose', '--env-file', $environmentFile, '-f', $composeFile)
+if ($Action -in @('open-operations', 'close-operations')) {
+    $Operations = $true
+}
+if ($Action -eq 'down') {
+    $Operations = $true
+    $Tools = $true
+}
 if ($Operations) {
     $arguments += @('--profile', 'operations')
 }
@@ -117,6 +133,46 @@ switch ($Action) {
     'logs' { $arguments += @('logs', '--follow', '--tail', '200') }
     'status' { $arguments += @('ps') }
     'migrate' { $arguments += @('run', '--rm', 'migrations') }
+    'open-operations' {
+        $arguments += @('up', '--detach', '--no-build', '--wait', 'admin-api')
+    }
+    'close-operations' {
+        $arguments += @('rm', '--stop', '--force', 'admin-api')
+    }
 }
 
 Invoke-BunkFyCommand -FilePath 'docker' -Arguments $arguments -WorkingDirectory $root
+
+if ($Action -eq 'close-operations') {
+    $configurationArguments = @(
+        'compose',
+        '--env-file', $environmentFile,
+        '-f', $composeFile,
+        '--profile', 'operations',
+        'config',
+        '--format', 'json')
+
+    Push-Location -LiteralPath $root
+    try {
+        $configurationJson = & docker @configurationArguments
+        if ($LASTEXITCODE -ne 0) {
+            throw 'Unable to resolve the preview management network.'
+        }
+        $configuration = $configurationJson | ConvertFrom-Json
+        $managementNetwork = [string]$configuration.networks.management.name
+        $existingNetworks = @(& docker network ls --format '{{.Name}}')
+        if ($LASTEXITCODE -ne 0) {
+            throw 'Unable to inspect Docker networks.'
+        }
+
+        if ($existingNetworks -contains $managementNetwork) {
+            & docker network rm $managementNetwork | Out-Null
+            if ($LASTEXITCODE -ne 0) {
+                throw "Unable to remove preview management network '$managementNetwork'."
+            }
+        }
+    }
+    finally {
+        Pop-Location
+    }
+}

@@ -5,6 +5,7 @@ $scripts = @(
     (Join-Path $PSScriptRoot 'operations\admin-api.common.ps1'),
     (Join-Path $PSScriptRoot 'operations\provision-staff-access.ps1'),
     (Join-Path $PSScriptRoot 'operations\offboard-staff-access.ps1'),
+    (Join-Path $PSScriptRoot 'operations\verify-preview-isolation.ps1'),
     (Join-Path $PSScriptRoot 'operations\preview-state.common.ps1'),
     (Join-Path $PSScriptRoot 'operations\backup-preview.ps1'),
     (Join-Path $PSScriptRoot 'operations\restore-preview.ps1'),
@@ -23,6 +24,24 @@ foreach ($script in $scripts) {
 }
 
 Write-Host 'BunkFy operations scripts are syntactically valid.'
+
+. (Join-Path $PSScriptRoot 'operations\admin-api.common.ps1')
+if ((Assert-BunkFyAdminApiBaseUri -BaseUri 'http://127.0.0.1:5195') -ne
+    'http://127.0.0.1:5195') {
+    throw 'The Admin API loopback origin validator did not preserve a valid origin.'
+}
+$insecureRemoteRejected = $false
+try {
+    Assert-BunkFyAdminApiBaseUri -BaseUri 'http://admin.example.test:5195' | Out-Null
+}
+catch {
+    $insecureRemoteRejected = $true
+}
+if (-not $insecureRemoteRejected) {
+    throw 'The Admin API origin validator accepted insecure remote HTTP.'
+}
+
+Write-Host 'BunkFy Admin API origin validation is valid.'
 
 $composeFile = Join-Path $PSScriptRoot '..\deploy\preview\compose.yaml'
 $environmentFile = Join-Path $PSScriptRoot '..\deploy\preview\.env.example'
@@ -97,11 +116,112 @@ foreach ($module in $requiredWorkerModules) {
     }
 }
 
+if ($null -ne $resolvedCompose.services.PSObject.Properties['admin-api']) {
+    throw 'The Admin API must remain outside the default preview service set.'
+}
+
+$resolvedOperationsComposeJson = & docker compose `
+    --env-file $environmentFile `
+    -f $composeFile `
+    --profile operations `
+    --profile tools `
+    config `
+    --format json
+if ($LASTEXITCODE -ne 0) {
+    throw 'Preview operations Compose configuration is invalid.'
+}
+$resolvedOperationsCompose = $resolvedOperationsComposeJson | ConvertFrom-Json
+
+function Assert-BunkFyServiceNetworks {
+    param(
+        [Parameter(Mandatory = $true)][string] $ServiceName,
+        [Parameter(Mandatory = $true)][string[]] $ExpectedNetworks
+    )
+
+    $service = $resolvedOperationsCompose.services.PSObject.Properties[$ServiceName].Value
+    $actualNetworks = @($service.networks.PSObject.Properties.Name | Sort-Object)
+    $expected = @($ExpectedNetworks | Sort-Object)
+    if (@(Compare-Object -ReferenceObject $expected -DifferenceObject $actualNetworks).Count -gt 0) {
+        throw "Preview service '$ServiceName' has networks '$($actualNetworks -join ', ')'; expected '$($expected -join ', ')'."
+    }
+}
+
+Assert-BunkFyServiceNetworks -ServiceName 'web' -ExpectedNetworks @('edge')
+Assert-BunkFyServiceNetworks -ServiceName 'api' -ExpectedNetworks @('backend', 'edge')
+Assert-BunkFyServiceNetworks -ServiceName 'admin-api' `
+    -ExpectedNetworks @('backend', 'management')
+foreach ($serviceName in @(
+        'postgres',
+        'redis',
+        'nats',
+        'minio',
+        'migrations',
+        'worker',
+        'admin-cli')) {
+    Assert-BunkFyServiceNetworks -ServiceName $serviceName -ExpectedNetworks @('backend')
+}
+
+if (-not $resolvedOperationsCompose.networks.backend.internal) {
+    throw 'The preview backend network must remain internal.'
+}
+$managementInternal =
+    $resolvedOperationsCompose.networks.management.PSObject.Properties['internal']
+if ($null -ne $managementInternal -and $managementInternal.Value) {
+    throw 'The preview management network must support the loopback host binding.'
+}
+
+$adminApi = $resolvedOperationsCompose.services.'admin-api'
+if (@($adminApi.profiles).Count -ne 1 -or $adminApi.profiles[0] -ne 'operations') {
+    throw 'The Admin API must remain opt-in through only the operations profile.'
+}
+if ($adminApi.restart -ne 'no') {
+    throw 'The preview Admin API must not restart outside an explicit operations window.'
+}
+
+foreach ($serviceName in @('web', 'admin-api')) {
+    $service = $resolvedOperationsCompose.services.PSObject.Properties[$serviceName].Value
+    $ports = @($service.ports)
+    if ($ports.Count -ne 1 -or
+        $ports[0].host_ip -ne '127.0.0.1' -or
+        [int]$ports[0].target -ne 8080) {
+        throw "Preview service '$serviceName' must publish port 8080 only on loopback."
+    }
+}
+
+foreach ($serviceName in @(
+        'api',
+        'worker',
+        'postgres',
+        'redis',
+        'nats',
+        'minio',
+        'migrations',
+        'admin-cli')) {
+    $service = $resolvedOperationsCompose.services.PSObject.Properties[$serviceName].Value
+    $portsProperty = $service.PSObject.Properties['ports']
+    if ($null -ne $portsProperty -and @($portsProperty.Value).Count -gt 0) {
+        throw "Preview service '$serviceName' must not publish a host port."
+    }
+}
+
+$nginxConfiguration = Get-Content -LiteralPath (
+    Join-Path $PSScriptRoot '..\apps\web\nginx.conf') -Raw
+if ($nginxConfiguration.Contains('admin-api', [StringComparison]::OrdinalIgnoreCase)) {
+    throw 'The public edge must not contain an Admin API upstream or route.'
+}
+
 Write-Host 'BunkFy preview Compose configuration is valid.'
 
 $previewScript = Get-Content -LiteralPath (
     Join-Path $PSScriptRoot 'preview.ps1') -Raw
-foreach ($requiredToken in @('gma-bootstrap.ps1', "@('build', 'up')", '-Force')) {
+foreach ($requiredToken in @(
+        'gma-bootstrap.ps1',
+        "@('build', 'up')",
+        '-Force',
+        'open-operations',
+        'close-operations',
+        "@('rm', '--stop', '--force', 'admin-api')",
+        'docker network rm $managementNetwork')) {
     if (-not $previewScript.Contains($requiredToken, [StringComparison]::Ordinal)) {
         throw "Preview build source-composition bootstrap is missing '$requiredToken'."
     }

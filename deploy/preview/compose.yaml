@@ -176,7 +176,7 @@ services:
       timeout: 5s
       retries: 20
       start_period: 15s
-    networks: [backend]
+    networks: [backend, edge]
 
   worker:
     image: bunkfy/backend:preview
@@ -257,14 +257,14 @@ services:
       interval: 10s
       timeout: 5s
       retries: 10
-    networks: [backend, edge]
+    networks: [edge]
 
   admin-api:
     image: bunkfy/backend:preview
     profiles: [operations]
     working_dir: /opt/bunkfy/admin-api
     command: ["BunkFy.Host.AdminApi.dll"]
-    restart: unless-stopped
+    restart: "no"
     environment:
       <<: *runtime-environment
       ASPNETCORE_URLS: http://+:8080
@@ -297,7 +297,7 @@ services:
       timeout: 5s
       retries: 20
       start_period: 15s
-    networks: [backend, edge]
+    networks: [backend, management]
 
   admin-cli:
     image: bunkfy/backend:preview
@@ -324,6 +324,7 @@ networks:
   backend:
     internal: true
   edge:
+  management:
 
 volumes:
   postgres-data:

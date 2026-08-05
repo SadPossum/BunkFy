@@ -9,6 +9,8 @@ param(
 
 . (Join-Path $PSScriptRoot 'admin-api.common.ps1')
 
+$BaseUri = Assert-BunkFyAdminApiBaseUri -BaseUri $BaseUri
+
 function Test-BunkFyStaffDepartedStatus {
     param([object] $Status)
 

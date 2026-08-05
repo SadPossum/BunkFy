@@ -28,6 +28,29 @@ function Resolve-BunkFyAdminAccessToken {
     return ConvertFrom-BunkFySecureString -Value $prompted
 }
 
+function Assert-BunkFyAdminApiBaseUri {
+    param([Parameter(Mandatory = $true)][string] $BaseUri)
+
+    $uri = $null
+    if (-not [Uri]::TryCreate($BaseUri.Trim(), [UriKind]::Absolute, [ref]$uri) -or
+        $uri.Scheme -notin @('http', 'https')) {
+        throw 'Admin API base URI must be an absolute HTTP or HTTPS origin.'
+    }
+    if (-not [string]::IsNullOrWhiteSpace($uri.UserInfo)) {
+        throw 'Admin API base URI must not contain credentials.'
+    }
+    if ($uri.AbsolutePath -ne '/' -or
+        -not [string]::IsNullOrWhiteSpace($uri.Query) -or
+        -not [string]::IsNullOrWhiteSpace($uri.Fragment)) {
+        throw 'Admin API base URI must not contain a path, query, or fragment.'
+    }
+    if ($uri.Scheme -ne 'https' -and -not $uri.IsLoopback) {
+        throw 'Admin API base URI must use HTTPS unless it targets loopback.'
+    }
+
+    return $uri.GetLeftPart([UriPartial]::Authority)
+}
+
 function Invoke-BunkFyAdminApi {
     param(
         [Parameter(Mandatory = $true)][string] $BaseUri,

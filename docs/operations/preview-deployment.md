@@ -81,10 +81,14 @@ Store the generated password immediately and sign in through the browser. The `a
 
 ## Staff Access Operations
 
-Start the Admin API only for an operations window. It binds to loopback and still requires an owner/admin bearer token.
+Start the Admin API only for an operations window. It binds to loopback, stays
+off the public edge network, does not restart automatically, and still requires
+an owner/admin bearer token. The public Nginx container is edge-only and cannot
+reach the Admin API or stateful backend services directly.
 
 ```powershell
-.\eng\preview.ps1 up -Operations
+.\eng\preview.ps1 open-operations
+.\eng\operations\verify-preview-isolation.ps1
 $env:BUNKFY_ADMIN_TOKEN = '<short-lived-access-token>'
 
 .\eng\operations\provision-staff-access.ps1 `
@@ -92,6 +96,17 @@ $env:BUNKFY_ADMIN_TOKEN = '<short-lived-access-token>'
   -Username staff@example.com `
   -DisplayName 'Front desk' `
   -RoleName operator
+```
+
+Close the management window as soon as the operation is complete. This stops
+and removes only the Admin API container and its dedicated empty network; the
+product stack keeps running.
+Operational scripts accept plain HTTP only for a loopback Admin API origin;
+any remote management endpoint must use HTTPS.
+
+```powershell
+.\eng\preview.ps1 close-operations
+Remove-Item Env:BUNKFY_ADMIN_TOKEN
 ```
 
 The provisioning journal under `.tmp/operations` contains identifiers and completed steps, never credentials. Re-running the same command resumes safely. Use that journal for offboarding:
