@@ -54,22 +54,35 @@
     <File Path="apps/backend/docs/getting-started/setup.md" />
   </Folder>
   <Folder Name="/apps/backend/docs/operations/">
+    <File Path="apps/backend/docs/operations/adapter-host-production-admission.md" />
     <File Path="apps/backend/docs/operations/adapter-ingress-stop-and-recovery.md" />
+    <File Path="apps/backend/docs/operations/durable-runtime-production-admission.md" />
     <File Path="apps/backend/docs/operations/hosted-production-deployment-contract.md" />
+    <File Path="apps/backend/docs/operations/identity-maintenance-production-admission.md" />
     <File Path="apps/backend/docs/operations/ingestion-runtime-baseline.md" />
+    <File Path="apps/backend/docs/operations/migrations-host-production-safety.md" />
     <File Path="apps/backend/docs/operations/operations-notifications-production-admission.md" />
+    <File Path="apps/backend/docs/operations/tenant-termination-production-admission.md" />
   </Folder>
   <Folder Name="/apps/backend/docs/planning/">
+    <File Path="apps/backend/docs/planning/access-control-tenant-termination-owner-task.md" />
+    <File Path="apps/backend/docs/planning/adapter-host-production-admission-task.md" />
     <File Path="apps/backend/docs/planning/adapter-http-client-task.md" />
     <File Path="apps/backend/docs/planning/adapter-ingress-trust-boundary-task.md" />
     <File Path="apps/backend/docs/planning/architecture-cleanup-task.md" />
+    <File Path="apps/backend/docs/planning/auth-and-organizations-maintenance-production-admission-task.md" />
     <File Path="apps/backend/docs/planning/automatic-retention-control-plane-task.md" />
+    <File Path="apps/backend/docs/planning/backend-release-candidate-publication-task.md" />
     <File Path="apps/backend/docs/planning/data-rights-correction-execution-task.md" />
+    <File Path="apps/backend/docs/planning/data-rights-guest-response-deadline-policy-task.md" />
     <File Path="apps/backend/docs/planning/data-rights-multi-owner-execution-task.md" />
+    <File Path="apps/backend/docs/planning/data-rights-operational-surface-hardening-task.md" />
     <File Path="apps/backend/docs/planning/data-rights-protected-export-artifacts-task.md" />
     <File Path="apps/backend/docs/planning/data-rights-restriction-execution-task.md" />
     <File Path="apps/backend/docs/planning/development-guidelines.md" />
+    <File Path="apps/backend/docs/planning/durable-runtime-production-admission-task.md" />
     <File Path="apps/backend/docs/planning/executable-personal-data-catalog-task.md" />
+    <File Path="apps/backend/docs/planning/files-tenant-termination-boundary-task.md" />
     <File Path="apps/backend/docs/planning/gma-access-control-properties-alignment.md" />
     <File Path="apps/backend/docs/planning/gma-durable-runtime-alignment.md" />
     <File Path="apps/backend/docs/planning/guest-data-rights-and-lifecycle-workflow-task.md" />
@@ -77,6 +90,9 @@
     <File Path="apps/backend/docs/planning/guest-data-rights-restriction-task.md" />
     <File Path="apps/backend/docs/planning/guest-record-retention-task.md" />
     <File Path="apps/backend/docs/planning/guest-records-module-task.md" />
+    <File Path="apps/backend/docs/planning/guests-operational-surface-hardening-task.md" />
+    <File Path="apps/backend/docs/planning/guests-read-surface-hardening-task.md" />
+    <File Path="apps/backend/docs/planning/guests-tenant-termination-owner-task.md" />
     <File Path="apps/backend/docs/planning/hosted-production-foundation-task.md" />
     <File Path="apps/backend/docs/planning/imap-reservation-mail-adapter-task.md" />
     <File Path="apps/backend/docs/planning/imap-reservation-mail-authentication-task.md" />
@@ -85,23 +101,30 @@
     <File Path="apps/backend/docs/planning/ingestion-data-rights-workflow-task.md" />
     <File Path="apps/backend/docs/planning/ingestion-legal-holds-task.md" />
     <File Path="apps/backend/docs/planning/ingestion-module-task.md" />
+    <File Path="apps/backend/docs/planning/ingestion-operational-surface-hardening-task.md" />
     <File Path="apps/backend/docs/planning/ingestion-pii-minimization-task.md" />
     <File Path="apps/backend/docs/planning/ingestion-sensitive-history-retention-task.md" />
     <File Path="apps/backend/docs/planning/ingestion-source-reprocessing-task.md" />
+    <File Path="apps/backend/docs/planning/ingestion-tenant-termination-owner-task.md" />
     <File Path="apps/backend/docs/planning/international-market-gate-task.md" />
     <File Path="apps/backend/docs/planning/inventory-data-rights-owner-capability-task.md" />
     <File Path="apps/backend/docs/planning/inventory-module-task.md" />
+    <File Path="apps/backend/docs/planning/inventory-operational-surface-hardening-task.md" />
     <File Path="apps/backend/docs/planning/inventory-personal-data-catalogue-task.md" />
     <File Path="apps/backend/docs/planning/inventory-room-retirement-and-throughput-hardening-task.md" />
+    <File Path="apps/backend/docs/planning/inventory-tenant-termination-owner-task.md" />
     <File Path="apps/backend/docs/planning/inventory-topology-change-safety-task.md" />
     <File Path="apps/backend/docs/planning/json-file-drop-adapter-task.md" />
     <File Path="apps/backend/docs/planning/json-file-drop-local-retention-task.md" />
     <File Path="apps/backend/docs/planning/json-file-drop-quarantine-task.md" />
+    <File Path="apps/backend/docs/planning/migrations-host-production-safety-task.md" />
+    <File Path="apps/backend/docs/planning/operations-notifications-data-rights-deadline-alerts-task.md" />
     <File Path="apps/backend/docs/planning/operations-notifications-data-rights-owner-capability-task.md" />
     <File Path="apps/backend/docs/planning/operations-notifications-ingestion-data-rights-task.md" />
     <File Path="apps/backend/docs/planning/operations-notifications-personal-data-catalogue-task.md" />
     <File Path="apps/backend/docs/planning/operations-notifications-production-admission-task.md" />
     <File Path="apps/backend/docs/planning/operations-notifications-staff-data-rights-task.md" />
+    <File Path="apps/backend/docs/planning/organizations-tenant-termination-owner-task.md" />
     <File Path="apps/backend/docs/planning/personal-data-output-sink-enforcement-task.md" />
     <File Path="apps/backend/docs/planning/pre-module-readiness.md" />
     <File Path="apps/backend/docs/planning/product-domain-map.md" />
@@ -109,31 +132,46 @@
     <File Path="apps/backend/docs/planning/production-file-surface-lockdown-task.md" />
     <File Path="apps/backend/docs/planning/properties-follow-up-notes.md" />
     <File Path="apps/backend/docs/planning/properties-module-task.md" />
+    <File Path="apps/backend/docs/planning/properties-operational-surface-hardening-task.md" />
     <File Path="apps/backend/docs/planning/properties-personal-data-catalogue-task.md" />
+    <File Path="apps/backend/docs/planning/properties-tenant-termination-owner-task.md" />
     <File Path="apps/backend/docs/planning/properties-topology-lifecycle-task.md" />
     <File Path="apps/backend/docs/planning/remote-adapter-lease-task.md" />
     <File Path="apps/backend/docs/planning/reservation-record-retention-task.md" />
     <File Path="apps/backend/docs/planning/reservations-data-rights-workflow-task.md" />
     <File Path="apps/backend/docs/planning/reservations-module-task.md" />
+    <File Path="apps/backend/docs/planning/reservations-operational-surface-hardening-task.md" />
     <File Path="apps/backend/docs/planning/reservations-pii-minimization-task.md" />
     <File Path="apps/backend/docs/planning/reservations-stay-lifecycle-task.md" />
+    <File Path="apps/backend/docs/planning/reservations-tenant-termination-owner-task.md" />
+    <File Path="apps/backend/docs/planning/retention-operational-surface-hardening-task.md" />
+    <File Path="apps/backend/docs/planning/retention-tenant-termination-owner-task.md" />
     <File Path="apps/backend/docs/planning/secure-staff-enrollment-task.md" />
     <File Path="apps/backend/docs/planning/security-signals-and-incident-correlation-task.md" />
     <File Path="apps/backend/docs/planning/staff-data-rights-anonymisation-task.md" />
     <File Path="apps/backend/docs/planning/staff-data-rights-correction-task.md" />
     <File Path="apps/backend/docs/planning/staff-data-rights-owner-capability-task.md" />
     <File Path="apps/backend/docs/planning/staff-data-rights-restriction-task.md" />
+    <File Path="apps/backend/docs/planning/staff-operational-surface-hardening-task.md" />
     <File Path="apps/backend/docs/planning/staff-profiles-module-task.md" />
     <File Path="apps/backend/docs/planning/staff-record-retention-task.md" />
+    <File Path="apps/backend/docs/planning/staff-tenant-termination-owner-task.md" />
     <File Path="apps/backend/docs/planning/standalone-adapter-host-task.md" />
     <File Path="apps/backend/docs/planning/support-admin-access-task.md" />
+    <File Path="apps/backend/docs/planning/task-runtime-tenant-termination-owner-task.md" />
     <File Path="apps/backend/docs/planning/tenant-scoped-data-rights-cases-task.md" />
     <File Path="apps/backend/docs/planning/tenant-termination-control-plane-task.md" />
+    <File Path="apps/backend/docs/planning/tenant-termination-operator-controls-task.md" />
+    <File Path="apps/backend/docs/planning/tenant-termination-phase-ordering-task.md" />
+    <File Path="apps/backend/docs/planning/tenant-termination-terminal-coordinator-task.md" />
+    <File Path="apps/backend/docs/planning/workspace-access-administration-task.md" />
     <File Path="apps/backend/docs/planning/workspace-access-management-facade-task.md" />
     <File Path="apps/backend/docs/planning/workspace-access-profiles-task.md" />
+    <File Path="apps/backend/docs/planning/workspace-delegated-join-management-task.md" />
     <File Path="apps/backend/docs/planning/workspace-invitation-access-plans-task.md" />
     <File Path="apps/backend/docs/planning/workspace-onboarding-production-proof-task.md" />
     <File Path="apps/backend/docs/planning/workspace-onboarding-task.md" />
+    <File Path="apps/backend/docs/planning/workspace-operational-admission-integration-task.md" />
     <File Path="apps/backend/docs/planning/workspace-staff-access-lifecycle-task.md" />
     <File Path="apps/backend/docs/planning/workspace-staff-onboarding-staging-retention-task.md" />
     <File Path="apps/backend/docs/planning/workspace-staff-retention-correlation-scrub-task.md" />
@@ -142,7 +180,9 @@
     <File Path="apps/backend/docs/planning/workspaces-data-rights-owner-capability-task.md" />
     <File Path="apps/backend/docs/planning/workspaces-data-rights-restriction-task.md" />
     <File Path="apps/backend/docs/planning/workspaces-natural-expiry-consumer-task.md" />
+    <File Path="apps/backend/docs/planning/workspaces-operational-surface-hardening-task.md" />
     <File Path="apps/backend/docs/planning/workspaces-personal-data-catalogue-task.md" />
+    <File Path="apps/backend/docs/planning/workspaces-tenant-termination-owner-task.md" />
   </Folder>
   <Folder Name="/apps/backend/eng/">
     <File Path="apps/backend/eng/add-migration.ps1" />
@@ -379,6 +419,7 @@
     <Project Path="apps/backend/gma/modules/notifications/src/Gma.Modules.Notifications.Adapters.Email/Gma.Modules.Notifications.Adapters.Email.csproj" />
     <Project Path="apps/backend/gma/modules/notifications/src/Gma.Modules.Notifications.Admin.Contracts/Gma.Modules.Notifications.Admin.Contracts.csproj" />
     <Project Path="apps/backend/gma/modules/notifications/src/Gma.Modules.Notifications.AdminApi/Gma.Modules.Notifications.AdminApi.csproj" />
+    <Project Path="apps/backend/gma/modules/notifications/src/Gma.Modules.Notifications.AdminCli/Gma.Modules.Notifications.AdminCli.csproj" />
     <Project Path="apps/backend/gma/modules/notifications/src/Gma.Modules.Notifications.Api/Gma.Modules.Notifications.Api.csproj" />
     <Project Path="apps/backend/gma/modules/notifications/src/Gma.Modules.Notifications.Application/Gma.Modules.Notifications.Application.csproj" />
     <Project Path="apps/backend/gma/modules/notifications/src/Gma.Modules.Notifications.Contracts/Gma.Modules.Notifications.Contracts.csproj" />
@@ -451,8 +492,27 @@
     <Project Path="apps/backend/src/Adapters/tests/BunkFy.Adapters.Tests/BunkFy.Adapters.Tests.csproj" />
   </Folder>
   <Folder Name="/apps/backend/src/Extensions/">
+    <Project Path="apps/backend/src/Extensions/BunkFy.Extensions.DataRights.AccessControl/BunkFy.Extensions.DataRights.AccessControl.csproj" />
+    <Project Path="apps/backend/src/Extensions/BunkFy.Extensions.DataRights.Organizations/BunkFy.Extensions.DataRights.Organizations.csproj" />
+    <Project Path="apps/backend/src/Extensions/BunkFy.Extensions.DataRights.TaskRuntime/BunkFy.Extensions.DataRights.TaskRuntime.csproj" />
+    <Project Path="apps/backend/src/Extensions/BunkFy.Extensions.DataRights.TenantTermination/BunkFy.Extensions.DataRights.TenantTermination.csproj" />
     <Project Path="apps/backend/src/Extensions/BunkFy.Extensions.Operations.Notifications/BunkFy.Extensions.Operations.Notifications.csproj" />
     <Project Path="apps/backend/src/Extensions/BunkFy.Extensions.Workspaces/BunkFy.Extensions.Workspaces.csproj" />
+  </Folder>
+  <Folder Name="/apps/backend/src/Extensions/BunkFy.Extensions.DataRights.AccessControl/docs/">
+    <File Path="apps/backend/src/Extensions/BunkFy.Extensions.DataRights.AccessControl/docs/README.md" />
+    <File Path="apps/backend/src/Extensions/BunkFy.Extensions.DataRights.AccessControl/docs/personal-data-catalog.v1.json" />
+    <File Path="apps/backend/src/Extensions/BunkFy.Extensions.DataRights.AccessControl/docs/personal-data-inventory.v1.md" />
+  </Folder>
+  <Folder Name="/apps/backend/src/Extensions/BunkFy.Extensions.DataRights.Organizations/docs/">
+    <File Path="apps/backend/src/Extensions/BunkFy.Extensions.DataRights.Organizations/docs/README.md" />
+    <File Path="apps/backend/src/Extensions/BunkFy.Extensions.DataRights.Organizations/docs/personal-data-catalog.v1.json" />
+    <File Path="apps/backend/src/Extensions/BunkFy.Extensions.DataRights.Organizations/docs/personal-data-inventory.v1.md" />
+  </Folder>
+  <Folder Name="/apps/backend/src/Extensions/BunkFy.Extensions.DataRights.TaskRuntime/docs/">
+    <File Path="apps/backend/src/Extensions/BunkFy.Extensions.DataRights.TaskRuntime/docs/README.md" />
+    <File Path="apps/backend/src/Extensions/BunkFy.Extensions.DataRights.TaskRuntime/docs/personal-data-catalog.v1.json" />
+    <File Path="apps/backend/src/Extensions/BunkFy.Extensions.DataRights.TaskRuntime/docs/personal-data-inventory.v1.md" />
   </Folder>
   <Folder Name="/apps/backend/src/Extensions/BunkFy.Extensions.Operations.Notifications/docs/">
     <File Path="apps/backend/src/Extensions/BunkFy.Extensions.Operations.Notifications/docs/README.md" />
@@ -460,6 +520,10 @@
     <File Path="apps/backend/src/Extensions/BunkFy.Extensions.Operations.Notifications/docs/personal-data-inventory.v1.md" />
   </Folder>
   <Folder Name="/apps/backend/src/Extensions/tests/">
+    <Project Path="apps/backend/src/Extensions/tests/BunkFy.Extensions.DataRights.AccessControl.Tests/BunkFy.Extensions.DataRights.AccessControl.Tests.csproj" />
+    <Project Path="apps/backend/src/Extensions/tests/BunkFy.Extensions.DataRights.Organizations.Tests/BunkFy.Extensions.DataRights.Organizations.Tests.csproj" />
+    <Project Path="apps/backend/src/Extensions/tests/BunkFy.Extensions.DataRights.TaskRuntime.Tests/BunkFy.Extensions.DataRights.TaskRuntime.Tests.csproj" />
+    <Project Path="apps/backend/src/Extensions/tests/BunkFy.Extensions.DataRights.TenantTermination.Tests/BunkFy.Extensions.DataRights.TenantTermination.Tests.csproj" />
     <Project Path="apps/backend/src/Extensions/tests/BunkFy.Extensions.Operations.Notifications.Tests/BunkFy.Extensions.Operations.Notifications.Tests.csproj" />
     <Project Path="apps/backend/src/Extensions/tests/BunkFy.Extensions.Workspaces.Tests/BunkFy.Extensions.Workspaces.Tests.csproj" />
   </Folder>
@@ -598,6 +662,7 @@
     <Project Path="apps/backend/src/Modules/Retention/BunkFy.Modules.Retention.Persistence/BunkFy.Modules.Retention.Persistence.csproj" />
   </Folder>
   <Folder Name="/apps/backend/src/Modules/Retention/docs/">
+    <File Path="apps/backend/src/Modules/Retention/docs/README.md" />
     <File Path="apps/backend/src/Modules/Retention/docs/personal-data-catalog.v1.json" />
     <File Path="apps/backend/src/Modules/Retention/docs/personal-data-inventory.v1.md" />
   </Folder>
@@ -653,6 +718,7 @@
   </Folder>
   <Folder Name="/apps/backend/tests/">
     <Project Path="apps/backend/tests/Architecture.Tests/Architecture.Tests.csproj" />
+    <Project Path="apps/backend/tests/BunkFy.Host.Migrations.Tests/BunkFy.Host.Migrations.Tests.csproj" />
     <Project Path="apps/backend/tests/BunkFy.Host.ServiceDefaults.Tests/BunkFy.Host.ServiceDefaults.Tests.csproj" />
     <Project Path="apps/backend/tests/Integration.Tests/Integration.Tests.csproj" />
   </Folder>
