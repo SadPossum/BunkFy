@@ -116,7 +116,8 @@ services:
     command: ["BunkFy.Host.Migrations.dll"]
     environment:
       <<: *database-environment
-      DOTNET_ENVIRONMENT: Production
+      DOTNET_ENVIRONMENT: Preview
+      BunkFy__Deployment__Profile: Preview
     depends_on:
       postgres:
         condition: service_healthy

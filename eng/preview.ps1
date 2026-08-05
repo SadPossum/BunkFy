@@ -10,6 +10,16 @@ param(
 $root = Get-BunkFyRepositoryRoot
 $composeFile = Join-BunkFyPath 'deploy\preview\compose.yaml'
 $environmentFile = Join-BunkFyPath 'deploy\preview\.env'
+
+if ($Action -in @('build', 'up')) {
+    $backendBootstrap = Join-BunkFyPath 'apps\backend\eng\gma-bootstrap.ps1'
+    if (-not (Test-Path -LiteralPath $backendBootstrap -PathType Leaf)) {
+        throw "Backend source composition bootstrap is missing: '$backendBootstrap'. Initialize submodules before building the preview stack."
+    }
+
+    & $backendBootstrap -Force
+}
+
 if (-not (Test-Path -LiteralPath $environmentFile -PathType Leaf)) {
     throw "Run eng/new-preview-env.ps1 before starting the preview stack."
 }

@@ -10,7 +10,8 @@ registered external, production-grade ledger provider.
 
 ## Prepare
 
-Requirements: Docker with Compose v2 and PowerShell 7.
+Requirements: Docker with Compose v2, PowerShell 7, and recursively initialized
+submodules.
 
 ```powershell
 .\eng\new-preview-env.ps1
@@ -23,6 +24,10 @@ https://your-bunkfy-host/auth/complete
 ```
 
 The generated file is ignored by Git. Keep it in the server secret store or protected deployment workspace. PostgreSQL and NATS credentials must remain URL/connection-string safe.
+
+`preview.ps1 build` and `preview.ps1 up` refresh the backend's ignored GMA
+source-root maps before invoking Docker, so a clean recursive checkout packages
+the same source composition validated by CI.
 
 ## Start And Verify
 

@@ -34,6 +34,12 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 $resolvedCompose = $resolvedComposeJson | ConvertFrom-Json
+$migrationsEnvironment = $resolvedCompose.services.migrations.environment
+if ($migrationsEnvironment.DOTNET_ENVIRONMENT -ne 'Preview' -or
+    $migrationsEnvironment.BunkFy__Deployment__Profile -ne 'Preview') {
+    throw 'Preview migrations must retain both the Preview host environment and deployment profile.'
+}
+
 $apiEnvironment = $resolvedCompose.services.api.environment
 if ($apiEnvironment.DOTNET_ENVIRONMENT -ne 'Preview' -or
     $apiEnvironment.BunkFy__Deployment__Profile -ne 'Preview') {
@@ -65,3 +71,13 @@ foreach ($module in $requiredWorkerModules) {
 }
 
 Write-Host 'BunkFy preview Compose configuration is valid.'
+
+$previewScript = Get-Content -LiteralPath (
+    Join-Path $PSScriptRoot 'preview.ps1') -Raw
+foreach ($requiredToken in @('gma-bootstrap.ps1', "@('build', 'up')", '-Force')) {
+    if (-not $previewScript.Contains($requiredToken, [StringComparison]::Ordinal)) {
+        throw "Preview build source-composition bootstrap is missing '$requiredToken'."
+    }
+}
+
+Write-Host 'BunkFy preview build bootstrap is valid.'
