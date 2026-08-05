@@ -768,7 +768,9 @@
     <File Path="eng/operations/admin-api.common.ps1" />
     <File Path="eng/operations/backup-preview.ps1" />
     <File Path="eng/operations/offboard-staff-access.ps1" />
+    <File Path="eng/operations/preview-state.common.ps1" />
     <File Path="eng/operations/provision-staff-access.ps1" />
+    <File Path="eng/operations/restore-preview.ps1" />
   </Folder>
   <Folder Name="/src/">
     <Project Path="src/BunkFy.AppHost/BunkFy.AppHost.csproj" />
