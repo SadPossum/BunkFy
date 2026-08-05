@@ -142,18 +142,39 @@ Create a consistent backup during a brief write outage:
 The script stops the application writers, takes a PostgreSQL custom dump,
 archives MinIO, NATS, Redis, Data Protection, the protected data-rights ledger
 and adapter input volumes, writes SHA-256 hashes, and restores the previous
-default stack. Copy the resulting `.tmp/backups/preview-*` directory to
-independent encrypted storage.
+running service set. It refuses to create a backup if any declared state volume
+is missing. Copy the resulting `.tmp/backups/preview-*` directory to independent
+encrypted storage.
 
 Restore only into an empty, stopped preview deployment:
 
-1. Verify every artifact against `manifest.json` and check out the recorded root/backend/web commits.
-2. Run `docker compose ... down --volumes` only after confirming the target is the intended preview project.
-3. Recreate each named volume and extract its matching archive with a disposable container.
-4. Start PostgreSQL alone, copy `postgres.dump` into it, and run `pg_restore --clean --if-exists --no-owner -U bunkfy -d bunkfy`.
-5. Start the full stack and verify migrations, `/healthz`, `/api/smoke`, sign-in, one file read, and one background task.
+```powershell
+.\eng\operations\restore-preview.ps1 `
+  -BackupPath .tmp\backups\preview-<timestamp> `
+  -Confirm:$false
+```
+
+The restore command verifies the closed artifact set, lengths, SHA-256 hashes,
+clean and exact root/backend/web commits, and immutable local backend/web image
+IDs before creating state. It refuses a target that already has Compose
+containers, networks, or any declared volume, restores the non-database state
+first, runs `pg_restore --exit-on-error`, and then starts the full stack through
+the migration gate. Make the recorded backend and web images available locally
+before restoring; restore never rebuilds source.
+
+For a rehearsal on the same host, copy the ignored environment file, choose a
+different loopback port, and set unique values for
+`BUNKFY_COMPOSE_PROJECT_NAME` and `BUNKFY_VOLUME_PREFIX`. The production target
+uses the ordinary environment only after its old containers and named volumes
+have been deliberately removed.
+
+After restore, verify migrations, `/healthz`, `/api/smoke`, sign-in, one file
+read, and one background task.
 
 Restore PostgreSQL and the Data Protection key ring from the same backup. Losing or mismatching the key ring invalidates protected browser state and can make protected payloads unreadable.
+The backup deliberately excludes `.env` and all secrets. Retain the matching
+secret-store versions independently and restore the same JWT, refresh-token,
+data-rights, object-store, broker, and database credentials with the state.
 
 ## Capability Gates
 

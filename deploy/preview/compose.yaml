@@ -1,4 +1,4 @@
-name: bunkfy-preview
+name: ${BUNKFY_COMPOSE_PROJECT_NAME:-bunkfy-preview}
 
 x-database-environment: &database-environment
   Persistence__Provider: PostgreSql
@@ -196,6 +196,7 @@ services:
       Worker__Modules__DataRights: "true"
       Worker__Modules__Staff: "true"
       Worker__Modules__Ingestion: "true"
+      Worker__Modules__Retention: "true"
       Worker__Modules__TaskRuntime: "true"
       NatsConsumers__Enabled: "true"
       Tasks__Worker__Enabled: "true"
@@ -237,6 +238,7 @@ services:
     networks: [backend]
 
   web:
+    image: bunkfy/web:preview
     build:
       context: ../../apps/web
       dockerfile: Dockerfile
@@ -325,16 +327,16 @@ networks:
 
 volumes:
   postgres-data:
-    name: bunkfy-preview-postgres-data
+    name: ${BUNKFY_VOLUME_PREFIX:-bunkfy-preview}-postgres-data
   redis-data:
-    name: bunkfy-preview-redis-data
+    name: ${BUNKFY_VOLUME_PREFIX:-bunkfy-preview}-redis-data
   nats-data:
-    name: bunkfy-preview-nats-data
+    name: ${BUNKFY_VOLUME_PREFIX:-bunkfy-preview}-nats-data
   minio-data:
-    name: bunkfy-preview-minio-data
+    name: ${BUNKFY_VOLUME_PREFIX:-bunkfy-preview}-minio-data
   data-protection:
-    name: bunkfy-preview-data-protection
+    name: ${BUNKFY_VOLUME_PREFIX:-bunkfy-preview}-data-protection
   adapter-file-drop:
-    name: bunkfy-preview-adapter-file-drop
+    name: ${BUNKFY_VOLUME_PREFIX:-bunkfy-preview}-adapter-file-drop
   data-rights-ledger-delta:
-    name: bunkfy-preview-data-rights-ledger-delta
+    name: ${BUNKFY_VOLUME_PREFIX:-bunkfy-preview}-data-rights-ledger-delta
