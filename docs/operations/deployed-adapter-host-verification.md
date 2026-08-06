@@ -40,6 +40,7 @@ baseline is deliberately not accepted as current deployment proof.
 ```powershell
 ./eng/operations/verify-deployed-adapter-host.ps1 `
   -PublicOrigin https://candidate.example `
+  -ExpectedReleaseId <promotion-record-release-id> `
   -AdapterHostOrigin http://127.0.0.1:8091 `
   -WorkspaceId <workspace-id> `
   -PropertyId <property-id> `
@@ -64,6 +65,7 @@ AdapterHost or its status endpoint through BunkFy's public edge.
 
 The probe verifies:
 
+- public `/api/smoke` reports the expected release before and after the cycle;
 - liveness, readiness, and the admitted status-exposure mode;
 - an enabled, available `RemotePolling` connection with known protocol and
   configuration-schema versions;
@@ -83,7 +85,7 @@ SHA-256 and is not written to evidence.
 
 Passing JSON evidence is written atomically under `.tmp/deployment-probes` by
 default. It records deployment and runtime identifiers, bounded run and receipt
-metadata, seven check results, and explicit limitations. It excludes bearer
+metadata, eight check results, and explicit limitations. It excludes bearer
 tokens, external ids and hashes, checkpoints, runtime material references, raw
 payload content, response bodies, and headers.
 

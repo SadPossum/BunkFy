@@ -26,6 +26,7 @@ inputs; this public probe cannot infer them from a healthy response.
 ```powershell
 ./eng/operations/verify-deployed-retention.ps1 `
   -PublicOrigin https://candidate.example `
+  -ExpectedReleaseId <promotion-record-release-id> `
   -WorkspaceId <workspace-id>
 ```
 
@@ -42,6 +43,7 @@ Increase the timeout only when the reviewed deployment policy justifies it.
 
 The probe verifies:
 
+- public `/api/smoke` reports the expected release before and after the observation;
 - the versioned `ingestion/raw-source-evidence` and
   `ingestion/sensitive-reservation-history` tenant schedules are unique;
 - the same credential receives `403` for a random workspace scope;
@@ -59,9 +61,10 @@ while paging fails closed rather than combining inconsistent snapshots.
 ## Evidence And Failure
 
 Passing JSON evidence is written atomically under `.tmp/deployment-probes` by
-default. It includes the public origin, workspace id, observed data class,
-catalogue count, the two expected schedule coordinates, run ids, timestamps,
-bounded counts, outcome codes, six checks, and explicit limitations.
+default. It includes the public origin, release identity, workspace id, observed
+data class, catalogue count, the two expected schedule coordinates, run ids,
+timestamps, bounded counts, outcome codes, seven checks, and explicit
+limitations.
 
 It excludes the bearer token, request headers, owner records, property
 coordinates from future schedules, payloads, legal-hold details, and response

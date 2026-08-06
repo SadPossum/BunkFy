@@ -1,5 +1,8 @@
 param(
     [Parameter(Mandatory = $true)][Uri] $PublicOrigin,
+    [Parameter(Mandatory = $true)]
+    [ValidatePattern('^[a-z0-9][a-z0-9._-]{2,127}$')]
+    [string] $ExpectedReleaseId,
     [Parameter(Mandatory = $true)][Guid] $WorkspaceId,
     [Security.SecureString] $ReaderAccessToken,
     [ValidateRange(1, 60)][int] $RequestTimeoutSeconds = 15,
@@ -273,6 +276,11 @@ function Assert-FinalSnapshot {
 }
 
 try {
+    $releaseIdBefore = Assert-BunkFyPublicApiReleaseIdentity `
+        -Client $client `
+        -Origin $origin `
+        -ExpectedReleaseId $ExpectedReleaseId `
+        -TimeoutSeconds $RequestTimeoutSeconds
     $baseline = Get-SmokeRetentionSnapshot
     Assert-ExpectedCatalogue -Snapshot $baseline
     [void]$checks.Add([ordered]@{
@@ -367,6 +375,18 @@ try {
             name = 'retention-outcomes-pii-minimized'
             status = 'passed'
         })
+    $observedReleaseId = Assert-BunkFyPublicApiReleaseIdentity `
+        -Client $client `
+        -Origin $origin `
+        -ExpectedReleaseId $ExpectedReleaseId `
+        -TimeoutSeconds $RequestTimeoutSeconds
+    if ($observedReleaseId -cne $releaseIdBefore) {
+        throw 'The public API release identity changed during Retention verification.'
+    }
+    [void]$checks.Add([ordered]@{
+            name = 'release-identity-continuous'
+            status = 'passed'
+        })
 }
 finally {
     $client.Dispose()
@@ -394,6 +414,7 @@ $evidence = [ordered]@{
     evidenceKind = 'bunkfy-deployed-retention-probe'
     generatedAtUtc = [DateTimeOffset]::UtcNow.ToString('O')
     publicOrigin = $origin.GetLeftPart([UriPartial]::Authority)
+    releaseId = $observedReleaseId
     transport = if ($origin.Scheme -eq 'https') { 'trusted-https' } else { 'loopback-http-fixture' }
     result = 'passed'
     workspaceId = $WorkspaceId.ToString('D')

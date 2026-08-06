@@ -26,6 +26,7 @@ immediately before mutation and fails safely if the range is no longer free.
 ```powershell
 ./eng/operations/verify-deployed-operations-notifications.ps1 `
   -PublicOrigin https://candidate.example `
+  -ExpectedReleaseId <promotion-record-release-id> `
   -WorkspaceId <workspace-id> `
   -PropertyId <property-id> `
   -InventoryUnitId <inventory-unit-id> `
@@ -49,6 +50,7 @@ automation.
 
 The probe verifies:
 
+- public `/api/smoke` reports the expected release before and after the workflow;
 - both tokens resolve to distinct active memberships in the target workspace;
 - both accounts can read the property and the observer can open the Inventory
   data behind the notification destination;
@@ -70,10 +72,10 @@ history records; newly created smoke records must be in that bounded window.
 ## Evidence And Failure
 
 Passing JSON evidence is written atomically under `.tmp/deployment-probes` by
-default. It contains deployment origin, workspace/property/unit/block ids,
-date range, notification ids and stream sequences, check results, and explicit
-limitations. It excludes bearer tokens, Auth subjects, mutation reason,
-notification bodies, raw response bodies, and headers.
+default. It contains deployment origin and release identity, workspace/property/
+unit/block ids, date range, notification ids and stream sequences, ten check
+results, and explicit limitations. It excludes bearer tokens, Auth subjects,
+mutation reason, notification bodies, raw response bodies, and headers.
 
 On failure after creation, the probe releases the block best-effort before
 returning the original error. A cleanup warning blocks promotion and requires
@@ -85,6 +87,7 @@ external delivery adapters. Those remain candidate-specific checks.
 ## Repository Fixture
 
 `eng/test-deployed-operations-notifications.ps1` runs the full sequence against
-a deterministic loopback fixture. It proves the valid path, evidence redaction,
-identical-token rejection, and rejection when the actor receives its own
-notification. It does not contact a deployed environment.
+a deterministic loopback fixture. It proves the valid path, release mismatch
+rejection, evidence redaction, identical-token rejection, and rejection when
+the actor receives its own notification. It does not contact a deployed
+environment.

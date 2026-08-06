@@ -11,6 +11,7 @@ $externalIdBytes = [Text.UTF8Encoding]::new($false).GetBytes($externalId)
 $externalIdHash = [Convert]::ToHexString(
     [Security.Cryptography.SHA256]::HashData($externalIdBytes)).ToLowerInvariant()
 $fixture = [pscustomobject]@{
+    ReleaseId = 'release-fixture-001'
     WorkspaceId = '11111111-1111-4111-8111-111111111111'
     PropertyId = '22222222-2222-4222-8222-222222222222'
     ConnectionId = '33333333-3333-4333-8333-333333333333'
@@ -324,6 +325,7 @@ function Start-BunkFyAdapterHostFixtureServer {
             $statusReadCount = 0
             $requestCount = 0
             $done = $false
+            $workflowComplete = $false
             $inactivityDeadline = [DateTimeOffset]::UtcNow.AddSeconds(15)
             while (-not $done -and
                 $requestCount -lt 40 -and
@@ -372,8 +374,10 @@ function Start-BunkFyAdapterHostFixtureServer {
                     if ($method -cne 'GET') {
                         throw "Fixture received unexpected method '$method'."
                     }
-                    $isApi = $path.StartsWith('/api/', [StringComparison]::Ordinal)
-                    if ($isApi) {
+                    $isAuthenticatedApi =
+                        $path.StartsWith('/api/', [StringComparison]::Ordinal) -and
+                        $path -cne '/api/smoke'
+                    if ($isAuthenticatedApi) {
                         if ([string]$headers['Authorization'] -cne "Bearer $($Fixture.OperatorToken)" -or
                             [string]$headers['X-Tenant-Id'] -cne $Fixture.WorkspaceId) {
                             throw 'Fixture API request used the wrong token or tenant scope.'
@@ -389,7 +393,19 @@ function Start-BunkFyAdapterHostFixtureServer {
                     $status = 200
                     $reason = 'OK'
                     $response = $null
-                    if ($path -ceq '/health/live') {
+                    if ($path -ceq '/api/smoke') {
+                        $response = [ordered]@{
+                            application = 'BunkFy'
+                            service = 'BunkFy.Host.Api'
+                            status = 'ok'
+                            releaseId = $Fixture.ReleaseId
+                            timestampUtc = [DateTimeOffset]::UtcNow.ToString('O')
+                        }
+                        if ($workflowComplete) {
+                            $done = $true
+                        }
+                    }
+                    elseif ($path -ceq '/health/live') {
                         $response = @{ status = 'live' }
                     }
                     elseif ($path -ceq '/health/ready') {
@@ -406,7 +422,7 @@ function Start-BunkFyAdapterHostFixtureServer {
                             $response = New-AdapterHostStatus
                         }
                         if ($statusReadCount -ge 2) {
-                            $done = $true
+                            $workflowComplete = $true
                         }
                     }
                     elseif ($path -ceq "/api/ingestion/properties/$($Fixture.PropertyId)/connections/$($Fixture.ConnectionId)") {
@@ -520,6 +536,7 @@ function Invoke-BunkFyAdapterHostFixtureProbe {
         $statusExposure = if ($Mode -ceq 'valid-disabled') { 'Disabled' } else { 'LoopbackOnly' }
         & $probeScript `
             -PublicOrigin $server.Origin `
+            -ExpectedReleaseId $fixture.ReleaseId `
             -AdapterHostOrigin $server.Origin `
             -WorkspaceId $fixture.WorkspaceId `
             -PropertyId $fixture.PropertyId `
@@ -553,7 +570,8 @@ try {
         if ($evidence.schemaVersion -ne 1 -or
             $evidence.evidenceKind -cne 'bunkfy-deployed-adapter-host-probe' -or
             $evidence.result -cne 'passed' -or
-            @($evidence.checks).Count -ne 7 -or
+            $evidence.releaseId -cne $fixture.ReleaseId -or
+            @($evidence.checks).Count -ne 8 -or
             [Guid]$evidence.run.runId -ne [Guid]$fixture.RunId -or
             [Guid]$evidence.receipt.receiptId -ne [Guid]$fixture.ReceiptId -or
             [string]$evidence.statusEndpointExposure -cne $expectedExposure) {
@@ -608,6 +626,7 @@ try {
         $token = ConvertTo-SecureString $fixture.OperatorToken -AsPlainText -Force
         & $probeScript `
             -PublicOrigin ([Uri]'http://127.0.0.1:65530') `
+            -ExpectedReleaseId $fixture.ReleaseId `
             -AdapterHostOrigin ([Uri]'http://adapter.example.test:8088') `
             -WorkspaceId $fixture.WorkspaceId `
             -PropertyId $fixture.PropertyId `
@@ -635,6 +654,7 @@ try {
         $token = ConvertTo-SecureString $fixture.OperatorToken -AsPlainText -Force
         & $probeScript `
             -PublicOrigin ([Uri]'http://127.0.0.1:65530') `
+            -ExpectedReleaseId $fixture.ReleaseId `
             -AdapterHostOrigin ([Uri]'https://adapter.example.test') `
             -WorkspaceId $fixture.WorkspaceId `
             -PropertyId $fixture.PropertyId `

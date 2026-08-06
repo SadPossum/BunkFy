@@ -13,6 +13,9 @@ $scripts = @(
     (Join-Path $PSScriptRoot 'operations\rehearse-production-migrations.ps1'),
     (Join-Path $PSScriptRoot 'image-promotion.common.ps1'),
     (Join-Path $PSScriptRoot 'verify-image-promotion.ps1'),
+    (Join-Path $PSScriptRoot 'production-admission.common.ps1'),
+    (Join-Path $PSScriptRoot 'operations\assemble-production-admission.ps1'),
+    (Join-Path $PSScriptRoot 'verify-production-admission.ps1'),
     (Join-Path $PSScriptRoot 'operations\deployed-public-edge.common.ps1'),
     (Join-Path $PSScriptRoot 'operations\deployed-authenticated-smoke.common.ps1'),
     (Join-Path $PSScriptRoot 'operations\verify-deployed-adapter-host.ps1'),
@@ -31,6 +34,7 @@ $scripts = @(
     (Join-Path $PSScriptRoot 'test-deployed-workspace-enrollment.ps1'),
     (Join-Path $PSScriptRoot 'test-deployed-workspace-invitation.ps1'),
     (Join-Path $PSScriptRoot 'test-deployed-retention.ps1'),
+    (Join-Path $PSScriptRoot 'test-production-admission.ps1'),
     (Join-Path $PSScriptRoot 'new-preview-env.ps1'),
     (Join-Path $PSScriptRoot 'preview.ps1')
 )
@@ -517,6 +521,7 @@ foreach ($requiredToken in @(
         'Assert-BunkFyPublicEdgeSecurityHeaders',
         'Assert-BunkFyWebReleaseIdentity',
         'Assert-BunkFySmokeResponse',
+        'Assert-BunkFyPublicApiReleaseIdentity',
         'New-BunkFyPublicEdgeHttpClient',
         'Get-BunkFyObservedComposedReleaseId',
         'ExpectedReleaseId',
@@ -613,6 +618,9 @@ $adminBoundaryProbe = Get-Content -LiteralPath (
 foreach ($requiredToken in @(
         '$script:AdminBoundaryMaximumBodyBytes = 64KB',
         '$handler.AllowAutoRedirect = $false',
+        'ExpectedReleaseId',
+        'release-identity-continuous',
+        'releaseId',
         'ExpectedAdminReachability',
         'EvidenceSetId',
         'HttpCompletionOption]::ResponseHeadersRead',
@@ -667,6 +675,9 @@ $workspaceInvitationProbe = Get-Content -LiteralPath (
 foreach ($requiredToken in @(
         "SupportsShouldProcess = `$true",
         '$handler.AllowAutoRedirect = $false',
+        'ExpectedReleaseId',
+        'release-identity-continuous',
+        'releaseId',
         'BUNKFY_SMOKE_OWNER_TOKEN',
         'BUNKFY_SMOKE_APPLICANT_TOKEN',
         '/api/workspace-staff-enrollment/sources/invitations',
@@ -702,6 +713,9 @@ $workspaceEnrollmentProbe = Get-Content -LiteralPath (
 foreach ($requiredToken in @(
         "SupportsShouldProcess = `$true",
         '$handler.AllowAutoRedirect = $false',
+        'ExpectedReleaseId',
+        'release-identity-continuous',
+        'releaseId',
         'BUNKFY_SMOKE_OWNER_TOKEN',
         'BUNKFY_SMOKE_APPLICANT_TOKEN',
         '/api/workspace-staff-enrollment/sources/enrollment-links',
@@ -738,6 +752,9 @@ $operationsNotificationsProbe = Get-Content -LiteralPath (
 foreach ($requiredToken in @(
         "SupportsShouldProcess = `$true",
         '$handler.AllowAutoRedirect = $false',
+        'ExpectedReleaseId',
+        'release-identity-continuous',
+        'releaseId',
         'BUNKFY_SMOKE_NOTIFICATION_ACTOR_TOKEN',
         'BUNKFY_SMOKE_NOTIFICATION_OBSERVER_TOKEN',
         '/api/notifications/history/stream?afterSequence=',
@@ -771,6 +788,9 @@ $adapterHostProbe = Get-Content -LiteralPath (
 foreach ($requiredToken in @(
         '$script:AdapterHostMaximumBodyBytes = 32KB',
         '$handler.AllowAutoRedirect = $false',
+        'ExpectedReleaseId',
+        'release-identity-continuous',
+        'releaseId',
         'BUNKFY_SMOKE_INGESTION_OPERATOR_TOKEN',
         "StatusEndpointExposure -ceq 'LoopbackOnly'",
         '/health/live',
@@ -806,6 +826,9 @@ $retentionProbe = Get-Content -LiteralPath (
     Join-Path $PSScriptRoot 'operations\verify-deployed-retention.ps1') -Raw
 foreach ($requiredToken in @(
         '$handler.AllowAutoRedirect = $false',
+        'ExpectedReleaseId',
+        'release-identity-continuous',
+        'releaseId',
         'BUNKFY_SMOKE_RETENTION_READER_TOKEN',
         '/api/retention/schedules?page=',
         "DataClassKey = 'raw-source-evidence'",
@@ -834,3 +857,71 @@ foreach ($forbiddenToken in @(
 
 & (Join-Path $PSScriptRoot 'test-deployed-retention.ps1')
 Write-Host 'BunkFy deployed Retention probe policy is valid.'
+
+$productionAdmissionCommon = Get-Content -LiteralPath (
+    Join-Path $PSScriptRoot 'production-admission.common.ps1') -Raw
+$productionAdmissionAssembler = Get-Content -LiteralPath (
+    Join-Path $PSScriptRoot 'operations\assemble-production-admission.ps1') -Raw
+$productionAdmissionVerifier = Get-Content -LiteralPath (
+    Join-Path $PSScriptRoot 'verify-production-admission.ps1') -Raw
+foreach ($requiredToken in @(
+        'Get-BunkFyVerifiedProductionAdmissionProbe',
+        'Get-BunkFyVerifiedProductionMigrationRehearsal',
+        'Get-BunkFyVerifiedDeployedRollbackRehearsal',
+        'Get-BunkFyVerifiedProductionAdmission',
+        'ConvertFrom-Json -DateKind String',
+        'Get-BunkFyClosedChecksumSet',
+        "'bunkfy-production-admission-bundle'",
+        "'evidence-complete-awaiting-private-approval'",
+        "'private-evidence-content-and-authenticity-not-verified'")) {
+    if (-not $productionAdmissionCommon.Contains($requiredToken, [StringComparison]::Ordinal)) {
+        throw "Production admission common policy is missing '$requiredToken'."
+    }
+}
+foreach ($requiredToken in @(
+        'CandidatePromotionDirectory',
+        'RollbackPromotionDirectory',
+        'RollbackRehearsalDirectory',
+        'MigrationRehearsalPath',
+        'AdminAllowedEvidencePath',
+        'AdminDeniedEvidencePath',
+        'BrowserRehearsalReference',
+        'HostedRecoveryReference',
+        'DeploymentControlReference',
+        'RuntimeOperationsReference',
+        'Get-BunkFyVerifiedProductionAdmission',
+        '[IO.Directory]::Move')) {
+    if (-not $productionAdmissionAssembler.Contains($requiredToken, [StringComparison]::Ordinal)) {
+        throw "Production admission assembler policy is missing '$requiredToken'."
+    }
+}
+foreach ($requiredToken in @(
+        'AdmissionDirectory',
+        'ExpectedPublicOrigin',
+        'ExpectedReleaseId',
+        'ExpectedSourceCommit',
+        'Get-BunkFyVerifiedProductionAdmission')) {
+    if (-not $productionAdmissionVerifier.Contains($requiredToken, [StringComparison]::Ordinal)) {
+        throw "Production admission verifier policy is missing '$requiredToken'."
+    }
+}
+foreach ($forbiddenToken in @(
+        'DangerousAcceptAnyServerCertificateValidator',
+        'ServerCertificateCustomValidationCallback',
+        '-SkipCertificateCheck',
+        'Invoke-RestMethod',
+        'AuthenticationHeaderValue',
+        'SecureString',
+        'Invoke-Expression',
+        'Start-Process',
+        'docker ',
+        'kubectl')) {
+    if ($productionAdmissionCommon.Contains($forbiddenToken, [StringComparison]::OrdinalIgnoreCase) -or
+        $productionAdmissionAssembler.Contains($forbiddenToken, [StringComparison]::OrdinalIgnoreCase) -or
+        $productionAdmissionVerifier.Contains($forbiddenToken, [StringComparison]::OrdinalIgnoreCase)) {
+        throw "Production admission tooling contains forbidden token '$forbiddenToken'."
+    }
+}
+
+& (Join-Path $PSScriptRoot 'test-production-admission.ps1')
+Write-Host 'BunkFy production admission evidence policy is valid.'

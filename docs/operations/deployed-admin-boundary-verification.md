@@ -37,6 +37,7 @@ Run from the approved management host:
 ```powershell
 ./eng/operations/verify-deployed-admin-boundary.ps1 `
   -PublicOrigin https://candidate.example `
+  -ExpectedReleaseId <promotion-record-release-id> `
   -AdminOrigin https://admin.candidate.internal `
   -ExpectedAdminReachability Allowed `
   -EvidenceSetId $evidenceSetId
@@ -53,6 +54,7 @@ Run from the external host with the same candidate origins and correlation id:
 ```powershell
 ./eng/operations/verify-deployed-admin-boundary.ps1 `
   -PublicOrigin https://candidate.example `
+  -ExpectedReleaseId <promotion-record-release-id> `
   -AdminOrigin https://admin.candidate.internal `
   -ExpectedAdminReachability Denied `
   -EvidenceSetId $evidenceSetId
@@ -71,14 +73,16 @@ isolated.
 
 ## Checks And Evidence
 
-Every run first requires public `/healthz` to return an empty `204` and public
+Every run requires public `/api/smoke` to report the expected release before and
+after the boundary checks, public `/healthz` to return an empty `204`, and public
 `/api/admin/audit/` to return `404`. Responses are never redirected, cookies are
 disabled, and each body is capped at 64 KiB.
 
 Passing JSON is written atomically under `.tmp/deployment-probes` by default.
-It records the two origins, vantage mode, correlation id, bounded observation
-classes, checks, and limitations. It excludes response bodies, headers, trace
-ids, credentials, exception details, and authenticated Admin data.
+It records the release identity, two origins, vantage mode, correlation id,
+bounded observation classes, checks, and limitations. It excludes response
+bodies, headers, trace ids, credentials, exception details, and authenticated
+Admin data.
 
 Promotion requires one passing `allowed` file and one passing `denied` file
 with the same `evidenceSetId`, origins, and exact candidate release record. A

@@ -21,6 +21,7 @@ $ownerToken = 'fixture-owner-token-do-not-retain'
 $applicantToken = 'fixture-applicant-token-do-not-retain'
 $invitationToken = 'fixture-invitation-token-do-not-retain'
 $subjectId = '99999999-9999-4999-8999-999999999999'
+$releaseId = 'release-fixture-001'
 
 function Start-BunkFyWorkspaceInvitationFixtureServer {
     param([Parameter(Mandatory = $true)][string] $Mode)
@@ -42,7 +43,8 @@ function Start-BunkFyWorkspaceInvitationFixtureServer {
             $OwnerToken,
             $ApplicantToken,
             $InvitationToken,
-            $SubjectId)
+            $SubjectId,
+            $ReleaseId)
 
         Set-StrictMode -Version Latest
         $ErrorActionPreference = 'Stop'
@@ -80,7 +82,7 @@ function Start-BunkFyWorkspaceInvitationFixtureServer {
             $sourceId = $null
             $requestNumber = 0
             $inactivityDeadline = [DateTimeOffset]::UtcNow.AddSeconds(10)
-            while ($requestNumber -lt 17 -and
+            while ($requestNumber -lt 19 -and
                 [DateTimeOffset]::UtcNow -lt $inactivityDeadline) {
                 if (-not $listener.Pending()) {
                     Start-Sleep -Milliseconds 25
@@ -156,7 +158,8 @@ function Start-BunkFyWorkspaceInvitationFixtureServer {
                     else {
                         ''
                     }
-                    if ($token -notin @($OwnerToken, $ApplicantToken)) {
+                    if ($path -ne '/api/smoke' -and
+                        $token -notin @($OwnerToken, $ApplicantToken)) {
                         throw 'Fixture received a missing or unexpected bearer token.'
                     }
                     if ($path.Contains($InvitationToken, [StringComparison]::Ordinal)) {
@@ -166,7 +169,16 @@ function Start-BunkFyWorkspaceInvitationFixtureServer {
                     $status = 200
                     $reason = 'OK'
                     $response = $null
-                    if ($method -eq 'GET' -and $path -eq '/api/auth/methods') {
+                    if ($method -eq 'GET' -and $path -eq '/api/smoke') {
+                        $response = [ordered]@{
+                            application = 'BunkFy'
+                            service = 'BunkFy.Host.Api'
+                            status = 'ok'
+                            releaseId = $ReleaseId
+                            timestampUtc = [DateTimeOffset]::UtcNow.ToString('O')
+                        }
+                    }
+                    elseif ($method -eq 'GET' -and $path -eq '/api/auth/methods') {
                         if ($token -cne $ApplicantToken -or $tenantId -cne 'global') {
                             throw 'Authentication methods used the wrong identity or scope.'
                         }
@@ -369,8 +381,8 @@ function Start-BunkFyWorkspaceInvitationFixtureServer {
                     $client.Dispose()
                 }
             }
-            if ($Mode -eq 'Valid' -and $requestNumber -ne 17) {
-                throw "Valid fixture observed $requestNumber requests; expected 17."
+            if ($Mode -eq 'Valid' -and $requestNumber -ne 19) {
+                throw "Valid fixture observed $requestNumber requests; expected 19."
             }
         }
         finally {
@@ -391,7 +403,8 @@ function Start-BunkFyWorkspaceInvitationFixtureServer {
         $ownerToken,
         $applicantToken,
         $invitationToken,
-        $subjectId)
+        $subjectId,
+        $releaseId)
 
     $deadline = [DateTimeOffset]::UtcNow.AddSeconds(10)
     while (-not (Test-Path -LiteralPath $readyPath -PathType Leaf)) {
@@ -452,6 +465,7 @@ try {
     try {
         & $probeScript `
             -PublicOrigin $validServer.Origin `
+            -ExpectedReleaseId $releaseId `
             -WorkspaceId $workspaceId `
             -AllowedPropertyId $allowedPropertyId `
             -DeniedPropertyId $deniedPropertyId `
@@ -474,7 +488,8 @@ try {
         $evidence.evidenceKind -cne 'bunkfy-deployed-workspace-invitation-probe' -or
         $evidence.result -cne 'passed' -or
         $evidence.transport -cne 'loopback-http-fixture' -or
-        @($evidence.checks).Count -ne 7 -or
+        $evidence.releaseId -cne $releaseId -or
+        @($evidence.checks).Count -ne 8 -or
         @($evidence.limitations).Count -ne 3) {
         throw 'Valid workspace invitation fixture emitted unexpected evidence.'
     }
@@ -498,6 +513,7 @@ try {
         try {
             & $probeScript `
                 -PublicOrigin $invalidServer.Origin `
+                -ExpectedReleaseId $releaseId `
                 -WorkspaceId $workspaceId `
                 -AllowedPropertyId $allowedPropertyId `
                 -DeniedPropertyId $deniedPropertyId `
@@ -530,6 +546,7 @@ try {
     try {
         & $probeScript `
             -PublicOrigin ([Uri]'http://127.0.0.1:1/') `
+            -ExpectedReleaseId $releaseId `
             -WorkspaceId $workspaceId `
             -AllowedPropertyId $allowedPropertyId `
             -DeniedPropertyId $deniedPropertyId `

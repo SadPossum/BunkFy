@@ -1,6 +1,9 @@
 [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'High')]
 param(
     [Parameter(Mandatory = $true)][Uri] $PublicOrigin,
+    [Parameter(Mandatory = $true)]
+    [ValidatePattern('^[a-z0-9][a-z0-9._-]{2,127}$')]
+    [string] $ExpectedReleaseId,
     [Parameter(Mandatory = $true)][Guid] $WorkspaceId,
     [Parameter(Mandatory = $true)][Guid] $AllowedPropertyId,
     [Parameter(Mandatory = $true)][Guid] $DeniedPropertyId,
@@ -431,6 +434,11 @@ function Test-SmokePermission {
 }
 
 try {
+    $releaseIdBefore = Assert-BunkFyPublicApiReleaseIdentity `
+        -Client $client `
+        -Origin $origin `
+        -ExpectedReleaseId $ExpectedReleaseId `
+        -TimeoutSeconds $RequestTimeoutSeconds
     $methods = Read-SmokeJson `
         -Response (Invoke-SmokeApi `
             -Path '/api/auth/methods' `
@@ -676,6 +684,15 @@ try {
     $checks.Add([ordered]@{ name = 'same-subject-claim-replay-stable'; status = 'passed' })
 
     [void]$activeSourceIds.Remove($approvedFlow.Source.SourceId)
+    $observedReleaseId = Assert-BunkFyPublicApiReleaseIdentity `
+        -Client $client `
+        -Origin $origin `
+        -ExpectedReleaseId $ExpectedReleaseId `
+        -TimeoutSeconds $RequestTimeoutSeconds
+    if ($observedReleaseId -cne $releaseIdBefore) {
+        throw 'The public API release identity changed during enrollment verification.'
+    }
+    $checks.Add([ordered]@{ name = 'release-identity-continuous'; status = 'passed' })
 }
 catch {
     Disable-SmokeEnrollmentSourcesBestEffort
@@ -698,6 +715,7 @@ $evidence = [ordered]@{
     evidenceKind = 'bunkfy-deployed-workspace-enrollment-probe'
     generatedAtUtc = [DateTimeOffset]::UtcNow.ToString('O')
     origin = $origin.GetLeftPart([UriPartial]::Authority)
+    releaseId = $observedReleaseId
     transport = if ($origin.Scheme -eq 'https') { 'trusted-https' } else { 'loopback-http-fixture' }
     result = 'passed'
     workspaceId = $WorkspaceId.ToString('D')

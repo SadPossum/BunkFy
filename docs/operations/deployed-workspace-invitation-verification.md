@@ -37,6 +37,7 @@ $env:BUNKFY_SMOKE_APPLICANT_TOKEN = '<short-lived-applicant-token>'
 
 ./eng/operations/verify-deployed-workspace-invitation.ps1 `
   -PublicOrigin https://bunkfy.example/ `
+  -ExpectedReleaseId <promotion-record-release-id> `
   -WorkspaceId <workspace-id> `
   -AllowedPropertyId <assigned-property-id> `
   -DeniedPropertyId <unassigned-property-id> `
@@ -54,6 +55,7 @@ not silently disable an account or destroy tenant data.
 
 The check fails closed unless it observes all of the following:
 
+- public `/api/smoke` reports the expected release before and after the workflow;
 - the applicant token belongs to a distinct account with the requested active,
   verified email and no existing target membership;
 - the owner can resolve both target properties before mutation;
@@ -74,10 +76,10 @@ left intact for explicit review and offboarding.
 ## Evidence Boundary
 
 Passing evidence is written atomically below ignored
-`.tmp/deployment-probes` by default. It records the origin, workspace and
-workflow object IDs, named checks, and explicit limitations. It excludes bearer
-tokens, invitation secrets, email addresses, Auth subject IDs, response bodies,
-and raw headers.
+`.tmp/deployment-probes` by default. It records the origin, release identity,
+workspace and workflow object IDs, eight named checks, and explicit limitations.
+It excludes bearer tokens, invitation secrets, email addresses, Auth subject
+IDs, response bodies, and raw headers.
 
 This API-level probe does not exercise browser rendering, registration, email
 delivery, notification delivery, adapters, restart, or rollback. Reusable QR

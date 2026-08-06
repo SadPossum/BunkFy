@@ -1,5 +1,8 @@
 param(
     [Parameter(Mandatory = $true)][Uri] $PublicOrigin,
+    [Parameter(Mandatory = $true)]
+    [ValidatePattern('^[a-z0-9][a-z0-9._-]{2,127}$')]
+    [string] $ExpectedReleaseId,
     [Parameter(Mandatory = $true)][Uri] $AdapterHostOrigin,
     [Parameter(Mandatory = $true)][Guid] $WorkspaceId,
     [Parameter(Mandatory = $true)][Guid] $PropertyId,
@@ -448,6 +451,11 @@ function Wait-SmokeTerminalReceipt {
 }
 
 try {
+    $releaseIdBefore = Assert-BunkFyPublicApiReleaseIdentity `
+        -Client $client `
+        -Origin $public `
+        -ExpectedReleaseId $ExpectedReleaseId `
+        -TimeoutSeconds $RequestTimeoutSeconds
     Assert-AdapterHostHealth
     $hostStatusBefore = Get-AdapterHostStatus
     $checks.Add([ordered]@{ name = 'adapter-host-ready-and-exposure-correct'; status = 'passed' })
@@ -583,6 +591,15 @@ try {
         throw 'AdapterHost status did not converge to a successful checkpointed cycle.'
     }
     $checks.Add([ordered]@{ name = 'adapter-host-post-cycle-healthy'; status = 'passed' })
+    $observedReleaseId = Assert-BunkFyPublicApiReleaseIdentity `
+        -Client $client `
+        -Origin $public `
+        -ExpectedReleaseId $ExpectedReleaseId `
+        -TimeoutSeconds $RequestTimeoutSeconds
+    if ($observedReleaseId -cne $releaseIdBefore) {
+        throw 'The public API release identity changed during AdapterHost verification.'
+    }
+    $checks.Add([ordered]@{ name = 'release-identity-continuous'; status = 'passed' })
 }
 finally {
     $client.Dispose()
@@ -596,6 +613,7 @@ $evidence = [ordered]@{
     evidenceKind = 'bunkfy-deployed-adapter-host-probe'
     generatedAtUtc = [DateTimeOffset]::UtcNow.ToString('O')
     publicOrigin = $public.GetLeftPart([UriPartial]::Authority)
+    releaseId = $observedReleaseId
     adapterHostOrigin = $adapterHost.GetLeftPart([UriPartial]::Authority)
     publicTransport = if ($public.Scheme -eq 'https') { 'trusted-https' } else { 'loopback-http-fixture' }
     adapterHostTransport = if ($adapterHost.Scheme -eq 'https') { 'trusted-https' } else { 'loopback-http' }

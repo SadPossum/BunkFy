@@ -1,6 +1,9 @@
 [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'High')]
 param(
     [Parameter(Mandatory = $true)][Uri] $PublicOrigin,
+    [Parameter(Mandatory = $true)]
+    [ValidatePattern('^[a-z0-9][a-z0-9._-]{2,127}$')]
+    [string] $ExpectedReleaseId,
     [Parameter(Mandatory = $true)][Guid] $WorkspaceId,
     [Parameter(Mandatory = $true)][Guid] $AllowedPropertyId,
     [Parameter(Mandatory = $true)][Guid] $DeniedPropertyId,
@@ -180,6 +183,11 @@ function Revoke-SmokeInvitationBestEffort {
 }
 
 try {
+    $releaseIdBefore = Assert-BunkFyPublicApiReleaseIdentity `
+        -Client $client `
+        -Origin $origin `
+        -ExpectedReleaseId $ExpectedReleaseId `
+        -TimeoutSeconds $RequestTimeoutSeconds
     $methods = Read-SmokeJson `
         -Response (Invoke-SmokeApi `
             -Path '/api/auth/methods' `
@@ -504,6 +512,15 @@ try {
         throw 'Same-subject replay produced a different Staff profile.'
     }
     $checks.Add([ordered]@{ name = 'same-subject-replay-stable'; status = 'passed' })
+    $observedReleaseId = Assert-BunkFyPublicApiReleaseIdentity `
+        -Client $client `
+        -Origin $origin `
+        -ExpectedReleaseId $ExpectedReleaseId `
+        -TimeoutSeconds $RequestTimeoutSeconds
+    if ($observedReleaseId -cne $releaseIdBefore) {
+        throw 'The public API release identity changed during invitation verification.'
+    }
+    $checks.Add([ordered]@{ name = 'release-identity-continuous'; status = 'passed' })
 }
 catch {
     Revoke-SmokeInvitationBestEffort
@@ -521,6 +538,7 @@ $evidence = [ordered]@{
     evidenceKind = 'bunkfy-deployed-workspace-invitation-probe'
     generatedAtUtc = [DateTimeOffset]::UtcNow.ToString('O')
     origin = $origin.GetLeftPart([UriPartial]::Authority)
+    releaseId = $observedReleaseId
     transport = if ($origin.Scheme -eq 'https') { 'trusted-https' } else { 'loopback-http-fixture' }
     result = 'passed'
     workspaceId = $WorkspaceId.ToString('D')

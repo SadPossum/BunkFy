@@ -7,6 +7,7 @@ $fixtureRoot = Join-Path ([IO.Path]::GetTempPath()) (
 [void](New-Item -ItemType Directory -Path $fixtureRoot)
 
 $fixture = [pscustomobject]@{
+    ReleaseId = 'release-fixture-001'
     WorkspaceId = '11111111-1111-4111-8111-111111111111'
     PropertyId = '22222222-2222-4222-8222-222222222222'
     InventoryUnitId = '33333333-3333-4333-8333-333333333333'
@@ -247,6 +248,7 @@ function Start-BunkFyOperationsNotificationsFixtureServer {
             $script:createdRead = $false
             $script:releasedRead = $false
             $actorPostMutationListCount = 0
+            $workflowComplete = $false
             $done = $false
             $requestCount = 0
             $inactivityDeadline = [DateTimeOffset]::UtcNow.AddSeconds(15)
@@ -328,7 +330,8 @@ function Start-BunkFyOperationsNotificationsFixtureServer {
                     else {
                         ''
                     }
-                    if ($token -notin @($Fixture.ActorToken, $Fixture.ObserverToken)) {
+                    if ($path -cne '/api/smoke' -and
+                        $token -notin @($Fixture.ActorToken, $Fixture.ObserverToken)) {
                         throw 'Fixture received a missing or unexpected bearer token.'
                     }
 
@@ -337,7 +340,19 @@ function Start-BunkFyOperationsNotificationsFixtureServer {
                     $status = 200
                     $reason = 'OK'
                     $response = $null
-                    if ($method -ceq 'GET' -and
+                    if ($method -ceq 'GET' -and $path -ceq '/api/smoke') {
+                        $response = [ordered]@{
+                            application = 'BunkFy'
+                            service = 'BunkFy.Host.Api'
+                            status = 'ok'
+                            releaseId = $Fixture.ReleaseId
+                            timestampUtc = [DateTimeOffset]::UtcNow.ToString('O')
+                        }
+                        if ($workflowComplete) {
+                            $done = $true
+                        }
+                    }
+                    elseif ($method -ceq 'GET' -and
                         $path -ceq '/api/organizations?page=1&pageSize=100') {
                         if ($tenantId -cne 'global') {
                             throw 'Workspace membership preflight used the wrong scope.'
@@ -386,7 +401,7 @@ function Start-BunkFyOperationsNotificationsFixtureServer {
                             hasMore = $false
                         }
                         if ($script:released -and $path.Contains('includeReleased=true')) {
-                            $done = $Mode -ceq 'valid'
+                            $workflowComplete = $Mode -ceq 'valid'
                         }
                     }
                     elseif ($method -ceq 'GET' -and
@@ -620,7 +635,8 @@ function Stop-BunkFyFixtureServer {
 function Invoke-BunkFyFixtureProbe {
     param(
         [Parameter(Mandatory = $true)][ValidateSet('valid', 'actor-leak')][string] $Mode,
-        [Parameter(Mandatory = $true)][string] $OutputPath
+        [Parameter(Mandatory = $true)][string] $OutputPath,
+        [string] $ExpectedReleaseId = $fixture.ReleaseId
     )
 
     $server = $null
@@ -630,6 +646,7 @@ function Invoke-BunkFyFixtureProbe {
         $observerToken = ConvertTo-SecureString $fixture.ObserverToken -AsPlainText -Force
         & $probeScript `
             -PublicOrigin $server.Origin `
+            -ExpectedReleaseId $ExpectedReleaseId `
             -WorkspaceId $fixture.WorkspaceId `
             -PropertyId $fixture.PropertyId `
             -InventoryUnitId $fixture.InventoryUnitId `
@@ -659,7 +676,8 @@ try {
     if ($evidence.schemaVersion -ne 1 -or
         $evidence.evidenceKind -cne 'bunkfy-deployed-operations-notifications-probe' -or
         $evidence.result -cne 'passed' -or
-        @($evidence.checks).Count -ne 9 -or
+        $evidence.releaseId -cne $fixture.ReleaseId -or
+        @($evidence.checks).Count -ne 10 -or
         [Guid]$evidence.blockGroupId -ne [Guid]$fixture.BlockGroupId -or
         [Guid]$evidence.createdNotification.id -ne [Guid]$fixture.CreatedNotificationId -or
         [Guid]$evidence.releasedNotification.id -ne [Guid]$fixture.ReleasedNotificationId -or
@@ -678,6 +696,23 @@ try {
         if ($evidenceText.Contains($secret, [StringComparison]::Ordinal)) {
             throw 'Notification evidence retained a credential, subject, or response body.'
         }
+    }
+
+    $releaseMismatchOutput = Join-Path $fixtureRoot 'release-mismatch-evidence.json'
+    $releaseMismatchRejected = $false
+    try {
+        Invoke-BunkFyFixtureProbe `
+            -Mode valid `
+            -OutputPath $releaseMismatchOutput `
+            -ExpectedReleaseId 'release-fixture-other'
+    }
+    catch {
+        $releaseMismatchRejected = $_.Exception.Message.Contains(
+            'does not match',
+            [StringComparison]::OrdinalIgnoreCase)
+    }
+    if (-not $releaseMismatchRejected -or (Test-Path -LiteralPath $releaseMismatchOutput)) {
+        throw 'The notification probe accepted a different deployed release or wrote passing evidence.'
     }
 
     $invalidOutput = Join-Path $fixtureRoot 'invalid-evidence.json'
@@ -699,6 +734,7 @@ try {
         $sameToken = ConvertTo-SecureString $fixture.ActorToken -AsPlainText -Force
         & $probeScript `
             -PublicOrigin ([Uri]'http://127.0.0.1:65530') `
+            -ExpectedReleaseId $fixture.ReleaseId `
             -WorkspaceId $fixture.WorkspaceId `
             -PropertyId $fixture.PropertyId `
             -InventoryUnitId $fixture.InventoryUnitId `

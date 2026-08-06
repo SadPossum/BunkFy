@@ -6,6 +6,7 @@ $fixtureRoot = Join-Path ([IO.Path]::GetTempPath()) (
     'bunkfy-admin-boundary-fixture-' + [Guid]::NewGuid().ToString('N'))
 [void](New-Item -ItemType Directory -Path $fixtureRoot)
 $evidenceSetId = [Guid]'11111111-1111-4111-8111-111111111111'
+$releaseId = 'release-fixture-001'
 
 function Start-BunkFyAdminBoundaryFixtureServer {
     param(
@@ -23,7 +24,7 @@ function Start-BunkFyAdminBoundaryFixtureServer {
     $readyPath = Join-Path $fixtureRoot (
         "ready-$Mode-$([Guid]::NewGuid().ToString('N')).json")
     $job = Start-Job -ScriptBlock {
-        param($ReadyPath, $Mode)
+        param($ReadyPath, $Mode, $ReleaseId)
 
         Set-StrictMode -Version Latest
         $ErrorActionPreference = 'Stop'
@@ -110,10 +111,10 @@ function Start-BunkFyAdminBoundaryFixtureServer {
                 [Text.UTF8Encoding]::new($false))
 
             $expectedRequests = switch ($Mode) {
-                'valid-allowed' { 4 }
-                'allowed-audit-exposed' { 4 }
-                'valid-denied-unreachable' { 2 }
-                default { 3 }
+                'valid-allowed' { 6 }
+                'allowed-audit-exposed' { 6 }
+                'valid-denied-unreachable' { 4 }
+                default { 5 }
             }
             $requestCount = 0
             $inactivityDeadline = [DateTimeOffset]::UtcNow.AddSeconds(10)
@@ -142,7 +143,18 @@ function Start-BunkFyAdminBoundaryFixtureServer {
                         $reason = 'Not Found'
                         $contentType = 'application/json; charset=utf-8'
                         $body = '{}'
-                        if ($surface -ceq 'public' -and $path -ceq '/healthz') {
+                        if ($surface -ceq 'public' -and $path -ceq '/api/smoke') {
+                            $status = 200
+                            $reason = 'OK'
+                            $body = [ordered]@{
+                                application = 'BunkFy'
+                                service = 'BunkFy.Host.Api'
+                                status = 'ok'
+                                releaseId = $ReleaseId
+                                timestampUtc = [DateTimeOffset]::UtcNow.ToString('O')
+                            } | ConvertTo-Json -Compress
+                        }
+                        elseif ($surface -ceq 'public' -and $path -ceq '/healthz') {
                             $status = 204
                             $reason = 'No Content'
                             $contentType = $null
@@ -222,7 +234,7 @@ function Start-BunkFyAdminBoundaryFixtureServer {
             }
             $publicListener.Stop()
         }
-    } -ArgumentList $readyPath, $Mode
+    } -ArgumentList $readyPath, $Mode, $releaseId
 
     $deadline = [DateTimeOffset]::UtcNow.AddSeconds(10)
     while (-not (Test-Path -LiteralPath $readyPath -PathType Leaf)) {
@@ -287,6 +299,7 @@ function Invoke-BunkFyValidFixture {
     try {
         & $probeScript `
             -PublicOrigin $server.PublicOrigin `
+            -ExpectedReleaseId $releaseId `
             -AdminOrigin $server.AdminOrigin `
             -ExpectedAdminReachability $Reachability `
             -EvidenceSetId $evidenceSetId `
@@ -318,6 +331,7 @@ function Assert-BunkFyProbeRejected {
         try {
             & $probeScript `
                 -PublicOrigin $server.PublicOrigin `
+                -ExpectedReleaseId $releaseId `
                 -AdminOrigin $server.AdminOrigin `
                 -ExpectedAdminReachability $Reachability `
                 -EvidenceSetId $evidenceSetId `
@@ -363,18 +377,21 @@ try {
         $allowed.evidenceKind -cne 'bunkfy-deployed-admin-boundary-probe' -or
         $allowed.expectedAdminReachability -cne 'allowed' -or
         $allowed.adminObservation.classification -cne 'private-reachable-auth-gated' -or
-        @($allowed.checks).Count -ne 4 -or
+        $allowed.releaseId -cne $releaseId -or
+        @($allowed.checks).Count -ne 5 -or
         @($allowed.limitations).Count -ne 3) {
         throw 'Valid allowed fixture emitted unexpected evidence.'
     }
     if ($denied.expectedAdminReachability -cne 'denied' -or
         $denied.adminObservation.classification -cne 'private-network-policy-denial' -or
-        @($denied.checks).Count -ne 3) {
+        $denied.releaseId -cne $releaseId -or
+        @($denied.checks).Count -ne 4) {
         throw 'Valid denied HTTP fixture emitted unexpected evidence.'
     }
     if ($unreachable.adminObservation.classification -cne 'network-unreachable' -or
         $unreachable.adminObservation.outcome -cne 'connection-unreachable' -or
-        @($unreachable.checks).Count -ne 3) {
+        $unreachable.releaseId -cne $releaseId -or
+        @($unreachable.checks).Count -ne 4) {
         throw 'Valid unreachable fixture emitted unexpected evidence.'
     }
     foreach ($candidate in @($allowed, $denied, $unreachable)) {
@@ -418,6 +435,7 @@ try {
     try {
         & $probeScript `
             -PublicOrigin ([Uri]'https://public.example.test/') `
+            -ExpectedReleaseId $releaseId `
             -AdminOrigin ([Uri]'http://admin.example.test/') `
             -ExpectedAdminReachability Denied `
             -EvidenceSetId $evidenceSetId `
@@ -436,6 +454,7 @@ try {
     try {
         & $probeScript `
             -PublicOrigin ([Uri]'https://candidate.example.test/') `
+            -ExpectedReleaseId $releaseId `
             -AdminOrigin ([Uri]'https://candidate.example.test/') `
             -ExpectedAdminReachability Allowed `
             -EvidenceSetId $evidenceSetId `

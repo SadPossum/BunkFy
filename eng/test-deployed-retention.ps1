@@ -8,6 +8,7 @@ $fixtureRoot = Join-Path ([IO.Path]::GetTempPath()) (
 
 $now = [DateTimeOffset]::UtcNow
 $fixture = [pscustomobject]@{
+    ReleaseId = 'release-fixture-001'
     WorkspaceId = '11111111-1111-4111-8111-111111111111'
     RawBaselineRunId = '22222222-2222-4222-8222-222222222222'
     RawObservedRunId = '33333333-3333-4333-8333-333333333333'
@@ -161,6 +162,7 @@ function Start-BunkFyRetentionFixtureServer {
             $targetReadCount = 0
             $requestCount = 0
             $done = $false
+            $workflowComplete = $false
             $inactivityDeadline = [DateTimeOffset]::UtcNow.AddSeconds(15)
             while (-not $done -and
                 $requestCount -lt 10 -and
@@ -206,6 +208,26 @@ function Start-BunkFyRetentionFixtureServer {
                         $reader.Dispose()
                     }
 
+                    if ($method -ceq 'GET' -and $path -ceq '/api/smoke') {
+                        $requestCount++
+                        $inactivityDeadline = [DateTimeOffset]::UtcNow.AddSeconds(15)
+                        $body = [ordered]@{
+                            application = 'BunkFy'
+                            service = 'BunkFy.Host.Api'
+                            status = 'ok'
+                            releaseId = $Fixture.ReleaseId
+                            timestampUtc = [DateTimeOffset]::UtcNow.ToString('O')
+                        } | ConvertTo-Json -Compress
+                        Write-FixtureResponse `
+                            -Stream $stream `
+                            -Status 200 `
+                            -Reason 'OK' `
+                            -Body $body
+                        if ($workflowComplete) {
+                            $done = $true
+                        }
+                        continue
+                    }
                     if ($method -cne 'GET' -or
                         $path -cne '/api/retention/schedules?page=1&pageSize=100') {
                         throw "Fixture received unexpected request '$method $path'."
@@ -248,7 +270,7 @@ function Start-BunkFyRetentionFixtureServer {
                         -Reason 'OK' `
                         -Body $body
                     if ($Mode -in @('valid', 'backlog') -and $targetReadCount -ge 2) {
-                        $done = $true
+                        $workflowComplete = $true
                     }
                 }
                 finally {
@@ -325,6 +347,7 @@ function Invoke-BunkFyRetentionFixtureProbe {
         $token = ConvertTo-SecureString $fixture.ReaderToken -AsPlainText -Force
         & $probeScript `
             -PublicOrigin $server.Origin `
+            -ExpectedReleaseId $fixture.ReleaseId `
             -WorkspaceId $fixture.WorkspaceId `
             -ReaderAccessToken $token `
             -RequestTimeoutSeconds 5 `
@@ -349,7 +372,8 @@ try {
     if ($evidence.schemaVersion -ne 1 -or
         $evidence.evidenceKind -cne 'bunkfy-deployed-retention-probe' -or
         $evidence.result -cne 'passed' -or
-        @($evidence.checks).Count -ne 6 -or
+        $evidence.releaseId -cne $fixture.ReleaseId -or
+        @($evidence.checks).Count -ne 7 -or
         @($evidence.schedules).Count -ne 2 -or
         [Guid]$evidence.schedules[0].lastRunId -ne
             [Guid]$fixture.RawObservedRunId) {
@@ -418,6 +442,7 @@ try {
         $token = ConvertTo-SecureString $fixture.ReaderToken -AsPlainText -Force
         & $probeScript `
             -PublicOrigin ([Uri]'http://retention.example.test:8080') `
+            -ExpectedReleaseId $fixture.ReleaseId `
             -WorkspaceId $fixture.WorkspaceId `
             -ReaderAccessToken $token `
             -OutputPath (Join-Path $fixtureRoot 'insecure-origin.json')

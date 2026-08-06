@@ -210,6 +210,7 @@ try {
         -OutputPath $publicEvidencePath
     & $adminProbeScript `
         -PublicOrigin $publicOrigin `
+        -ExpectedReleaseId $overrideValues.BUNKFY_RELEASE_ID `
         -AdminOrigin $adminOrigin `
         -ExpectedAdminReachability Allowed `
         -EvidenceSetId $rehearsalId `
@@ -269,8 +270,9 @@ try {
     if ($publicEvidence.result -cne 'passed' -or
         @($publicEvidence.checks).Count -ne 6 -or
         $adminEvidence.result -cne 'passed' -or
+        $adminEvidence.releaseId -cne $overrideValues.BUNKFY_RELEASE_ID -or
         $adminEvidence.expectedAdminReachability -cne 'allowed' -or
-        @($adminEvidence.checks).Count -ne 4) {
+        @($adminEvidence.checks).Count -ne 5) {
         throw 'Recovery rehearsal deployment probes did not emit the expected passing evidence.'
     }
 

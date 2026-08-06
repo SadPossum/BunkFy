@@ -1,6 +1,9 @@
 [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'High')]
 param(
     [Parameter(Mandatory = $true)][Uri] $PublicOrigin,
+    [Parameter(Mandatory = $true)]
+    [ValidatePattern('^[a-z0-9][a-z0-9._-]{2,127}$')]
+    [string] $ExpectedReleaseId,
     [Parameter(Mandatory = $true)][Guid] $WorkspaceId,
     [Parameter(Mandatory = $true)][Guid] $PropertyId,
     [Parameter(Mandatory = $true)][Guid] $InventoryUnitId,
@@ -418,6 +421,11 @@ function Release-SmokeBlockBestEffort {
 }
 
 try {
+    $releaseIdBefore = Assert-BunkFyPublicApiReleaseIdentity `
+        -Client $client `
+        -Origin $origin `
+        -ExpectedReleaseId $ExpectedReleaseId `
+        -TimeoutSeconds $RequestTimeoutSeconds
     $actorMembership = Get-SmokeWorkspaceMembership -Token $actorToken -Label 'actor'
     $observerMembership = Get-SmokeWorkspaceMembership -Token $observerToken -Label 'observer'
     if ([string]$actorMembership.subjectId -ceq [string]$observerMembership.subjectId) {
@@ -661,6 +669,15 @@ try {
         throw 'The smoke inventory block was not retained in released state.'
     }
     $checks.Add([ordered]@{ name = 'inventory-block-cleanup-confirmed'; status = 'passed' })
+    $observedReleaseId = Assert-BunkFyPublicApiReleaseIdentity `
+        -Client $client `
+        -Origin $origin `
+        -ExpectedReleaseId $ExpectedReleaseId `
+        -TimeoutSeconds $RequestTimeoutSeconds
+    if ($observedReleaseId -cne $releaseIdBefore) {
+        throw 'The public API release identity changed during notification verification.'
+    }
+    $checks.Add([ordered]@{ name = 'release-identity-continuous'; status = 'passed' })
 }
 catch {
     Release-SmokeBlockBestEffort
@@ -679,6 +696,7 @@ $evidence = [ordered]@{
     evidenceKind = 'bunkfy-deployed-operations-notifications-probe'
     generatedAtUtc = [DateTimeOffset]::UtcNow.ToString('O')
     origin = $origin.GetLeftPart([UriPartial]::Authority)
+    releaseId = $observedReleaseId
     transport = if ($origin.Scheme -eq 'https') { 'trusted-https' } else { 'loopback-http-fixture' }
     result = 'passed'
     workspaceId = $WorkspaceId.ToString('D')

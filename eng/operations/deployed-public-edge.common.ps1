@@ -483,6 +483,25 @@ function Invoke-BunkFyPublicEdgeRequest {
     }
 }
 
+function Assert-BunkFyPublicApiReleaseIdentity {
+    param(
+        [Parameter(Mandatory = $true)][Net.Http.HttpClient] $Client,
+        [Parameter(Mandatory = $true)][Uri] $Origin,
+        [Parameter(Mandatory = $true)]
+        [ValidatePattern('^[a-z0-9][a-z0-9._-]{2,127}$')]
+        [string] $ExpectedReleaseId,
+        [Parameter(Mandatory = $true)][int] $TimeoutSeconds
+    )
+
+    $response = Invoke-BunkFyPublicEdgeRequest `
+        -Client $Client `
+        -Uri ([Uri]::new($Origin, '/api/smoke')) `
+        -TimeoutSeconds $TimeoutSeconds
+    return Assert-BunkFySmokeResponse `
+        -Response $response `
+        -ExpectedReleaseId $ExpectedReleaseId
+}
+
 function Get-BunkFyObservedComposedReleaseId {
     param(
         [Parameter(Mandatory = $true)][Net.Http.HttpClient] $Client,

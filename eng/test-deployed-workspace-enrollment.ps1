@@ -7,6 +7,7 @@ $fixtureRoot = Join-Path ([IO.Path]::GetTempPath()) (
 [void](New-Item -ItemType Directory -Path $fixtureRoot)
 
 $fixture = [pscustomobject]@{
+    ReleaseId = 'release-fixture-001'
     WorkspaceId = '11111111-1111-4111-8111-111111111111'
     AllowedPropertyId = '22222222-2222-4222-8222-222222222222'
     DeniedPropertyId = '33333333-3333-4333-8333-333333333333'
@@ -155,7 +156,7 @@ function Start-BunkFyWorkspaceEnrollmentFixtureServer {
             $source1Disabled = $false
             $requestNumber = 0
             $inactivityDeadline = [DateTimeOffset]::UtcNow.AddSeconds(10)
-            while ($requestNumber -lt 36 -and
+            while ($requestNumber -lt 38 -and
                 [DateTimeOffset]::UtcNow -lt $inactivityDeadline) {
                 if (-not $listener.Pending()) {
                     Start-Sleep -Milliseconds 25
@@ -231,7 +232,8 @@ function Start-BunkFyWorkspaceEnrollmentFixtureServer {
                     else {
                         ''
                     }
-                    if ($token -notin @($Fixture.OwnerToken, $Fixture.ApplicantToken)) {
+                    if ($path -ne '/api/smoke' -and
+                        $token -notin @($Fixture.OwnerToken, $Fixture.ApplicantToken)) {
                         throw 'Fixture received a missing or unexpected bearer token.'
                     }
                     foreach ($secret in @($Fixture.RejectedSecret, $Fixture.ApprovedSecret)) {
@@ -243,7 +245,16 @@ function Start-BunkFyWorkspaceEnrollmentFixtureServer {
                     $status = 200
                     $reason = 'OK'
                     $response = $null
-                    if ($method -eq 'GET' -and $path -eq '/api/auth/methods') {
+                    if ($method -eq 'GET' -and $path -eq '/api/smoke') {
+                        $response = [ordered]@{
+                            application = 'BunkFy'
+                            service = 'BunkFy.Host.Api'
+                            status = 'ok'
+                            releaseId = $Fixture.ReleaseId
+                            timestampUtc = [DateTimeOffset]::UtcNow.ToString('O')
+                        }
+                    }
+                    elseif ($method -eq 'GET' -and $path -eq '/api/auth/methods') {
                         if ($token -cne $Fixture.ApplicantToken -or $tenantId -cne 'global') {
                             throw 'Authentication methods used the wrong identity or scope.'
                         }
@@ -527,8 +538,8 @@ function Start-BunkFyWorkspaceEnrollmentFixtureServer {
                     $client.Dispose()
                 }
             }
-            if ($Mode -eq 'Valid' -and $requestNumber -ne 36) {
-                throw "Valid fixture observed $requestNumber requests; expected 36."
+            if ($Mode -eq 'Valid' -and $requestNumber -ne 38) {
+                throw "Valid fixture observed $requestNumber requests; expected 38."
             }
         }
         finally {
@@ -596,6 +607,7 @@ try {
     try {
         & $probeScript `
             -PublicOrigin $validServer.Origin `
+            -ExpectedReleaseId $fixture.ReleaseId `
             -WorkspaceId ([Guid]$fixture.WorkspaceId) `
             -AllowedPropertyId ([Guid]$fixture.AllowedPropertyId) `
             -DeniedPropertyId ([Guid]$fixture.DeniedPropertyId) `
@@ -618,7 +630,8 @@ try {
         $evidence.evidenceKind -cne 'bunkfy-deployed-workspace-enrollment-probe' -or
         $evidence.result -cne 'passed' -or
         $evidence.transport -cne 'loopback-http-fixture' -or
-        @($evidence.checks).Count -ne 8 -or
+        $evidence.releaseId -cne $fixture.ReleaseId -or
+        @($evidence.checks).Count -ne 9 -or
         @($evidence.limitations).Count -ne 3 -or
         [Guid]$evidence.approved.membershipId -ne [Guid]$fixture.MembershipId) {
         throw 'Valid workspace enrollment fixture emitted unexpected evidence.'
@@ -644,6 +657,7 @@ try {
         try {
             & $probeScript `
                 -PublicOrigin $invalidServer.Origin `
+                -ExpectedReleaseId $fixture.ReleaseId `
                 -WorkspaceId ([Guid]$fixture.WorkspaceId) `
                 -AllowedPropertyId ([Guid]$fixture.AllowedPropertyId) `
                 -DeniedPropertyId ([Guid]$fixture.DeniedPropertyId) `

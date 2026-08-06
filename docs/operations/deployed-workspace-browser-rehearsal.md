@@ -39,13 +39,15 @@ Keep the passing JSON evidence from all three probes with the same candidate:
   -PublicOrigin https://candidate.example `
   -ExpectedReleaseId <promotion-record-release-id>
 ./eng/operations/verify-deployed-workspace-invitation.ps1 `
-  -Origin https://candidate.example `
+  -PublicOrigin https://candidate.example `
+  -ExpectedReleaseId <promotion-record-release-id> `
   -WorkspaceId <workspace-id> `
   -AllowedPropertyId <allowed-property-id> `
   -DeniedPropertyId <denied-property-id> `
   -ApplicantEmail <verified-invitation-applicant-email>
 ./eng/operations/verify-deployed-workspace-enrollment.ps1 `
-  -Origin https://candidate.example `
+  -PublicOrigin https://candidate.example `
+  -ExpectedReleaseId <promotion-record-release-id> `
   -WorkspaceId <workspace-id> `
   -AllowedPropertyId <allowed-property-id> `
   -DeniedPropertyId <denied-property-id> `

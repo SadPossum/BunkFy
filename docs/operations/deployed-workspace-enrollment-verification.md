@@ -35,6 +35,7 @@ $env:BUNKFY_SMOKE_APPLICANT_TOKEN = '<short-lived-applicant-token>'
 
 ./eng/operations/verify-deployed-workspace-enrollment.ps1 `
   -PublicOrigin https://bunkfy.example/ `
+  -ExpectedReleaseId <promotion-record-release-id> `
   -WorkspaceId <workspace-id> `
   -AllowedPropertyId <assigned-property-id> `
   -DeniedPropertyId <unassigned-property-id> `
@@ -52,6 +53,7 @@ destroys tenant data.
 
 The verifier fails closed unless it observes:
 
+- public `/api/smoke` reports the expected release before and after the workflow;
 - an approval-required, one-use source with the fixed `front-desk` profile and
   one-property plan;
 - a pending claim with no membership and a `403` property read;
@@ -71,9 +73,10 @@ already approved membership is retained for explicit review and offboarding.
 ## Evidence Boundary
 
 Passing evidence is written atomically below ignored
-`.tmp/deployment-probes` by default. It contains workflow object IDs, named
-checks, and limitations. It excludes bearer tokens, enrollment secrets, email
-addresses, Auth subject IDs, response bodies, and raw headers.
+`.tmp/deployment-probes` by default. It contains the release identity, workflow
+object IDs, nine named checks, and limitations. It excludes bearer tokens,
+enrollment secrets, email addresses, Auth subject IDs, response bodies, and raw
+headers.
 
 The probe exercises API behavior, not QR rendering, browser redirects,
 registration, email delivery, notifications, adapters, restart, or rollback.

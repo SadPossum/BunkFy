@@ -1,6 +1,9 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)][Uri] $PublicOrigin,
+    [Parameter(Mandatory = $true)]
+    [ValidatePattern('^[a-z0-9][a-z0-9._-]{2,127}$')]
+    [string] $ExpectedReleaseId,
     [Parameter(Mandatory = $true)][Uri] $AdminOrigin,
     [Parameter(Mandatory = $true)]
     [ValidateSet('Allowed', 'Denied')]
@@ -240,6 +243,11 @@ function Assert-BunkFyPrivateNetworkProblem {
 }
 
 try {
+    $releaseIdBefore = Assert-BunkFyPublicApiReleaseIdentity `
+        -Client $client `
+        -Origin $public `
+        -ExpectedReleaseId $ExpectedReleaseId `
+        -TimeoutSeconds $RequestTimeoutSeconds
     $publicHealth = Invoke-BunkFyAdminBoundaryRequest -Uri ([Uri]::new($public, '/healthz'))
     Assert-BunkFyHttpResponse -Response $publicHealth -Operation 'Public edge health check'
     if ($publicHealth.StatusCode -ne 204 -or $publicHealth.Body.Length -ne 0) {
@@ -346,6 +354,20 @@ try {
     else {
         throw "Denied Admin API verification observed unsupported network outcome '$($adminHealth.Outcome)'."
     }
+    $observedReleaseId = Assert-BunkFyPublicApiReleaseIdentity `
+        -Client $client `
+        -Origin $public `
+        -ExpectedReleaseId $ExpectedReleaseId `
+        -TimeoutSeconds $RequestTimeoutSeconds
+    if ($observedReleaseId -cne $releaseIdBefore) {
+        throw 'The public API release identity changed during Admin boundary verification.'
+    }
+    $checks.Add([ordered]@{
+            name = 'release-identity-continuous'
+            surface = 'public'
+            path = '/api/smoke'
+            observation = $observedReleaseId
+        })
 }
 finally {
     $client.Dispose()
@@ -356,6 +378,7 @@ $evidence = [ordered]@{
     evidenceKind = 'bunkfy-deployed-admin-boundary-probe'
     generatedAtUtc = [DateTimeOffset]::UtcNow.ToString('O')
     evidenceSetId = $EvidenceSetId.ToString('D')
+    releaseId = $observedReleaseId
     expectedAdminReachability = $ExpectedAdminReachability.ToLowerInvariant()
     publicOrigin = $public.GetLeftPart([UriPartial]::Authority)
     adminOrigin = $admin.GetLeftPart([UriPartial]::Authority)
