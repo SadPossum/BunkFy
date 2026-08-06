@@ -105,6 +105,7 @@
     <File Path="apps/backend/docs/planning/ingestion-operational-surface-hardening-task.md" />
     <File Path="apps/backend/docs/planning/ingestion-pii-minimization-task.md" />
     <File Path="apps/backend/docs/planning/ingestion-sensitive-history-retention-task.md" />
+    <File Path="apps/backend/docs/planning/ingestion-source-graph-mutation-serialization-task.md" />
     <File Path="apps/backend/docs/planning/ingestion-source-reprocessing-task.md" />
     <File Path="apps/backend/docs/planning/ingestion-tenant-termination-owner-task.md" />
     <File Path="apps/backend/docs/planning/international-market-gate-task.md" />
