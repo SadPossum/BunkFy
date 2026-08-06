@@ -90,6 +90,8 @@ $client.DefaultRequestHeaders.UserAgent.ParseAdd('BunkFy-Deployed-Reservations-I
 
 $checks = [Collections.Generic.List[object]]::new()
 $operationId = [Guid]::NewGuid()
+$checkInOperationId = [Guid]::NewGuid()
+$checkOutOperationId = [Guid]::NewGuid()
 $reservationId = $operationId
 $reservationCreated = $false
 $observedReleaseId = $null
@@ -250,14 +252,19 @@ function Invoke-SmokeReservationCreate {
 function Invoke-SmokeLifecycleMutation {
     param(
         [Parameter(Mandatory = $true)][ValidateSet('cancel', 'check-in', 'check-out')][string] $Action,
+        [Parameter(Mandatory = $true)][Guid] $OperationId,
         [Parameter(Mandatory = $true)][long] $ExpectedVersion
     )
 
     $body = if ($Action -ceq 'cancel') {
-        [ordered]@{ expectedVersion = $ExpectedVersion }
+        [ordered]@{
+            operationId = $OperationId.ToString('D')
+            expectedVersion = $ExpectedVersion
+        }
     }
     else {
         [ordered]@{
+            operationId = $OperationId.ToString('D')
             businessDate = $arrivalText
             expectedVersion = $ExpectedVersion
         }
@@ -282,6 +289,7 @@ function Complete-SmokeReservationBestEffort {
             { $_ -in @(1, 2) } {
                 [void](Invoke-SmokeLifecycleMutation `
                         -Action cancel `
+                        -OperationId ([Guid]::NewGuid()) `
                         -ExpectedVersion ([long]$reservation.version))
                 [void](Wait-SmokeReservationStatus `
                         -ExpectedStatus 5 `
@@ -299,6 +307,7 @@ function Complete-SmokeReservationBestEffort {
             6 {
                 [void](Invoke-SmokeLifecycleMutation `
                         -Action check-out `
+                        -OperationId ([Guid]::NewGuid()) `
                         -ExpectedVersion ([long]$reservation.version))
                 [void](Wait-SmokeReservationStatus `
                         -ExpectedStatus 10 `
@@ -386,6 +395,7 @@ try {
 
     $checkedIn = Invoke-SmokeLifecycleMutation `
         -Action check-in `
+        -OperationId $checkInOperationId `
         -ExpectedVersion ([long]$confirmed.version)
     if ([Guid]$checkedIn.reservationId -ne $reservationId -or
         [int]$checkedIn.status -ne 6) {
@@ -393,8 +403,21 @@ try {
     }
     $checks.Add([ordered]@{ name = 'reservation-check-in-recorded'; status = 'passed' })
 
+    $checkInReplay = Invoke-SmokeLifecycleMutation `
+        -Action check-in `
+        -OperationId $checkInOperationId `
+        -ExpectedVersion ([long]$confirmed.version)
+    if ([Guid]$checkInReplay.reservationId -ne $reservationId -or
+        [int]$checkInReplay.status -ne 6 -or
+        [long]$checkInReplay.version -ne [long]$checkedIn.version -or
+        [long]$checkInReplay.detailsRevision -ne [long]$checkedIn.detailsRevision) {
+        throw 'The exact Reservation check-in replay did not return the current stable receipt.'
+    }
+    $checks.Add([ordered]@{ name = 'reservation-check-in-replay-stable'; status = 'passed' })
+
     $checkoutRequested = Invoke-SmokeLifecycleMutation `
         -Action check-out `
+        -OperationId $checkOutOperationId `
         -ExpectedVersion ([long]$checkedIn.version)
     if ([Guid]$checkoutRequested.reservationId -ne $reservationId -or
         [int]$checkoutRequested.status -notin @(9, 10)) {
@@ -413,6 +436,18 @@ try {
         throw 'Reservation checkout did not converge to CheckedOut.'
     }
     $checks.Add([ordered]@{ name = 'reservation-checkout-converged'; status = 'passed' })
+
+    $checkOutReplay = Invoke-SmokeLifecycleMutation `
+        -Action check-out `
+        -OperationId $checkOutOperationId `
+        -ExpectedVersion ([long]$checkedIn.version)
+    if ([Guid]$checkOutReplay.reservationId -ne $reservationId -or
+        [int]$checkOutReplay.status -ne 10 -or
+        [long]$checkOutReplay.version -ne [long]$checkedOut.version -or
+        [long]$checkOutReplay.detailsRevision -ne [long]$checkedOut.detailsRevision) {
+        throw 'The exact Reservation checkout replay did not return the current terminal receipt.'
+    }
+    $checks.Add([ordered]@{ name = 'reservation-checkout-replay-current'; status = 'passed' })
 
     $released = Get-SmokeAvailabilityUnit
     if (-not ([bool]$released.isAvailable) -or

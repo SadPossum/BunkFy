@@ -154,6 +154,7 @@ function Start-BunkFyReservationsInventoryFixtureServer {
             $script:version = 0L
             $script:detailsRevision = 1L
             $createCount = 0
+            $lifecycleOperations = @{}
             $done = $false
             $requestCount = 0
             $inactivityDeadline = [DateTimeOffset]::UtcNow.AddSeconds(15)
@@ -345,6 +346,34 @@ function Start-BunkFyReservationsInventoryFixtureServer {
                     if ($method -ceq 'POST' -and $path.StartsWith("$reservationPath/", [StringComparison]::Ordinal)) {
                         $request = $bodyText | ConvertFrom-Json -Depth 8
                         $action = $path.Substring($reservationPath.Length + 1)
+                        $operationId = [Guid]$request.operationId
+                        if ($operationId -eq [Guid]::Empty) {
+                            throw "Fixture received an empty operationId for '$action'."
+                        }
+
+                        $businessDateProperty = $request.PSObject.Properties['businessDate']
+                        $businessDate = if ($null -eq $businessDateProperty -or
+                            $null -eq $businessDateProperty.Value) {
+                            ''
+                        }
+                        else {
+                            [string]$businessDateProperty.Value
+                        }
+                        $fingerprint = "$action|$([long]$request.expectedVersion)|$businessDate"
+                        $operationKey = $operationId.ToString('D')
+                        if ($lifecycleOperations.ContainsKey($operationKey)) {
+                            if ([string]$lifecycleOperations[$operationKey] -cne $fingerprint) {
+                                throw "Fixture received changed lifecycle input for operationId '$operationKey'."
+                            }
+
+                            Write-FixtureResponse `
+                                -Stream $stream `
+                                -Status 200 `
+                                -Reason OK `
+                                -Body (New-ReservationReceipt)
+                            continue
+                        }
+
                         if ([long]$request.expectedVersion -ne $script:version) {
                             throw "Fixture received stale expectedVersion for '$action'."
                         }
@@ -376,6 +405,7 @@ function Start-BunkFyReservationsInventoryFixtureServer {
                                 throw "Fixture received unexpected Reservation action '$action'."
                             }
                         }
+                        $lifecycleOperations[$operationKey] = $fingerprint
                         Write-FixtureResponse -Stream $stream -Status 200 -Reason OK -Body (New-ReservationReceipt)
                         continue
                     }
@@ -522,7 +552,7 @@ try {
         $evidence.evidenceKind -cne 'bunkfy-deployed-reservations-inventory-probe' -or
         $evidence.result -cne 'passed' -or
         $evidence.releaseId -cne $fixture.ReleaseId -or
-        @($evidence.checks).Count -ne 9 -or
+        @($evidence.checks).Count -ne 11 -or
         @($evidence.limitations).Count -ne 4) {
         throw 'The valid Reservations and Inventory fixture produced invalid evidence.'
     }

@@ -228,7 +228,7 @@ function Get-BunkFyProductionAdmissionProbeSpecification {
                 OriginProperty = 'origin'
                 TransportProperty = 'transport'
                 Properties = @('schemaVersion', 'evidenceKind', 'generatedAtUtc', 'origin', 'releaseId', 'transport', 'result', 'checks', 'limitations')
-                Checks = @('scoped-operator-and-property-preflight', 'inventory-available-before-create', 'reservation-allocation-confirmed', 'reservation-create-replay-stable', 'allocated-inventory-unavailable', 'reservation-check-in-recorded', 'reservation-checkout-converged', 'inventory-released-after-checkout', 'release-identity-continuous')
+                Checks = @('scoped-operator-and-property-preflight', 'inventory-available-before-create', 'reservation-allocation-confirmed', 'reservation-create-replay-stable', 'allocated-inventory-unavailable', 'reservation-check-in-recorded', 'reservation-check-in-replay-stable', 'reservation-checkout-converged', 'reservation-checkout-replay-current', 'inventory-released-after-checkout', 'release-identity-continuous')
                 Limitations = @('browser-workflow-not-exercised', 'durable-guest-record-not-created', 'concurrent-overbooking-contention-not-exercised', 'synthetic-checked-out-reservation-retained')
                 GuidProperties = @()
             }
@@ -607,7 +607,7 @@ function Get-BunkFyProductionAdmissionExpectedEvidence {
         'deployed-admin-denied' = [pscustomobject]@{ Kind = 'bunkfy-deployed-admin-boundary-probe'; ReleaseId = $CandidateReleaseId; Count = 4 }
         'deployed-operations-notifications' = [pscustomobject]@{ Kind = 'bunkfy-deployed-operations-notifications-probe'; ReleaseId = $CandidateReleaseId; Count = 10 }
         'deployed-public-edge' = [pscustomobject]@{ Kind = 'bunkfy-deployed-public-edge-probe'; ReleaseId = $CandidateReleaseId; Count = 6 }
-        'deployed-reservations-inventory' = [pscustomobject]@{ Kind = 'bunkfy-deployed-reservations-inventory-probe'; ReleaseId = $CandidateReleaseId; Count = 9 }
+        'deployed-reservations-inventory' = [pscustomobject]@{ Kind = 'bunkfy-deployed-reservations-inventory-probe'; ReleaseId = $CandidateReleaseId; Count = 11 }
         'deployed-release-rollback' = [pscustomobject]@{ Kind = 'bunkfy-deployed-release-rollback-rehearsal'; ReleaseId = $CandidateReleaseId; Count = 3 }
         'deployed-retention' = [pscustomobject]@{ Kind = 'bunkfy-deployed-retention-probe'; ReleaseId = $CandidateReleaseId; Count = 7 }
         'deployed-workspace-enrollment' = [pscustomobject]@{ Kind = 'bunkfy-deployed-workspace-enrollment-probe'; ReleaseId = $CandidateReleaseId; Count = 9 }

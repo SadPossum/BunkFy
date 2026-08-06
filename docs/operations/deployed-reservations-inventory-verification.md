@@ -29,16 +29,21 @@ The probe then verifies:
 1. the token has one active workspace membership and can read the selected
    property;
 2. the unit is available before creation;
-3. an exact retry with the same operation id resolves to the same reservation;
-4. asynchronous Inventory allocation converges to `Confirmed`;
+3. asynchronous Inventory allocation converges to `Confirmed`;
+4. an exact create retry resolves to the current stable reservation receipt;
 5. availability reports the allocated unit as unavailable;
 6. check-in is recorded for the arrival business date;
-7. checkout and allocation release converge to `CheckedOut`;
-8. the unit becomes available again; and
-9. the public API release identity does not change during the workflow.
+7. an exact check-in retry returns the current receipt without a second action;
+8. checkout and allocation release converge to `CheckedOut`;
+9. an exact checkout retry returns the current terminal receipt without a
+   second release;
+10. the unit becomes available again; and
+11. the public API release identity does not change during the workflow.
 
-The request uses a generated operation id as the reservation id and only a
-fixed synthetic guest label. It does not create or link a durable Guest Record,
+The create request uses a generated operation id as the reservation id, and
+each lifecycle action uses its own generated operation id. Retries preserve the
+original action identity and payload. The probe uses only a fixed synthetic guest
+label. It does not create or link a durable Guest Record,
 and it sends no email, phone, notes, source reference, or real guest data. A
 passing run leaves one terminal synthetic reservation for auditability and no
 active allocation. If the run fails after creation, it best-effort cancels an
