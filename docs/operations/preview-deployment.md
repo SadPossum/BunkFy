@@ -126,6 +126,12 @@ The provisioning journal under `.tmp/operations` contains identifiers and comple
 
 Offboarding removes journaled roles, revokes sessions, disables Auth, ends current property assignments, and marks Staff departed. AccessControl protects the last owner from accidental removal.
 
+For an externally observed two-account invitation and property-scope proof,
+use the [deployed workspace invitation verifier](deployed-workspace-invitation-verification.md).
+It intentionally creates a real membership and Staff profile, so run it with a
+dedicated smoke identity and offboard that identity explicitly after retaining
+the result.
+
 ## Retention
 
 The Worker owns bounded cleanup. Current preview windows are:

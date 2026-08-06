@@ -11,8 +11,11 @@ $scripts = @(
     (Join-Path $PSScriptRoot 'operations\restore-preview.ps1'),
     (Join-Path $PSScriptRoot 'operations\rehearse-production-migrations.ps1'),
     (Join-Path $PSScriptRoot 'operations\deployed-public-edge.common.ps1'),
+    (Join-Path $PSScriptRoot 'operations\deployed-authenticated-smoke.common.ps1'),
     (Join-Path $PSScriptRoot 'operations\verify-deployed-public-edge.ps1'),
+    (Join-Path $PSScriptRoot 'operations\verify-deployed-workspace-invitation.ps1'),
     (Join-Path $PSScriptRoot 'test-deployed-public-edge.ps1'),
+    (Join-Path $PSScriptRoot 'test-deployed-workspace-invitation.ps1'),
     (Join-Path $PSScriptRoot 'new-preview-env.ps1'),
     (Join-Path $PSScriptRoot 'preview.ps1')
 )
@@ -398,3 +401,52 @@ foreach ($forbiddenToken in @(
 
 & (Join-Path $PSScriptRoot 'test-deployed-public-edge.ps1')
 Write-Host 'BunkFy deployed public edge probe policy is valid.'
+
+$authenticatedSmokeCommon = Get-Content -LiteralPath (
+    Join-Path $PSScriptRoot 'operations\deployed-authenticated-smoke.common.ps1') -Raw
+foreach ($requiredToken in @(
+        '$script:BunkFyAuthenticatedSmokeMaximumBodyBytes = 256KB',
+        'Resolve-BunkFySmokeAccessToken',
+        'AuthenticationHeaderValue',
+        'X-Tenant-Id',
+        'HttpCompletionOption]::ResponseHeadersRead',
+        'CancellationTokenSource')) {
+    if (-not $authenticatedSmokeCommon.Contains($requiredToken, [StringComparison]::Ordinal)) {
+        throw "Deployed authenticated smoke common policy is missing '$requiredToken'."
+    }
+}
+
+$workspaceInvitationProbe = Get-Content -LiteralPath (
+    Join-Path $PSScriptRoot 'operations\verify-deployed-workspace-invitation.ps1') -Raw
+foreach ($requiredToken in @(
+        "SupportsShouldProcess = `$true",
+        '$handler.AllowAutoRedirect = $false',
+        'BUNKFY_SMOKE_OWNER_TOKEN',
+        'BUNKFY_SMOKE_APPLICANT_TOKEN',
+        '/api/workspace-staff-enrollment/sources/invitations',
+        '/api/organization-invitations/preview',
+        '/api/organization-invitations/accept',
+        '/api/access/permissions/evaluate',
+        "'properties.read'",
+        "'staff.manage'",
+        'Revoke-SmokeInvitationBestEffort',
+        "evidenceKind = 'bunkfy-deployed-workspace-invitation-probe'",
+        "'browser-ui-not-exercised'",
+        "'joined-member-not-automatically-offboarded'")) {
+    if (-not $workspaceInvitationProbe.Contains($requiredToken, [StringComparison]::Ordinal)) {
+        throw "Deployed workspace invitation probe policy is missing '$requiredToken'."
+    }
+}
+foreach ($forbiddenToken in @(
+        'DangerousAcceptAnyServerCertificateValidator',
+        'ServerCertificateCustomValidationCallback',
+        '-SkipCertificateCheck',
+        '$handler.AllowAutoRedirect = $true')) {
+    if ($workspaceInvitationProbe.Contains($forbiddenToken, [StringComparison]::OrdinalIgnoreCase) -or
+        $authenticatedSmokeCommon.Contains($forbiddenToken, [StringComparison]::OrdinalIgnoreCase)) {
+        throw "Deployed workspace invitation probe contains forbidden token '$forbiddenToken'."
+    }
+}
+
+& (Join-Path $PSScriptRoot 'test-deployed-workspace-invitation.ps1')
+Write-Host 'BunkFy deployed workspace invitation probe policy is valid.'

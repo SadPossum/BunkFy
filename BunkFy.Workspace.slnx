@@ -73,6 +73,7 @@
     <File Path="apps/backend/docs/planning/auth-and-organizations-maintenance-production-admission-task.md" />
     <File Path="apps/backend/docs/planning/automatic-retention-control-plane-task.md" />
     <File Path="apps/backend/docs/planning/backend-release-candidate-publication-task.md" />
+    <File Path="apps/backend/docs/planning/data-rights-coordinator-mutation-serialization-task.md" />
     <File Path="apps/backend/docs/planning/data-rights-correction-execution-task.md" />
     <File Path="apps/backend/docs/planning/data-rights-guest-response-deadline-policy-task.md" />
     <File Path="apps/backend/docs/planning/data-rights-multi-owner-execution-task.md" />
@@ -747,6 +748,7 @@
   </Folder>
   <Folder Name="/docs/operations/">
     <File Path="docs/operations/deployed-public-edge-verification.md" />
+    <File Path="docs/operations/deployed-workspace-invitation-verification.md" />
     <File Path="docs/operations/preview-deployment.md" />
     <File Path="docs/operations/product-image-evidence.md" />
     <File Path="docs/operations/production-migration-rehearsal.md" />
@@ -772,6 +774,7 @@
     <File Path="eng/sync-github-modules.ps1" />
     <File Path="eng/sync-submodules.ps1" />
     <File Path="eng/test-deployed-public-edge.ps1" />
+    <File Path="eng/test-deployed-workspace-invitation.ps1" />
     <File Path="eng/test-image-candidate-package.ps1" />
     <File Path="eng/update-gma.ps1" />
     <File Path="eng/update-web-contracts.ps1" />
@@ -783,6 +786,7 @@
   <Folder Name="/eng/operations/">
     <File Path="eng/operations/admin-api.common.ps1" />
     <File Path="eng/operations/backup-preview.ps1" />
+    <File Path="eng/operations/deployed-authenticated-smoke.common.ps1" />
     <File Path="eng/operations/deployed-public-edge.common.ps1" />
     <File Path="eng/operations/offboard-staff-access.ps1" />
     <File Path="eng/operations/preview-state.common.ps1" />
@@ -790,6 +794,7 @@
     <File Path="eng/operations/rehearse-production-migrations.ps1" />
     <File Path="eng/operations/restore-preview.ps1" />
     <File Path="eng/operations/verify-deployed-public-edge.ps1" />
+    <File Path="eng/operations/verify-deployed-workspace-invitation.ps1" />
     <File Path="eng/operations/verify-preview-isolation.ps1" />
   </Folder>
   <Folder Name="/src/">

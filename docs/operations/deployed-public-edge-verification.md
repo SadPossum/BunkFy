@@ -81,7 +81,9 @@ non-loopback HTTP. It does not contact a deployed environment.
 
 ## Deferred Deployment Proof
 
-The deployed owner/applicant browser smoke remains a separate slice because it
-requires controlled identities, email or OAuth adapters, test data lifecycle,
-and private deployment access. This probe must not accept credentials or
-mutate tenant data.
+The [deployed workspace invitation verifier](deployed-workspace-invitation-verification.md)
+now covers the API-level, two-account invitation and least-privilege path with
+separate short-lived credentials and explicit test-data lifecycle. Browser
+rendering, registration, email or OAuth delivery, and QR approval/rejection
+remain deployment-owned checks. This public edge probe must not accept
+credentials or mutate tenant data.
