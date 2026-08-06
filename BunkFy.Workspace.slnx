@@ -756,6 +756,7 @@
     <File Path="docs/operations/deployed-workspace-enrollment-verification.md" />
     <File Path="docs/operations/deployed-workspace-invitation-verification.md" />
     <File Path="docs/operations/preview-deployment.md" />
+    <File Path="docs/operations/preview-recovery-rehearsal.md" />
     <File Path="docs/operations/product-image-evidence.md" />
     <File Path="docs/operations/production-migration-rehearsal.md" />
   </Folder>
@@ -802,6 +803,7 @@
     <File Path="eng/operations/offboard-staff-access.ps1" />
     <File Path="eng/operations/preview-state.common.ps1" />
     <File Path="eng/operations/provision-staff-access.ps1" />
+    <File Path="eng/operations/rehearse-preview-recovery.ps1" />
     <File Path="eng/operations/rehearse-production-migrations.ps1" />
     <File Path="eng/operations/restore-preview.ps1" />
     <File Path="eng/operations/verify-deployed-adapter-host.ps1" />

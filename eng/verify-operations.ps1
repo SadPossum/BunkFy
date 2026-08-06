@@ -9,6 +9,7 @@ $scripts = @(
     (Join-Path $PSScriptRoot 'operations\preview-state.common.ps1'),
     (Join-Path $PSScriptRoot 'operations\backup-preview.ps1'),
     (Join-Path $PSScriptRoot 'operations\restore-preview.ps1'),
+    (Join-Path $PSScriptRoot 'operations\rehearse-preview-recovery.ps1'),
     (Join-Path $PSScriptRoot 'operations\rehearse-production-migrations.ps1'),
     (Join-Path $PSScriptRoot 'operations\deployed-public-edge.common.ps1'),
     (Join-Path $PSScriptRoot 'operations\deployed-authenticated-smoke.common.ps1'),
@@ -63,7 +64,7 @@ Write-Host 'BunkFy Admin API origin validation is valid.'
 
 $legacyStateContract = Get-BunkFyPreviewStateContract -Manifest (
     [pscustomobject]@{ schemaVersion = 2 })
-$currentStateContract = Get-BunkFyPreviewStateContract -Manifest (
+$schemaThreeStateContract = Get-BunkFyPreviewStateContract -Manifest (
     [pscustomobject]@{
         schemaVersion = 3
         stateContract = [pscustomobject]@{
@@ -71,14 +72,25 @@ $currentStateContract = Get-BunkFyPreviewStateContract -Manifest (
             version = $script:BunkFyPreviewStateContractVersion
         }
     })
-foreach ($contract in @($legacyStateContract, $currentStateContract)) {
+$currentStateContract = Get-BunkFyPreviewStateContract -Manifest (
+    [pscustomobject]@{
+        schemaVersion = 4
+        stateContract = [pscustomobject]@{
+            name = $script:BunkFyPreviewStateContractName
+            version = $script:BunkFyPreviewStateContractVersion
+        }
+    })
+foreach ($contract in @(
+        $legacyStateContract,
+        $schemaThreeStateContract,
+        $currentStateContract)) {
     Assert-BunkFyPreviewStateContractCompatible -Contract $contract
 }
 $futureStateContractRejected = $false
 try {
     $futureStateContract = Get-BunkFyPreviewStateContract -Manifest (
         [pscustomobject]@{
-            schemaVersion = 3
+            schemaVersion = 4
             stateContract = [pscustomobject]@{
                 name = $script:BunkFyPreviewStateContractName
                 version = $script:BunkFyPreviewStateContractVersion + 1
@@ -91,6 +103,74 @@ catch {
 }
 if (-not $futureStateContractRejected) {
     throw 'Preview restore accepted an unsupported future state contract.'
+}
+
+$manifestFixtureRoot = Join-Path ([IO.Path]::GetTempPath()) (
+    'bunkfy-preview-manifest-' + [Guid]::NewGuid().ToString('N'))
+[void](New-Item -ItemType Directory -Path $manifestFixtureRoot)
+try {
+    $manifestFixturePath = Join-Path $manifestFixtureRoot 'manifest.json'
+    [IO.File]::WriteAllText(
+        $manifestFixturePath,
+        "{`"schemaVersion`":4}`n",
+        [Text.UTF8Encoding]::new($false))
+    $manifestFixtureDigest = (Get-FileHash `
+            -LiteralPath $manifestFixturePath `
+            -Algorithm SHA256).Hash.ToLowerInvariant()
+    [IO.File]::WriteAllText(
+        (Join-Path $manifestFixtureRoot $script:BunkFyPreviewManifestDigestFileName),
+        "$manifestFixtureDigest`n",
+        [Text.UTF8Encoding]::new($false))
+    [void](Assert-BunkFyBackupManifestIntegrity `
+            -ManifestPath $manifestFixturePath `
+            -SchemaVersion 4 `
+            -ExpectedSha256 $manifestFixtureDigest)
+
+    $firstTree = Join-Path $manifestFixtureRoot 'first-tree'
+    $secondTree = Join-Path $manifestFixtureRoot 'second-tree'
+    [void](New-Item -ItemType Directory -Path (Join-Path $firstTree 'nested') -Force)
+    [void](New-Item -ItemType Directory -Path (Join-Path $secondTree 'nested') -Force)
+    foreach ($tree in @($firstTree, $secondTree)) {
+        [IO.File]::WriteAllText(
+            (Join-Path $tree 'nested/state.txt'),
+            "recovery-state`n",
+            [Text.UTF8Encoding]::new($false))
+    }
+    $firstFingerprint = Get-BunkFyStateTreeFingerprint -Path $firstTree
+    $secondFingerprint = Get-BunkFyStateTreeFingerprint -Path $secondTree
+    if ($firstFingerprint.FileCount -ne 1 -or
+        $firstFingerprint.TotalBytes -ne $secondFingerprint.TotalBytes -or
+        $firstFingerprint.Sha256 -cne $secondFingerprint.Sha256) {
+        throw 'Preview recovery state-tree fingerprint is not deterministic.'
+    }
+    [IO.File]::AppendAllText(
+        (Join-Path $secondTree 'nested/state.txt'),
+        "changed`n",
+        [Text.UTF8Encoding]::new($false))
+    $changedFingerprint = Get-BunkFyStateTreeFingerprint -Path $secondTree
+    if ($changedFingerprint.Sha256 -ceq $firstFingerprint.Sha256) {
+        throw 'Preview recovery state-tree fingerprint did not detect changed content.'
+    }
+
+    [IO.File]::AppendAllText(
+        $manifestFixturePath,
+        " `n",
+        [Text.UTF8Encoding]::new($false))
+    $tamperedManifestRejected = $false
+    try {
+        [void](Assert-BunkFyBackupManifestIntegrity `
+                -ManifestPath $manifestFixturePath `
+                -SchemaVersion 4)
+    }
+    catch {
+        $tamperedManifestRejected = $true
+    }
+    if (-not $tamperedManifestRejected) {
+        throw 'Preview backup manifest integrity accepted modified content.'
+    }
+}
+finally {
+    Remove-Item -LiteralPath $manifestFixtureRoot -Recurse -Force -ErrorAction SilentlyContinue
 }
 
 Write-Host 'BunkFy preview state-contract compatibility is valid.'
@@ -287,8 +367,14 @@ foreach ($requiredToken in @(
         'Get-BunkFyPreviewVolumeMap',
         'Assert-BunkFyGitWorktreeClean',
         'Get-BunkFyDockerImageId',
-        'schemaVersion = 3',
+        'schemaVersion = 4',
+        'backupId =',
         'stateContract =',
+        'protectedLedgerSnapshot =',
+        "restorePolicy = 'explicit-current-snapshot-required'",
+        '$script:BunkFyPreviewManifestDigestFileName',
+        'pg_restore --list',
+        '$concurrentOperators',
         "docker volume ls --format '{{.Name}}'",
         '$defaultServices')) {
     if (-not $backupScript.Contains($requiredToken, [StringComparison]::Ordinal)) {
@@ -301,11 +387,18 @@ $restoreScript = Get-Content -LiteralPath (
 foreach ($requiredToken in @(
         'Get-FileHash',
         'Get-BunkFyPreviewStateContract',
+        'Assert-BunkFyBackupManifestIntegrity',
         'Assert-BunkFyGitCommitRecord',
         'Assert-BunkFyGitWorktreeClean',
         'Get-BunkFyDockerImageId',
+        'ProtectedLedgerSnapshotPath',
+        'ProtectedLedgerSnapshotSha256',
+        'AllowBackupPointProtectedLedger',
+        'explicitly allow the backup-point snapshot only for a disposable rehearsal',
+        'Assert-BunkFyVolumeArchiveReadable',
         '--exit-on-error',
         "@('create', '--no-build')",
+        '$RemoveFailedTarget',
         'already has containers',
         'already exists')) {
     if (-not $restoreScript.Contains($requiredToken, [StringComparison]::Ordinal)) {
@@ -317,6 +410,41 @@ if ($restoreScript.Contains('$expectedCommits', [StringComparison]::Ordinal)) {
 }
 
 Write-Host 'BunkFy preview backup and restore guards are valid.'
+
+$previewRecoveryRehearsal = Get-Content -LiteralPath (
+    Join-Path $PSScriptRoot 'operations\rehearse-preview-recovery.ps1') -Raw
+foreach ($requiredToken in @(
+        "SupportsShouldProcess = `$true",
+        'ExpectedManifestSha256',
+        "schemaVersion -ne 4",
+        '-AllowBackupPointProtectedLedger',
+        '-RemoveFailedTarget',
+        'verify-deployed-public-edge.ps1',
+        'verify-deployed-admin-boundary.ps1',
+        'Get-BunkFyStateTreeFingerprint',
+        "evidenceKind = 'bunkfy-preview-recovery-rehearsal'",
+        "'protected-authenticator-decryption-not-exercised'",
+        "'hosted-rpo-and-rto-not-established'")) {
+    if (-not $previewRecoveryRehearsal.Contains($requiredToken, [StringComparison]::Ordinal)) {
+        throw "Preview recovery rehearsal guard is missing '$requiredToken'."
+    }
+}
+foreach ($forbiddenToken in @(
+        'DangerousAcceptAnyServerCertificateValidator',
+        'ServerCertificateCustomValidationCallback',
+        '-SkipCertificateCheck',
+        'AccessToken',
+        'Password',
+        'Totp',
+        'docker pull',
+        'docker build',
+        "'--publish'")) {
+    if ($previewRecoveryRehearsal.Contains($forbiddenToken, [StringComparison]::OrdinalIgnoreCase)) {
+        throw "Preview recovery rehearsal contains forbidden token '$forbiddenToken'."
+    }
+}
+
+Write-Host 'BunkFy isolated preview recovery rehearsal policy is valid.'
 
 $migrationRehearsalScript = Get-Content -LiteralPath (
     Join-Path $PSScriptRoot 'operations\rehearse-production-migrations.ps1') -Raw

@@ -201,24 +201,39 @@ The script stops the application writers, takes a PostgreSQL custom dump,
 archives MinIO, NATS, Redis, Data Protection, the protected data-rights ledger
 and adapter input volumes, writes SHA-256 hashes, and restores the previous
 running service set. It refuses to create a backup if any declared state volume
-is missing. Copy the resulting `.tmp/backups/preview-*` directory to independent
-encrypted storage.
+is missing, if a migration or Admin CLI writer is active, or if the dump or an
+archive fails structural validation.
+Copy the resulting `.tmp/backups/preview-*` directory to independent encrypted
+storage. Keep the `manifest.sha256` value separately from the backup location;
+the colocated sidecar detects corruption but is not a signature against an
+attacker who can replace both files.
+
+The protected Data Rights ledger is monotonic recovery state, not ordinary
+point-in-time application state. Replicate its archive independently and retain
+the latest trusted SHA-256 after each backup. A database restore must use the
+newest available ledger snapshot so post-backup anonymisation tombstones are
+replayed before readiness.
 
 Restore only into an empty, stopped preview deployment:
 
 ```powershell
 .\eng\operations\restore-preview.ps1 `
   -BackupPath .tmp\backups\preview-<timestamp> `
+  -ExpectedManifestSha256 <out-of-band-manifest-sha256> `
+  -ProtectedLedgerSnapshotPath <latest-ledger-snapshot.tar.gz> `
+  -ProtectedLedgerSnapshotSha256 <trusted-ledger-sha256> `
   -Confirm:$false
 ```
 
 The restore command verifies the versioned state contract, closed artifact set,
-lengths, SHA-256 hashes, a clean operations checkout, and immutable local
-backend/web image IDs before creating state. Root, backend, and web commits are
-retained as provenance; compatible newer operations tooling may restore an
-older backup without rebuilding or substituting its recorded images. Schema 2
-backups map to state-contract version 1, while new backups write schema 3
-explicitly. Restore refuses a target that already has Compose
+manifest sidecar and optional out-of-band digest, lengths, SHA-256 hashes,
+archive structure, a clean operations checkout, and immutable local backend/web
+image IDs before creating state. Root, backend, and web commits are retained as
+provenance; compatible newer operations tooling may restore an older backup
+without rebuilding or substituting its recorded images. Schema 2 backups map
+to state-contract version 1, schemas 3 and 4 declare that contract explicitly,
+and schema 4 also records the protected-ledger recovery policy. Restore refuses
+a target that already has Compose
 containers, networks, or any declared volume, restores the non-database state
 first, runs `pg_restore --exit-on-error`, and then starts the full stack through
 the migration gate. Make the recorded backend and web images available locally
@@ -229,6 +244,16 @@ different loopback port, and set unique values for
 `BUNKFY_COMPOSE_PROJECT_NAME` and `BUNKFY_VOLUME_PREFIX`. The production target
 uses the ordinary environment only after its old containers and named volumes
 have been deliberately removed.
+
+The [preview recovery rehearsal](preview-recovery-rehearsal.md) automates that
+isolated target, validates Data Protection file continuity, reruns the public
+edge and loopback Admin checks, records bounded evidence, and removes the clone.
+
+For a disposable isolated rehearsal of one backup, where no later deletion can
+exist by definition, use `-AllowBackupPointProtectedLedger`. Never use that
+switch to recover a workspace that could have accepted writes after the backup.
+`-RemoveFailedTarget` may be used for a uniquely named rehearsal target; omit it
+for incident recovery when the partial state must remain available for analysis.
 
 After restore, verify migrations, `/healthz`, `/api/smoke`, sign-in, one file
 read, and one background task.

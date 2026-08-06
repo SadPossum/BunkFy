@@ -3,6 +3,8 @@ $ErrorActionPreference = 'Stop'
 
 $script:BunkFyPreviewStateContractName = 'bunkfy-preview-state'
 $script:BunkFyPreviewStateContractVersion = 1
+$script:BunkFyPreviewManifestDigestFileName = 'manifest.sha256'
+$script:BunkFyPreviewProtectedLedgerLogicalName = 'data-rights-ledger-delta'
 $script:BunkFyPreviewStateArchives = [ordered]@{
     'minio-data' = 'minio-data.tar.gz'
     'nats-data' = 'nats-data.tar.gz'
@@ -28,7 +30,7 @@ function Get-BunkFyPreviewStateContract {
             Version = 1
         }
     }
-    if ($schemaVersion -ne 3) {
+    if ($schemaVersion -notin @(3, 4)) {
         throw "Backup manifest schema '$schemaVersion' is not supported."
     }
 
@@ -52,6 +54,126 @@ function Get-BunkFyPreviewStateContract {
     return [pscustomobject]@{
         Name = [string]$nameProperty.Value
         Version = $version
+    }
+}
+
+function Assert-BunkFyRegularFile {
+    param(
+        [Parameter(Mandatory = $true)][string] $Path,
+        [Parameter(Mandatory = $true)][string] $Description
+    )
+
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
+        throw "$Description '$Path' does not exist."
+    }
+    $item = Get-Item -LiteralPath $Path -Force
+    if ($item.PSIsContainer -or
+        ($item.Attributes -band [IO.FileAttributes]::ReparsePoint)) {
+        throw "$Description '$Path' must be a regular file."
+    }
+
+    return $item
+}
+
+function Assert-BunkFySha256Digest {
+    param(
+        [Parameter(Mandatory = $true)][string] $Value,
+        [Parameter(Mandatory = $true)][string] $Name
+    )
+
+    if ($Value -cnotmatch '^[0-9a-f]{64}$') {
+        throw "$Name must be a lowercase SHA-256 digest."
+    }
+}
+
+function Assert-BunkFyBackupManifestIntegrity {
+    param(
+        [Parameter(Mandatory = $true)][string] $ManifestPath,
+        [Parameter(Mandatory = $true)][int] $SchemaVersion,
+        [string] $ExpectedSha256
+    )
+
+    [void](Assert-BunkFyRegularFile `
+            -Path $ManifestPath `
+            -Description 'Backup manifest')
+    $actual = (Get-FileHash -LiteralPath $ManifestPath -Algorithm SHA256).Hash.ToLowerInvariant()
+    if (-not [string]::IsNullOrWhiteSpace($ExpectedSha256)) {
+        Assert-BunkFySha256Digest `
+            -Value $ExpectedSha256 `
+            -Name 'ExpectedManifestSha256'
+        if ($actual -cne $ExpectedSha256) {
+            throw 'Backup manifest does not match ExpectedManifestSha256.'
+        }
+    }
+
+    if ($SchemaVersion -ge 4) {
+        $digestPath = Join-Path (
+            Split-Path -Parent $ManifestPath) $script:BunkFyPreviewManifestDigestFileName
+        [void](Assert-BunkFyRegularFile `
+                -Path $digestPath `
+                -Description 'Backup manifest digest')
+        $recorded = [IO.File]::ReadAllText($digestPath).Trim()
+        Assert-BunkFySha256Digest `
+            -Value $recorded `
+            -Name 'Backup manifest digest'
+        if ($actual -cne $recorded) {
+            throw 'Backup manifest failed SHA-256 sidecar verification.'
+        }
+    }
+
+    return $actual
+}
+
+function Get-BunkFyStateTreeFingerprint {
+    param([Parameter(Mandatory = $true)][string] $Path)
+
+    $root = [IO.Path]::GetFullPath($Path)
+    if (-not (Test-Path -LiteralPath $root -PathType Container)) {
+        throw "State tree '$root' does not exist."
+    }
+    $rootItem = Get-Item -LiteralPath $root -Force
+    if ($rootItem.Attributes -band [IO.FileAttributes]::ReparsePoint) {
+        throw "State tree '$root' must not be a reparse point."
+    }
+
+    $entries = @(Get-ChildItem -LiteralPath $root -Recurse -Force)
+    foreach ($entry in $entries) {
+        if ($entry.Attributes -band [IO.FileAttributes]::ReparsePoint) {
+            throw "State tree '$root' contains a reparse point."
+        }
+    }
+    $filesByPath = [Collections.Generic.Dictionary[string, IO.FileInfo]]::new(
+        [StringComparer]::Ordinal)
+    foreach ($entry in @($entries | Where-Object { -not $_.PSIsContainer })) {
+        $relativePath = [IO.Path]::GetRelativePath($root, $entry.FullName).Replace('\', '/')
+        if (-not $filesByPath.TryAdd($relativePath, $entry)) {
+            throw "State tree '$root' contains ambiguous file paths."
+        }
+    }
+    $relativePaths = [string[]]@($filesByPath.Keys)
+    [Array]::Sort($relativePaths, [StringComparer]::Ordinal)
+    $records = [Text.StringBuilder]::new()
+    $totalBytes = [long]0
+    foreach ($relativePath in $relativePaths) {
+        $file = $filesByPath[$relativePath]
+        $digest = (Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+        [void]$records.Append($relativePath)
+        [void]$records.Append("`0")
+        [void]$records.Append($file.Length.ToString(
+                [Globalization.CultureInfo]::InvariantCulture))
+        [void]$records.Append("`0")
+        [void]$records.Append($digest)
+        [void]$records.Append("`n")
+        $totalBytes += $file.Length
+    }
+
+    $canonicalBytes = [Text.UTF8Encoding]::new($false).GetBytes($records.ToString())
+    $treeDigest = [Convert]::ToHexString(
+        [Security.Cryptography.SHA256]::HashData($canonicalBytes)).ToLowerInvariant()
+    return [pscustomobject]@{
+        FileCount = $relativePaths.Count
+        TotalBytes = $totalBytes
+        Sha256 = $treeDigest
     }
 }
 

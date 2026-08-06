@@ -84,6 +84,14 @@ function Backup-BunkFyVolume {
         'alpine:3.21',
         'tar', '-czf', "/backup/$Archive", '-C', '/source', '.'
     ) -WorkingDirectory $root
+
+    & docker run --rm `
+        --mount "type=bind,src=$OutputPath,dst=/backup,readonly" `
+        'alpine:3.21' `
+        'tar' '-tzf' "/backup/$Archive" 1>$null
+    if ($LASTEXITCODE -ne 0) {
+        throw "Backup archive '$Archive' failed structural validation."
+    }
 }
 
 $runningServices = @(& docker @compose ps --services --filter status=running)
@@ -92,6 +100,12 @@ if ($LASTEXITCODE -ne 0) {
 }
 if ($runningServices -notcontains 'postgres') {
     throw 'The preview PostgreSQL service must be running before backup.'
+}
+$concurrentOperators = @($runningServices | Where-Object {
+        $_ -in @('migrations', 'admin-cli')
+    })
+if ($concurrentOperators.Count -gt 0) {
+    throw "Preview backup cannot run while operator writer services are active: $($concurrentOperators -join ', ')."
 }
 foreach ($service in @('api', 'worker', 'web')) {
     if ($runningServices -notcontains $service) {
@@ -154,6 +168,10 @@ try {
         'pg_dump', '-U', 'bunkfy', '-d', 'bunkfy',
         '--format=custom', "--file=$temporaryDump"
     )
+    & docker @compose exec -T postgres pg_restore --list $temporaryDump 1>$null
+    if ($LASTEXITCODE -ne 0) {
+        throw 'The preview PostgreSQL dump failed structural validation.'
+    }
     Invoke-PreviewCompose -Arguments @(
         'cp', "postgres:$temporaryDump", (Join-Path $OutputPath 'postgres.dump')
     )
@@ -178,9 +196,11 @@ try {
                 sha256 = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
             }
         }
+    $createdAtUtc = [DateTimeOffset]::UtcNow
     $manifest = [ordered]@{
-        schemaVersion = 3
-        createdAtUtc = [DateTimeOffset]::UtcNow.ToString('O')
+        schemaVersion = 4
+        backupId = [Guid]::NewGuid().ToString('D')
+        createdAtUtc = $createdAtUtc.ToString('O')
         projectName = $projectName
         stateContract = [ordered]@{
             name = $script:BunkFyPreviewStateContractName
@@ -200,11 +220,40 @@ try {
                 }
             }
         )
+        protectedLedgerSnapshot = [ordered]@{
+            logicalName = $script:BunkFyPreviewProtectedLedgerLogicalName
+            artifact = [string]$script:BunkFyPreviewStateArchives[
+                $script:BunkFyPreviewProtectedLedgerLogicalName]
+            capturedAtUtc = $createdAtUtc.ToString('O')
+            restorePolicy = 'explicit-current-snapshot-required'
+        }
         images = $imageRecords
         artifacts = @($artifacts)
     }
-    $manifest | ConvertTo-Json -Depth 8 |
-        Set-Content -LiteralPath (Join-Path $OutputPath 'manifest.json') -Encoding utf8
+    $manifestPath = Join-Path $OutputPath 'manifest.json'
+    $temporaryManifestPath = "$manifestPath.$([Guid]::NewGuid().ToString('N')).tmp"
+    try {
+        $manifestJson = $manifest | ConvertTo-Json -Depth 8
+        [IO.File]::WriteAllText(
+            $temporaryManifestPath,
+            ($manifestJson.Replace("`r`n", "`n") + "`n"),
+            [Text.UTF8Encoding]::new($false))
+        Move-Item -LiteralPath $temporaryManifestPath -Destination $manifestPath
+    }
+    finally {
+        if (Test-Path -LiteralPath $temporaryManifestPath) {
+            Remove-Item -LiteralPath $temporaryManifestPath -Force
+        }
+    }
+    $manifestDigest = (Get-FileHash `
+            -LiteralPath $manifestPath `
+            -Algorithm SHA256).Hash.ToLowerInvariant()
+    $manifestDigestPath = Join-Path `
+        $OutputPath $script:BunkFyPreviewManifestDigestFileName
+    [IO.File]::WriteAllText(
+        $manifestDigestPath,
+        "$manifestDigest`n",
+        [Text.UTF8Encoding]::new($false))
     $backupComplete = $true
 }
 finally {

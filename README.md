@@ -50,6 +50,8 @@ Start the full local graph:
 
 For the single-node, production-shaped preview path, use the concise [preview deployment runbook](docs/operations/preview-deployment.md). External release checks include the [public edge probe](docs/operations/deployed-public-edge-verification.md), the paired [Admin API boundary verifier](docs/operations/deployed-admin-boundary-verification.md), the mutation-bearing [workspace invitation verifier](docs/operations/deployed-workspace-invitation-verification.md), the [workspace QR enrollment verifier](docs/operations/deployed-workspace-enrollment-verification.md), the [Operations Notifications verifier](docs/operations/deployed-operations-notifications-verification.md), the [deployed AdapterHost verifier](docs/operations/deployed-adapter-host-verification.md), the [deployed Retention verifier](docs/operations/deployed-retention-verification.md), and the final [browser onboarding rehearsal](docs/operations/deployed-workspace-browser-rehearsal.md).
 
+Exercise the checked-in backup mechanics against a disposable clone with the [preview recovery rehearsal](docs/operations/preview-recovery-rehearsal.md); its evidence is intentionally narrower than a hosted provider restore drill.
+
 The Aspire AppHost starts the shared backend graph (PostgreSQL, NATS JetStream, MinIO, a one-shot migration gate, API, and opt-in worker/admin resources) plus the web client at `http://localhost:5173`. API and background processes wait for successful migrations, and backend-only and full-stack AppHosts consume the same composition code so their infrastructure and worker settings cannot drift.
 
 Run the integrated validation pass:
