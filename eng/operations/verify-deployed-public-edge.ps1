@@ -1,0 +1,167 @@
+[CmdletBinding()]
+param(
+    [Parameter(Mandatory = $true)][Uri] $PublicOrigin,
+    [string] $OutputPath,
+    [ValidateRange(1, 60)][int] $TimeoutSeconds = 15,
+    [ValidateLength(1, 253)][string] $UntrustedHost = 'untrusted.invalid',
+    [switch] $AllowLoopbackHttp,
+    [switch] $Force
+)
+
+Set-StrictMode -Version Latest
+$ErrorActionPreference = 'Stop'
+
+. (Join-Path $PSScriptRoot '..\common.ps1')
+. (Join-Path $PSScriptRoot 'deployed-public-edge.common.ps1')
+
+$origin = Assert-BunkFyPublicEdgeOrigin `
+    -Origin $PublicOrigin `
+    -AllowLoopbackHttp:$AllowLoopbackHttp
+$untrustedLabels = @($UntrustedHost.Split('.'))
+$invalidUntrustedLabel = @($untrustedLabels | Where-Object {
+        $_.Length -lt 1 -or
+        $_.Length -gt 63 -or
+        $_ -notmatch '^[a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?$'
+    }).Count -gt 0
+if ($untrustedLabels.Count -lt 2 -or
+    $invalidUntrustedLabel -or
+    $UntrustedHost.Equals($origin.Host, [StringComparison]::OrdinalIgnoreCase)) {
+    throw 'UntrustedHost must be a distinct, syntactically valid DNS host name.'
+}
+
+if ([string]::IsNullOrWhiteSpace($OutputPath)) {
+    $stamp = [DateTimeOffset]::UtcNow.ToString(
+        'yyyyMMddTHHmmssZ',
+        [Globalization.CultureInfo]::InvariantCulture)
+    $OutputPath = Join-BunkFyPath ".tmp/deployment-probes/public-edge-$stamp.json"
+}
+$OutputPath = [IO.Path]::GetFullPath($OutputPath)
+if (Test-Path -LiteralPath $OutputPath) {
+    $item = Get-Item -LiteralPath $OutputPath -Force
+    if ($item.PSIsContainer -or ($item.Attributes -band [IO.FileAttributes]::ReparsePoint)) {
+        throw "The output path is not a regular file: '$OutputPath'."
+    }
+    if (-not $Force) {
+        throw "The output file already exists: '$OutputPath'. Use -Force to replace it."
+    }
+}
+
+$handler = [Net.Http.HttpClientHandler]::new()
+$handler.AllowAutoRedirect = $false
+$handler.UseCookies = $false
+$handler.AutomaticDecompression =
+    [Net.DecompressionMethods]::GZip -bor
+    [Net.DecompressionMethods]::Deflate -bor
+    [Net.DecompressionMethods]::Brotli
+$client = [Net.Http.HttpClient]::new($handler, $true)
+$client.Timeout = [Threading.Timeout]::InfiniteTimeSpan
+$client.DefaultRequestHeaders.UserAgent.ParseAdd('BunkFy-Deployed-Public-Edge-Probe/1')
+
+$checks = [Collections.Generic.List[object]]::new()
+try {
+    $rootResponse = Invoke-BunkFyPublicEdgeRequest `
+        -Client $client `
+        -Uri ([Uri]::new($origin, '/')) `
+        -TimeoutSeconds $TimeoutSeconds
+    Assert-BunkFyResponseStatus $rootResponse 200 'Web root'
+    Assert-BunkFyResponseContentType $rootResponse 'text/html' 'Web root'
+    if ($rootResponse.Body.Length -eq 0) {
+        throw 'The web root returned an empty body.'
+    }
+    Assert-BunkFyPublicEdgeSecurityHeaders -Response $rootResponse
+    $checks.Add([ordered]@{
+        name = 'web-root-and-browser-policy'
+        path = '/'
+        status = 200
+    })
+
+    $healthResponse = Invoke-BunkFyPublicEdgeRequest `
+        -Client $client `
+        -Uri ([Uri]::new($origin, '/healthz')) `
+        -TimeoutSeconds $TimeoutSeconds
+    Assert-BunkFyResponseStatus $healthResponse 204 'Edge health'
+    if ($healthResponse.Body.Length -ne 0) {
+        throw 'The edge health response must not contain a body.'
+    }
+    $checks.Add([ordered]@{
+        name = 'edge-health'
+        path = '/healthz'
+        status = 204
+    })
+
+    $smokeResponse = Invoke-BunkFyPublicEdgeRequest `
+        -Client $client `
+        -Uri ([Uri]::new($origin, '/api/smoke')) `
+        -TimeoutSeconds $TimeoutSeconds
+    Assert-BunkFySmokeResponse -Response $smokeResponse
+    $checks.Add([ordered]@{
+        name = 'public-api-smoke'
+        path = '/api/smoke'
+        status = 200
+    })
+
+    $adminResponse = Invoke-BunkFyPublicEdgeRequest `
+        -Client $client `
+        -Uri ([Uri]::new($origin, '/api/admin/audit/')) `
+        -TimeoutSeconds $TimeoutSeconds
+    Assert-BunkFyResponseStatus $adminResponse 404 'Public Admin API isolation'
+    $checks.Add([ordered]@{
+        name = 'admin-api-absent'
+        path = '/api/admin/audit/'
+        status = 404
+    })
+
+    $hostResponse = Invoke-BunkFyPublicEdgeRequest `
+        -Client $client `
+        -Uri ([Uri]::new($origin, '/api/smoke')) `
+        -TimeoutSeconds $TimeoutSeconds `
+        -HostHeader $UntrustedHost
+    if ($hostResponse.StatusCode -lt 400 -or $hostResponse.StatusCode -gt 499) {
+        throw "The public edge accepted an untrusted Host value with HTTP $($hostResponse.StatusCode)."
+    }
+    $checks.Add([ordered]@{
+        name = 'untrusted-host-rejected'
+        path = '/api/smoke'
+        status = $hostResponse.StatusCode
+    })
+}
+finally {
+    $client.Dispose()
+}
+
+$evidence = [ordered]@{
+    schemaVersion = 1
+    evidenceKind = 'bunkfy-deployed-public-edge-probe'
+    generatedAtUtc = [DateTimeOffset]::UtcNow.ToString('O')
+    origin = $origin.GetLeftPart([UriPartial]::Authority)
+    transport = if ($origin.Scheme -eq 'https') { 'trusted-https' } else { 'loopback-http-fixture' }
+    result = 'passed'
+    checks = @($checks)
+    limitations = @(
+        'release-identity-not-observed',
+        'private-infrastructure-not-observed',
+        'authenticated-workflows-not-executed'
+    )
+}
+
+$parent = Split-Path -Parent $OutputPath
+if (-not (Test-Path -LiteralPath $parent -PathType Container)) {
+    [void](New-Item -ItemType Directory -Path $parent -Force)
+}
+$temporaryPath = "$OutputPath.$([Guid]::NewGuid().ToString('N')).tmp"
+try {
+    $json = $evidence | ConvertTo-Json -Depth 8
+    [IO.File]::WriteAllText(
+        $temporaryPath,
+        ($json.Replace("`r`n", "`n") + "`n"),
+        [Text.UTF8Encoding]::new($false))
+    Move-Item -LiteralPath $temporaryPath -Destination $OutputPath -Force:$Force
+}
+finally {
+    if (Test-Path -LiteralPath $temporaryPath) {
+        Remove-Item -LiteralPath $temporaryPath -Force
+    }
+}
+
+Write-Host "BunkFy deployed public edge passed $($checks.Count) checks."
+Write-Host "Evidence: $OutputPath"

@@ -10,6 +10,9 @@ $scripts = @(
     (Join-Path $PSScriptRoot 'operations\backup-preview.ps1'),
     (Join-Path $PSScriptRoot 'operations\restore-preview.ps1'),
     (Join-Path $PSScriptRoot 'operations\rehearse-production-migrations.ps1'),
+    (Join-Path $PSScriptRoot 'operations\deployed-public-edge.common.ps1'),
+    (Join-Path $PSScriptRoot 'operations\verify-deployed-public-edge.ps1'),
+    (Join-Path $PSScriptRoot 'test-deployed-public-edge.ps1'),
     (Join-Path $PSScriptRoot 'new-preview-env.ps1'),
     (Join-Path $PSScriptRoot 'preview.ps1')
 )
@@ -347,3 +350,51 @@ foreach ($forbiddenToken in @(
 }
 
 Write-Host 'BunkFy Production migration rehearsal policy is valid.'
+
+$deployedEdgeCommon = Get-Content -LiteralPath (
+    Join-Path $PSScriptRoot 'operations\deployed-public-edge.common.ps1') -Raw
+foreach ($requiredToken in @(
+        '$script:BunkFyPublicEdgeMaximumBodyBytes = 64KB',
+        'Assert-BunkFyPublicEdgeOrigin',
+        'Assert-BunkFyPublicEdgeSecurityHeaders',
+        'Assert-BunkFySmokeResponse',
+        'HttpCompletionOption]::ResponseHeadersRead',
+        'CancellationTokenSource',
+        'Content-Security-Policy',
+        'Strict-Transport-Security')) {
+    if (-not $deployedEdgeCommon.Contains($requiredToken, [StringComparison]::Ordinal)) {
+        throw "Deployed public edge common policy is missing '$requiredToken'."
+    }
+}
+
+$deployedEdgeProbe = Get-Content -LiteralPath (
+    Join-Path $PSScriptRoot 'operations\verify-deployed-public-edge.ps1') -Raw
+foreach ($requiredToken in @(
+        '$handler.AllowAutoRedirect = $false',
+        '/healthz',
+        '/api/smoke',
+        '/api/admin/audit/',
+        '-HostHeader $UntrustedHost',
+        "evidenceKind = 'bunkfy-deployed-public-edge-probe'",
+        "'release-identity-not-observed'",
+        "'private-infrastructure-not-observed'",
+        "'authenticated-workflows-not-executed'")) {
+    if (-not $deployedEdgeProbe.Contains($requiredToken, [StringComparison]::Ordinal)) {
+        throw "Deployed public edge probe policy is missing '$requiredToken'."
+    }
+}
+foreach ($forbiddenToken in @(
+        'DangerousAcceptAnyServerCertificateValidator',
+        'ServerCertificateCustomValidationCallback',
+        '-SkipCertificateCheck',
+        'Authorization',
+        'sourceCommit',
+        'imageDigest',
+        '$handler.AllowAutoRedirect = $true')) {
+    if ($deployedEdgeProbe.Contains($forbiddenToken, [StringComparison]::OrdinalIgnoreCase)) {
+        throw "Deployed public edge probe contains forbidden token '$forbiddenToken'."
+    }
+}
+
+& (Join-Path $PSScriptRoot 'test-deployed-public-edge.ps1')
+Write-Host 'BunkFy deployed public edge probe policy is valid.'

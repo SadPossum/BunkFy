@@ -737,6 +737,7 @@
     <File Path="docs/brand/house-q/design-qa.md" />
   </Folder>
   <Folder Name="/docs/operations/">
+    <File Path="docs/operations/deployed-public-edge-verification.md" />
     <File Path="docs/operations/preview-deployment.md" />
     <File Path="docs/operations/product-image-evidence.md" />
     <File Path="docs/operations/production-migration-rehearsal.md" />
@@ -761,6 +762,7 @@
     <File Path="eng/submodule-status.ps1" />
     <File Path="eng/sync-github-modules.ps1" />
     <File Path="eng/sync-submodules.ps1" />
+    <File Path="eng/test-deployed-public-edge.ps1" />
     <File Path="eng/test-image-candidate-package.ps1" />
     <File Path="eng/update-gma.ps1" />
     <File Path="eng/update-web-contracts.ps1" />
@@ -772,11 +774,13 @@
   <Folder Name="/eng/operations/">
     <File Path="eng/operations/admin-api.common.ps1" />
     <File Path="eng/operations/backup-preview.ps1" />
+    <File Path="eng/operations/deployed-public-edge.common.ps1" />
     <File Path="eng/operations/offboard-staff-access.ps1" />
     <File Path="eng/operations/preview-state.common.ps1" />
     <File Path="eng/operations/provision-staff-access.ps1" />
     <File Path="eng/operations/rehearse-production-migrations.ps1" />
     <File Path="eng/operations/restore-preview.ps1" />
+    <File Path="eng/operations/verify-deployed-public-edge.ps1" />
     <File Path="eng/operations/verify-preview-isolation.ps1" />
   </Folder>
   <Folder Name="/src/">
