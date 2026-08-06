@@ -149,6 +149,7 @@
     <File Path="apps/backend/docs/planning/reservations-pii-minimization-task.md" />
     <File Path="apps/backend/docs/planning/reservations-stay-lifecycle-task.md" />
     <File Path="apps/backend/docs/planning/reservations-tenant-termination-owner-task.md" />
+    <File Path="apps/backend/docs/planning/retention-mutation-serialization-task.md" />
     <File Path="apps/backend/docs/planning/retention-operational-surface-hardening-task.md" />
     <File Path="apps/backend/docs/planning/retention-tenant-termination-owner-task.md" />
     <File Path="apps/backend/docs/planning/secure-staff-enrollment-task.md" />
