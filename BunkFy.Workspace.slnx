@@ -748,6 +748,7 @@
   </Folder>
   <Folder Name="/docs/operations/">
     <File Path="docs/operations/deployed-public-edge-verification.md" />
+    <File Path="docs/operations/deployed-workspace-browser-rehearsal.md" />
     <File Path="docs/operations/deployed-workspace-enrollment-verification.md" />
     <File Path="docs/operations/deployed-workspace-invitation-verification.md" />
     <File Path="docs/operations/preview-deployment.md" />

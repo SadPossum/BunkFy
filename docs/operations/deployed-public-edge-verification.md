@@ -86,5 +86,6 @@ and [deployed workspace enrollment verifier](deployed-workspace-enrollment-verif
 cover the API-level, two-account invitation, QR approval/rejection, and
 least-privilege paths with separate short-lived credentials and explicit
 test-data lifecycle. Browser rendering, registration, and email or OAuth
-delivery remain deployment-owned checks. This public edge probe must not
-accept credentials or mutate tenant data.
+delivery remain deployment-owned checks and are defined by the
+[deployed browser rehearsal](deployed-workspace-browser-rehearsal.md). This
+public edge probe must not accept credentials or mutate tenant data.

@@ -131,7 +131,11 @@ use the [deployed workspace invitation verifier](deployed-workspace-invitation-v
 It intentionally creates a real membership and Staff profile, so run it with a
 dedicated smoke identity and offboard that identity explicitly after retaining
 the result. The companion [workspace enrollment verifier](deployed-workspace-enrollment-verification.md)
-proves owner rejection and approval for reusable QR enrollment.
+proves owner rejection and approval for reusable QR enrollment. Complete the
+[deployed browser rehearsal](deployed-workspace-browser-rehearsal.md) against
+the same candidate to verify registration adapters, mail or identity-provider
+delivery, redirect continuity, QR rendering, and Worker restart recovery.
+Repository API probes deliberately do not claim those deployment facts.
 
 ## Retention
 
