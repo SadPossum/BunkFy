@@ -12,6 +12,10 @@ $packager = Join-Path $root 'eng/package-image-candidate.ps1'
 if (-not [IO.File]::Exists($packager)) {
     throw "Missing image candidate packager '$packager'."
 }
+$verifier = Join-Path $root 'eng/verify-image-candidate.ps1'
+if (-not [IO.File]::Exists($verifier)) {
+    throw "Missing image candidate verifier '$verifier'."
+}
 
 function Write-TestJson {
     param(
@@ -192,20 +196,22 @@ function Assert-TestClosedChecksums {
 
 function Invoke-TestExpectedFailure {
     param(
+        [Parameter(Mandatory = $true)][string] $ScriptPath,
         [Parameter(Mandatory = $true)][hashtable] $Arguments,
-        [Parameter(Mandatory = $true)][string] $MessagePattern
+        [Parameter(Mandatory = $true)][string] $MessagePattern,
+        [Parameter(Mandatory = $true)][string] $Context
     )
 
     try {
-        & $packager @Arguments | Out-Null
+        & $ScriptPath @Arguments | Out-Null
     }
     catch {
         if ($_.Exception.Message -notmatch $MessagePattern) {
-            throw "Unexpected package rejection: $($_.Exception.Message)"
+            throw "Unexpected $Context rejection: $($_.Exception.Message)"
         }
         return
     }
-    throw "Candidate packager did not reject '$MessagePattern'."
+    throw "$Context did not reject '$MessagePattern'."
 }
 
 $temporaryRoot = Join-Path (
@@ -214,8 +220,7 @@ $temporaryRoot = Join-Path (
 try {
     [IO.Directory]::CreateDirectory($temporaryRoot) | Out-Null
     $evidenceDirectory = Join-Path $temporaryRoot 'evidence'
-    [IO.Directory]::CreateDirectory((Join-Path $evidenceDirectory 'details')) |
-        Out-Null
+    [IO.Directory]::CreateDirectory($evidenceDirectory) | Out-Null
     $backendArchive = Join-Path $temporaryRoot 'backend.oci.tar'
     $webArchive = Join-Path $temporaryRoot 'web.oci.tar'
     $backendDigest = New-TestOciArchive -Path $backendArchive
@@ -230,6 +235,7 @@ try {
             [ordered]@{
                 name = 'backend'
                 platform = 'linux/amd64'
+                sourceCommit = $sourceCommit
                 manifestDigest = $backendDigest
                 scanStatus = 'passed'
                 published = $false
@@ -237,12 +243,14 @@ try {
             [ordered]@{
                 name = 'web'
                 platform = 'linux/amd64'
+                sourceCommit = $sourceCommit
                 manifestDigest = $webDigest
                 scanStatus = 'passed'
                 published = $false
             })
         publication = [ordered]@{
             enabled = $false
+            registry = $null
             imageReferences = @()
         }
     }
@@ -250,7 +258,7 @@ try {
         -Path (Join-Path $evidenceDirectory 'manifest.json') `
         -Value $evidenceManifest
     [IO.File]::WriteAllText(
-        (Join-Path $evidenceDirectory 'details/source.txt'),
+        (Join-Path $evidenceDirectory 'source.txt'),
         "fixture`n",
         [Text.UTF8Encoding]::new($false))
     Write-TestChecksums -Directory $evidenceDirectory
@@ -291,17 +299,66 @@ try {
         }
     }
 
+    $verifiedBundle = & $verifier `
+        -BundleDirectory $bundleDirectory `
+        -ExpectedSourceCommit $sourceCommit `
+        -AllowUnattested `
+        -PassThru
+    if ($verifiedBundle.SourceCommit -cne $sourceCommit -or
+        @($verifiedBundle.Images).Count -ne 2 -or
+        $verifiedBundle.AttestationsVerified) {
+        throw 'Candidate verifier did not return the admitted bundle identity.'
+    }
+    Invoke-TestExpectedFailure `
+        -ScriptPath $verifier `
+        -Arguments @{
+            BundleDirectory = $bundleDirectory
+            ExpectedSourceCommit = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+            AllowUnattested = $true
+        } `
+        -MessagePattern 'expected unpublished BunkFy release' `
+        -Context 'candidate verifier'
+
+    $unlistedBundlePath = Join-Path $bundleDirectory 'unlisted.txt'
+    [IO.File]::WriteAllText($unlistedBundlePath, "unlisted`n")
+    Invoke-TestExpectedFailure `
+        -ScriptPath $verifier `
+        -Arguments @{
+            BundleDirectory = $bundleDirectory
+            ExpectedSourceCommit = $sourceCommit
+            AllowUnattested = $true
+        } `
+        -MessagePattern 'closed checksummed file set' `
+        -Context 'candidate verifier'
+    [IO.File]::Delete($unlistedBundlePath)
+
+    [IO.File]::AppendAllText(
+        (Join-Path $bundleDirectory 'evidence/source.txt'),
+        "tampered`n")
+    Write-TestChecksums -Directory $bundleDirectory
+    Invoke-TestExpectedFailure `
+        -ScriptPath $verifier `
+        -Arguments @{
+            BundleDirectory = $bundleDirectory
+            ExpectedSourceCommit = $sourceCommit
+            AllowUnattested = $true
+        } `
+        -MessagePattern 'does not match checksums' `
+        -Context 'candidate verifier'
+
     $unlistedPath = Join-Path $evidenceDirectory 'unlisted.txt'
     [IO.File]::WriteAllText($unlistedPath, "unlisted`n")
     $unlistedOutput = Join-Path $temporaryRoot 'rejected-unlisted'
     Invoke-TestExpectedFailure `
+        -ScriptPath $packager `
         -Arguments @{
             EvidenceDirectory = $evidenceDirectory
             BackendArchivePath = $backendArchive
             WebArchivePath = $webArchive
             OutputDirectory = $unlistedOutput
         } `
-        -MessagePattern 'closed checksummed file set'
+        -MessagePattern 'closed checksummed file set' `
+        -Context 'candidate packager'
     if ([IO.Directory]::Exists($unlistedOutput)) {
         throw 'Rejected unlisted evidence left a candidate bundle.'
     }
@@ -314,13 +371,15 @@ try {
     Write-TestChecksums -Directory $evidenceDirectory
     $digestOutput = Join-Path $temporaryRoot 'rejected-digest'
     Invoke-TestExpectedFailure `
+        -ScriptPath $packager `
         -Arguments @{
             EvidenceDirectory = $evidenceDirectory
             BackendArchivePath = $backendArchive
             WebArchivePath = $webArchive
             OutputDirectory = $digestOutput
         } `
-        -MessagePattern 'required metadata'
+        -MessagePattern 'required metadata' `
+        -Context 'candidate packager'
     if ([IO.Directory]::Exists($digestOutput)) {
         throw 'Rejected manifest mismatch left a candidate bundle.'
     }

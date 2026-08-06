@@ -196,9 +196,19 @@ jobs:
             -WebArchivePath "$env:RUNNER_TEMP/bunkfy-web.oci.tar" `
             -OutputDirectory $env:CANDIDATE_DIRECTORY
 
+      - name: Verify exact OCI candidate bundle
+        id: candidate-bundle-verification
+        if: ${{ always() && steps.candidate-bundle.outcome == 'success' }}
+        shell: pwsh
+        run: |
+          ./eng/verify-image-candidate.ps1 `
+            -BundleDirectory $env:CANDIDATE_DIRECTORY `
+            -ExpectedSourceCommit "${{ github.sha }}" `
+            -AllowUnattested
+
       - name: Attest exact OCI candidate bundle
         id: candidate-bundle-attestation
-        if: ${{ always() && steps.candidate-bundle.outcome == 'success' }}
+        if: ${{ always() && steps.candidate-bundle-verification.outcome == 'success' }}
         uses: actions/attest@f7c74d28b9d84cb8768d0b8ca14a4bac6ef463e6 # v4.2.0
         with:
           subject-checksums: artifacts/image-candidate/checksums.sha256
@@ -245,6 +255,7 @@ jobs:
           if ('${{ inputs.retain_candidate_bytes }}' -eq 'true') {
             foreach ($step in @(
                 @{ Name = 'candidate bundle'; Outcome = '${{ steps.candidate-bundle.outcome }}' },
+                @{ Name = 'candidate bundle verification'; Outcome = '${{ steps.candidate-bundle-verification.outcome }}' },
                 @{ Name = 'candidate bundle attestation'; Outcome = '${{ steps.candidate-bundle-attestation.outcome }}' },
                 @{ Name = 'candidate bundle upload'; Outcome = '${{ steps.candidate-bundle-upload.outcome }}' }
               )) {

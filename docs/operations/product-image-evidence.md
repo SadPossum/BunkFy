@@ -56,6 +56,30 @@ The packager streams archive metadata, rejects links and unsafe paths, and
 requires the recorded manifest blob to match both its descriptor size and
 digest. It does not rebuild either image.
 
+The workflow independently runs the read-only verifier before attestation and
+upload. After downloading and extracting a candidate artifact, a promotion
+operator must run the same verifier with the reviewed root commit:
+
+```powershell
+./eng/verify-image-candidate.ps1 `
+  -BundleDirectory /path/to/product-image-candidate `
+  -ExpectedSourceCommit <40-character-root-commit>
+```
+
+This consumer command requires a current authenticated GitHub CLI with
+attestation verification support.
+
+The verifier closes the outer bundle and nested evidence checksums, rejects
+extra files, directories, links, unsupported manifest properties, or a source
+identity mismatch, and revalidates each archive's OCI descriptor, manifest
+size, and digest. By default it also uses GitHub CLI to require SLSA provenance
+from this repository's `image-evidence.yml` workflow, the expected source and
+signer commit, and a GitHub-hosted runner for the bundle manifest, nested
+evidence checksums, and both archives. The producer workflow uses the explicit
+`-AllowUnattested` switch only for its structural preflight before creating
+that attestation. A promotion operator must not use that switch. The verifier
+does not publish, load, or deploy an image.
+
 Candidate bytes are short-lived because the uncompressed archives consume
 substantially more artifact storage than evidence alone. The dispatch form
 allows 1, 3, 7, 14, or 30 days and defaults to 7 days for an opt-in run. The

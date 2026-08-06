@@ -125,6 +125,9 @@ $requiredWorkflowTokens = @(
     './eng/scan-oci-image.ps1',
     './eng/write-image-evidence.ps1',
     './eng/package-image-candidate.ps1',
+    './eng/verify-image-candidate.ps1',
+    '-ExpectedSourceCommit "${{ github.sha }}"',
+    '-AllowUnattested',
     'github/codeql-action/upload-sarif@7188fc363630916deb702c7fdcf4e481b751f97a',
     'actions/attest@f7c74d28b9d84cb8768d0b8ca14a4bac6ef463e6',
     'subject-checksums: artifacts/image-evidence/checksums.sha256',
@@ -179,6 +182,12 @@ if ([regex]::Matches(
 }
 if ([regex]::Matches(
         $workflow,
+        '\./eng/verify-image-candidate\.ps1',
+        [System.Text.RegularExpressions.RegexOptions]::IgnoreCase).Count -ne 1) {
+    throw 'Product image evidence must verify exact candidate bytes once.'
+}
+if ([regex]::Matches(
+        $workflow,
         'actions/attest@f7c74d28b9d84cb8768d0b8ca14a4bac6ef463e6',
         [System.Text.RegularExpressions.RegexOptions]::IgnoreCase).Count -ne 2) {
     throw 'Product image evidence must attest evidence and exact candidate bytes separately.'
@@ -217,7 +226,9 @@ foreach ($forbiddenPattern in @(
 foreach ($script in @(
         'eng/scan-oci-image.ps1',
         'eng/write-image-evidence.ps1',
+        'eng/image-candidate.common.ps1',
         'eng/package-image-candidate.ps1',
+        'eng/verify-image-candidate.ps1',
         'eng/test-image-candidate-package.ps1'
     )) {
     Assert-PowerShellSyntax -RelativePath $script
@@ -247,20 +258,65 @@ $packager = Read-TextFile `
     -RelativePath 'eng/package-image-candidate.ps1' `
     -MaximumBytes 64KB
 foreach ($token in @(
-        '[Formats.Tar.TarReader]::new',
-        'Assert-BunkFySafeTarEntry',
+        'image-candidate.common.ps1',
+        'Get-BunkFyClosedChecksumSet',
+        'Assert-BunkFyImageEvidenceManifest',
+        'Get-BunkFyOciArchiveEvidence',
         'checksums.sha256',
-        'Image evidence is not a closed checksummed file set.',
         'bunkfy-oci-promotion-candidate',
         'registryPublished = $false',
         'deployableReference = $false',
-        'manifest descriptor size',
         '[IO.Directory]::Move($stagingDirectory, $resolvedOutputDirectory)'
     )) {
     if ($packager.IndexOf(
             $token,
             [System.StringComparison]::Ordinal) -lt 0) {
         throw "OCI candidate packager is missing '$token'."
+    }
+}
+
+$candidateCommon = Read-TextFile `
+    -RelativePath 'eng/image-candidate.common.ps1' `
+    -MaximumBytes 64KB
+foreach ($token in @(
+        '[Formats.Tar.TarReader]::new',
+        'Assert-BunkFySafeTarEntry',
+        'Get-BunkFyClosedChecksumSet',
+        'is not a closed checksummed file set.',
+        'contains an unlisted or missing directory.',
+        'manifest descriptor size',
+        'Assert-BunkFyImageEvidenceManifest'
+    )) {
+    if ($candidateCommon.IndexOf(
+            $token,
+            [System.StringComparison]::Ordinal) -lt 0) {
+        throw "OCI candidate common validation is missing '$token'."
+    }
+}
+
+$candidateVerifier = Read-TextFile `
+    -RelativePath 'eng/verify-image-candidate.ps1' `
+    -MaximumBytes 64KB
+foreach ($token in @(
+        'ExpectedSourceCommit',
+        'AllowUnattested',
+        'Get-BunkFyClosedChecksumSet',
+        "-Context 'OCI candidate bundle'",
+        "-Context 'Image evidence'",
+        'Assert-BunkFyCandidateProperties',
+        'contains files outside its declared contract.',
+        '-VerifiedArchiveSha256',
+        "'attestation'",
+        "'--signer-workflow'",
+        "'--signer-digest'",
+        "'--source-digest'",
+        "'--deny-self-hosted-runners'",
+        'Verified unpublished OCI candidate bundle'
+    )) {
+    if ($candidateVerifier.IndexOf(
+            $token,
+            [System.StringComparison]::Ordinal) -lt 0) {
+        throw "OCI candidate verifier is missing '$token'."
     }
 }
 
@@ -314,7 +370,8 @@ foreach ($token in @(
         'opt-in',
         'short-lived',
         'already built and scanned',
-        'compression-level: 0'
+        'compression-level: 0',
+        'verify-image-candidate.ps1'
     )) {
     if ($task.IndexOf(
             $token,

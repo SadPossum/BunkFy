@@ -752,6 +752,7 @@
     <File Path="eng/common.ps1" />
     <File Path="eng/export-source-set.ps1" />
     <File Path="eng/guard-submodules-latest.ps1" />
+    <File Path="eng/image-candidate.common.ps1" />
     <File Path="eng/new-preview-env.ps1" />
     <File Path="eng/package-image-candidate.ps1" />
     <File Path="eng/preview.ps1" />
@@ -763,6 +764,7 @@
     <File Path="eng/test-image-candidate-package.ps1" />
     <File Path="eng/update-gma.ps1" />
     <File Path="eng/update-web-contracts.ps1" />
+    <File Path="eng/verify-image-candidate.ps1" />
     <File Path="eng/verify-operations.ps1" />
     <File Path="eng/verify.ps1" />
     <File Path="eng/write-image-evidence.ps1" />
