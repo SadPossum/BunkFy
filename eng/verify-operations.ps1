@@ -13,12 +13,14 @@ $scripts = @(
     (Join-Path $PSScriptRoot 'operations\deployed-public-edge.common.ps1'),
     (Join-Path $PSScriptRoot 'operations\deployed-authenticated-smoke.common.ps1'),
     (Join-Path $PSScriptRoot 'operations\verify-deployed-adapter-host.ps1'),
+    (Join-Path $PSScriptRoot 'operations\verify-deployed-admin-boundary.ps1'),
     (Join-Path $PSScriptRoot 'operations\verify-deployed-public-edge.ps1'),
     (Join-Path $PSScriptRoot 'operations\verify-deployed-operations-notifications.ps1'),
     (Join-Path $PSScriptRoot 'operations\verify-deployed-workspace-enrollment.ps1'),
     (Join-Path $PSScriptRoot 'operations\verify-deployed-workspace-invitation.ps1'),
     (Join-Path $PSScriptRoot 'operations\verify-deployed-retention.ps1'),
     (Join-Path $PSScriptRoot 'test-deployed-adapter-host.ps1'),
+    (Join-Path $PSScriptRoot 'test-deployed-admin-boundary.ps1'),
     (Join-Path $PSScriptRoot 'test-deployed-public-edge.ps1'),
     (Join-Path $PSScriptRoot 'test-deployed-operations-notifications.ps1'),
     (Join-Path $PSScriptRoot 'test-deployed-workspace-enrollment.ps1'),
@@ -409,6 +411,46 @@ foreach ($forbiddenToken in @(
 
 & (Join-Path $PSScriptRoot 'test-deployed-public-edge.ps1')
 Write-Host 'BunkFy deployed public edge probe policy is valid.'
+
+$adminBoundaryProbe = Get-Content -LiteralPath (
+    Join-Path $PSScriptRoot 'operations\verify-deployed-admin-boundary.ps1') -Raw
+foreach ($requiredToken in @(
+        '$script:AdminBoundaryMaximumBodyBytes = 64KB',
+        '$handler.AllowAutoRedirect = $false',
+        'ExpectedAdminReachability',
+        'EvidenceSetId',
+        'HttpCompletionOption]::ResponseHeadersRead',
+        '/healthz',
+        '/health',
+        '/api/admin/audit/',
+        'Http.PrivateNetworkRequired',
+        'Broken TLS is not proof',
+        "evidenceKind = 'bunkfy-deployed-admin-boundary-probe'",
+        "'single-vantage-point-observation'",
+        "'authenticated-admin-operations-not-executed'")) {
+    if (-not $adminBoundaryProbe.Contains($requiredToken, [StringComparison]::Ordinal)) {
+        throw "Deployed Admin API boundary probe policy is missing '$requiredToken'."
+    }
+}
+foreach ($forbiddenToken in @(
+        'DangerousAcceptAnyServerCertificateValidator',
+        'ServerCertificateCustomValidationCallback',
+        '-SkipCertificateCheck',
+        '$handler.AllowAutoRedirect = $true',
+        'AuthenticationHeaderValue',
+        'AccessToken',
+        'X-Tenant-Id',
+        'Invoke-RestMethod',
+        '-Method POST',
+        '-Method PUT',
+        '-Method DELETE')) {
+    if ($adminBoundaryProbe.Contains($forbiddenToken, [StringComparison]::OrdinalIgnoreCase)) {
+        throw "Deployed Admin API boundary probe contains forbidden token '$forbiddenToken'."
+    }
+}
+
+& (Join-Path $PSScriptRoot 'test-deployed-admin-boundary.ps1')
+Write-Host 'BunkFy deployed Admin API boundary probe policy is valid.'
 
 $authenticatedSmokeCommon = Get-Content -LiteralPath (
     Join-Path $PSScriptRoot 'operations\deployed-authenticated-smoke.common.ps1') -Raw

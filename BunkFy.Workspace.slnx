@@ -748,6 +748,7 @@
   </Folder>
   <Folder Name="/docs/operations/">
     <File Path="docs/operations/deployed-adapter-host-verification.md" />
+    <File Path="docs/operations/deployed-admin-boundary-verification.md" />
     <File Path="docs/operations/deployed-operations-notifications-verification.md" />
     <File Path="docs/operations/deployed-public-edge-verification.md" />
     <File Path="docs/operations/deployed-retention-verification.md" />
@@ -779,6 +780,7 @@
     <File Path="eng/sync-github-modules.ps1" />
     <File Path="eng/sync-submodules.ps1" />
     <File Path="eng/test-deployed-adapter-host.ps1" />
+    <File Path="eng/test-deployed-admin-boundary.ps1" />
     <File Path="eng/test-deployed-operations-notifications.ps1" />
     <File Path="eng/test-deployed-public-edge.ps1" />
     <File Path="eng/test-deployed-retention.ps1" />
@@ -803,6 +805,7 @@
     <File Path="eng/operations/rehearse-production-migrations.ps1" />
     <File Path="eng/operations/restore-preview.ps1" />
     <File Path="eng/operations/verify-deployed-adapter-host.ps1" />
+    <File Path="eng/operations/verify-deployed-admin-boundary.ps1" />
     <File Path="eng/operations/verify-deployed-operations-notifications.ps1" />
     <File Path="eng/operations/verify-deployed-public-edge.ps1" />
     <File Path="eng/operations/verify-deployed-retention.ps1" />

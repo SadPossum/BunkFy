@@ -110,6 +110,13 @@ product stack keeps running.
 Operational scripts accept plain HTTP only for a loopback Admin API origin;
 any remote management endpoint must use HTTPS.
 
+For a deployed candidate, run the paired
+[Admin API boundary verifier](deployed-admin-boundary-verification.md) from one
+approved management host and one external host. Use the same evidence-set id
+for both runs. The pair proves that the Admin API is absent from the public
+edge, reachable and auth-gated inside the management boundary, and denied or
+unreachable outside it without using an Admin credential.
+
 ```powershell
 .\eng\preview.ps1 close-operations
 Remove-Item Env:BUNKFY_ADMIN_TOKEN

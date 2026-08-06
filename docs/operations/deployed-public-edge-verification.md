@@ -90,6 +90,11 @@ delivery remain deployment-owned checks and are defined by the
 [deployed browser rehearsal](deployed-workspace-browser-rehearsal.md). This
 public edge probe must not accept credentials or mutate tenant data.
 
+The paired [Admin API boundary verifier](deployed-admin-boundary-verification.md)
+adds approved- and external-network observations for the separate management
+origin. It requires the Admin API to remain absent here and auth-gated after an
+approved private-network request is admitted.
+
 The separate [Operations Notifications verifier](deployed-operations-notifications-verification.md)
 uses two authenticated accounts and a reversible inventory block to prove the
 durable notification and SSE path. Its mutation and credentials deliberately
