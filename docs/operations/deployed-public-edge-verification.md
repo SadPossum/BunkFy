@@ -18,6 +18,7 @@ The probe will fail closed unless one origin:
   explicit loopback-only fixture mode;
 - serves the web application and the complete checked-in browser security
   header policy;
+- returns the expected release identity from the web runtime header;
 - exposes a healthy edge at `/healthz`;
 - proxies `/api/smoke` to the BunkFy public API and returns the expected bounded
   service and release identity;
@@ -70,7 +71,7 @@ otherwise the result is written below ignored `.tmp/deployment-probes`.
 fixture. It cannot enable plain HTTP for a remote host. Do not treat a loopback
 result as hosted edge evidence.
 
-The versioned JSON output records the origin, release id, transport class, five
+The versioned JSON output records the origin, release id, transport class, six
 check names and statuses, and three explicit limitations. It excludes response
 bodies, raw headers, credentials, source commits, and image digests. The file is
 written atomically only after all checks pass; an existing file requires
@@ -78,7 +79,7 @@ written atomically only after all checks pass; an existing file requires
 
 Repository verification runs `eng/test-deployed-public-edge.ps1`. The fixture
 proves the valid loopback path and rejection of a release-id mismatch, a
-missing security header, a
+missing or mismatched web release header, a missing security header, a
 publicly reachable Admin route, a successful untrusted-Host request, policy
 directives outside the checked-in CSP or Permissions-Policy, and insecure
 non-loopback HTTP. It does not contact a deployed environment.

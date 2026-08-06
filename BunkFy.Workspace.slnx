@@ -751,6 +751,7 @@
     <File Path="docs/operations/deployed-admin-boundary-verification.md" />
     <File Path="docs/operations/deployed-operations-notifications-verification.md" />
     <File Path="docs/operations/deployed-public-edge-verification.md" />
+    <File Path="docs/operations/deployed-release-rollback-rehearsal.md" />
     <File Path="docs/operations/deployed-retention-verification.md" />
     <File Path="docs/operations/deployed-workspace-browser-rehearsal.md" />
     <File Path="docs/operations/deployed-workspace-enrollment-verification.md" />
@@ -773,6 +774,7 @@
     <File Path="eng/export-source-set.ps1" />
     <File Path="eng/guard-submodules-latest.ps1" />
     <File Path="eng/image-candidate.common.ps1" />
+    <File Path="eng/image-promotion.common.ps1" />
     <File Path="eng/new-preview-env.ps1" />
     <File Path="eng/package-image-candidate.ps1" />
     <File Path="eng/preview.ps1" />
@@ -785,6 +787,7 @@
     <File Path="eng/test-deployed-admin-boundary.ps1" />
     <File Path="eng/test-deployed-operations-notifications.ps1" />
     <File Path="eng/test-deployed-public-edge.ps1" />
+    <File Path="eng/test-deployed-release-rollback.ps1" />
     <File Path="eng/test-deployed-retention.ps1" />
     <File Path="eng/test-deployed-workspace-enrollment.ps1" />
     <File Path="eng/test-deployed-workspace-invitation.ps1" />
@@ -792,6 +795,7 @@
     <File Path="eng/update-gma.ps1" />
     <File Path="eng/update-web-contracts.ps1" />
     <File Path="eng/verify-image-candidate.ps1" />
+    <File Path="eng/verify-image-promotion.ps1" />
     <File Path="eng/verify-operations.ps1" />
     <File Path="eng/verify.ps1" />
     <File Path="eng/write-image-evidence.ps1" />
@@ -805,6 +809,7 @@
     <File Path="eng/operations/preview-state.common.ps1" />
     <File Path="eng/operations/promote-image-candidate.ps1" />
     <File Path="eng/operations/provision-staff-access.ps1" />
+    <File Path="eng/operations/rehearse-deployed-release-rollback.ps1" />
     <File Path="eng/operations/rehearse-preview-recovery.ps1" />
     <File Path="eng/operations/rehearse-production-migrations.ps1" />
     <File Path="eng/operations/restore-preview.ps1" />

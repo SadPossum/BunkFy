@@ -49,16 +49,7 @@ if (Test-Path -LiteralPath $OutputPath) {
     }
 }
 
-$handler = [Net.Http.HttpClientHandler]::new()
-$handler.AllowAutoRedirect = $false
-$handler.UseCookies = $false
-$handler.AutomaticDecompression =
-    [Net.DecompressionMethods]::GZip -bor
-    [Net.DecompressionMethods]::Deflate -bor
-    [Net.DecompressionMethods]::Brotli
-$client = [Net.Http.HttpClient]::new($handler, $true)
-$client.Timeout = [Threading.Timeout]::InfiniteTimeSpan
-$client.DefaultRequestHeaders.UserAgent.ParseAdd('BunkFy-Deployed-Public-Edge-Probe/1')
+$client = New-BunkFyPublicEdgeHttpClient
 
 $checks = [Collections.Generic.List[object]]::new()
 try {
@@ -72,8 +63,16 @@ try {
         throw 'The web root returned an empty body.'
     }
     Assert-BunkFyPublicEdgeSecurityHeaders -Response $rootResponse
+    $webReleaseId = Assert-BunkFyWebReleaseIdentity `
+        -Response $rootResponse `
+        -ExpectedReleaseId $ExpectedReleaseId
     $checks.Add([ordered]@{
         name = 'web-root-and-browser-policy'
+        path = '/'
+        status = 200
+    })
+    $checks.Add([ordered]@{
+        name = 'web-release-identity'
         path = '/'
         status = 200
     })
@@ -99,6 +98,9 @@ try {
     $observedReleaseId = Assert-BunkFySmokeResponse `
         -Response $smokeResponse `
         -ExpectedReleaseId $ExpectedReleaseId
+    if ($webReleaseId -cne $observedReleaseId) {
+        throw 'The web and API release identities do not match.'
+    }
     $checks.Add([ordered]@{
         name = 'public-api-smoke'
         path = '/api/smoke'
@@ -135,7 +137,7 @@ finally {
 }
 
 $evidence = [ordered]@{
-    schemaVersion = 2
+    schemaVersion = 3
     evidenceKind = 'bunkfy-deployed-public-edge-probe'
     generatedAtUtc = [DateTimeOffset]::UtcNow.ToString('O')
     origin = $origin.GetLeftPart([UriPartial]::Authority)

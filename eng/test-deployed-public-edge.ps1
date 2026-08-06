@@ -136,6 +136,15 @@ function Start-BunkFyEdgeFixtureServer {
                     if ($null -ne $contentType) {
                         $responseHeaders.Add("Content-Type: $contentType")
                     }
+                    if ($Mode -ne 'MissingWebReleaseHeader') {
+                        $webReleaseId = if ($Mode -eq 'WebReleaseMismatch') {
+                            'release-fixture-other'
+                        }
+                        else {
+                            'release-fixture-001'
+                        }
+                        $responseHeaders.Add("X-BunkFy-Release-Id: $webReleaseId")
+                    }
                     $responseHeaders.Add('X-Content-Type-Options: nosniff')
                     $responseHeaders.Add('X-Frame-Options: DENY')
                     $responseHeaders.Add('Referrer-Policy: strict-origin-when-cross-origin')
@@ -283,12 +292,12 @@ try {
     }
 
     $evidence = Get-Content -LiteralPath $validOutput -Raw | ConvertFrom-Json -Depth 8
-    if ($evidence.schemaVersion -ne 2 -or
+    if ($evidence.schemaVersion -ne 3 -or
         $evidence.evidenceKind -cne 'bunkfy-deployed-public-edge-probe' -or
         $evidence.result -cne 'passed' -or
         $evidence.transport -cne 'loopback-http-fixture' -or
         $evidence.releaseId -cne 'release-fixture-001' -or
-        @($evidence.checks).Count -ne 5 -or
+        @($evidence.checks).Count -ne 6 -or
         @($evidence.limitations).Count -ne 3) {
         throw 'Valid edge fixture emitted unexpected evidence.'
     }
@@ -302,6 +311,12 @@ try {
     Assert-BunkFyProbeRejected `
         -Mode 'ReleaseMismatch' `
         -ExpectedMessage 'does not match'
+    Assert-BunkFyProbeRejected `
+        -Mode 'MissingWebReleaseHeader' `
+        -ExpectedMessage 'X-BunkFy-Release-Id'
+    Assert-BunkFyProbeRejected `
+        -Mode 'WebReleaseMismatch' `
+        -ExpectedMessage 'web release id'
     Assert-BunkFyProbeRejected `
         -Mode 'MissingHeader' `
         -ExpectedMessage 'X-Permitted-Cross-Domain-Policies'

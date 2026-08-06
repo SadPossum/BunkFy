@@ -46,11 +46,25 @@ candidate archive hashes, manifest digests, tagged registry references, and
 digest-qualified deployable references. Deploy only the digest-qualified
 references.
 
+Verify retained evidence before every later admission or rollback use:
+
+```powershell
+./eng/verify-image-promotion.ps1 `
+  -PromotionDirectory /path/to/promotion-evidence `
+  -ExpectedReleaseId release-20260806-01 `
+  -ExpectedSourceCommit <40-character-root-commit>
+```
+
 Set the public API, Admin API, and Worker
 `BunkFy:Deployment:ReleaseId` to the record's `releaseId`. Set
 `PromotionEvidenceReference` to its generated promotion reference and
 `RollbackEvidenceReference` to the separately approved rollback or recovery
 record. The deployed public-edge probe must receive the same release id.
+
+Before Production admission, use a previously promoted compatible release and
+the [deployed release rollback rehearsal](deployed-release-rollback-rehearsal.md)
+to prove candidate-to-rollback-to-candidate convergence. The rehearsal consumes
+promotion records and digest references; it never rebuilds an image.
 
 ## Evidence Boundary
 

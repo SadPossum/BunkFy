@@ -64,6 +64,13 @@ Publish retained exact candidate bytes through the
 hosts require the resulting release id and promotion evidence reference, plus a
 separately approved rollback or recovery evidence reference.
 
+Before admission, run the
+[deployed release rollback rehearsal](deployed-release-rollback-rehearsal.md)
+against the candidate environment with a previously promoted compatible
+release. Retain its closed evidence with the migration rehearsal and relevant
+authenticated domain probes; the public smoke alone does not prove complete
+schema or domain compatibility.
+
 ## First Owner
 
 Password and enabled external-provider registration are available through the browser. A new account has no PMS access until it creates a workspace or accepts an active invitation or enrollment link. Creating a workspace grants its creator the first tenant-scoped owner membership and provisions the linked Staff profile.

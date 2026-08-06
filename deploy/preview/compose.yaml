@@ -248,6 +248,8 @@ services:
         VITE_BUNKFY_API_BASE_URL: /
         VITE_BUNKFY_EMAIL_VERIFICATION_ENABLED: "${BUNKFY_EMAIL_VERIFICATION_ENABLED:-false}"
     restart: unless-stopped
+    environment:
+      BUNKFY_RELEASE_ID: "${BUNKFY_RELEASE_ID:-preview-local}"
     ports:
       - "127.0.0.1:${BUNKFY_PUBLIC_PORT:-8080}:8080"
     depends_on:

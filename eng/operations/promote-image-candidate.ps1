@@ -23,7 +23,7 @@ if (Test-Path -LiteralPath variable:PSNativeCommandUseErrorActionPreference) {
 }
 
 . (Join-Path $PSScriptRoot '..\common.ps1')
-. (Join-Path $PSScriptRoot '..\image-candidate.common.ps1')
+. (Join-Path $PSScriptRoot '..\image-promotion.common.ps1')
 
 $root = Get-BunkFyRepositoryRoot
 $candidateVerifier = Join-Path $PSScriptRoot '..\verify-image-candidate.ps1'
@@ -36,60 +36,6 @@ if ($AllowUnattested -and [string]::IsNullOrWhiteSpace($FixtureRegistryDirectory
 if (-not $AllowUnattested -and -not [string]::IsNullOrWhiteSpace(
         $FixtureRegistryDirectory)) {
     throw 'Fixture registry mode requires AllowUnattested.'
-}
-
-function Resolve-BunkFyPromotionDestination {
-    param(
-        [Parameter(Mandatory = $true)][string] $Value,
-        [Parameter(Mandatory = $true)][string] $ExpectedTag,
-        [Parameter(Mandatory = $true)][string] $Name
-    )
-
-    if ($Value.Length -gt 512 -or
-        $Value -cne $Value.Trim() -or
-        $Value -match '[\s\\@?#]' -or
-        $Value.Contains('://', [StringComparison]::Ordinal)) {
-        throw "$Name destination must be a credential-free tagged OCI registry reference."
-    }
-    $lastSlash = $Value.LastIndexOf('/')
-    $lastColon = $Value.LastIndexOf(':')
-    if ($lastSlash -lt 1 -or $lastColon -le $lastSlash) {
-        throw "$Name destination must include a registry, repository, and tag."
-    }
-
-    $repository = $Value.Substring(0, $lastColon)
-    $tag = $Value.Substring($lastColon + 1)
-    if ($tag -cne $ExpectedTag -or
-        $repository -cnotmatch
-            '^(?:localhost|[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?)(?::[0-9]{1,5})?/[a-z0-9]+(?:[._/-][a-z0-9]+)*$') {
-        throw "$Name destination must use the exact release id as its tag and a lowercase OCI repository."
-    }
-
-    return [pscustomobject]@{
-        TagReference = $Value
-        Repository = $repository
-    }
-}
-
-function Assert-BunkFyDisjointPromotionPaths {
-    param(
-        [Parameter(Mandatory = $true)][string] $LeftPath,
-        [Parameter(Mandatory = $true)][string] $LeftName,
-        [Parameter(Mandatory = $true)][string] $RightPath,
-        [Parameter(Mandatory = $true)][string] $RightName
-    )
-
-    $separator = [IO.Path]::DirectorySeparatorChar
-    $comparison = [StringComparison]::OrdinalIgnoreCase
-    $left = [IO.Path]::GetFullPath($LeftPath).TrimEnd('\', '/')
-    $right = [IO.Path]::GetFullPath($RightPath).TrimEnd('\', '/')
-    $leftPrefix = $left + $separator
-    $rightPrefix = $right + $separator
-    if ($left.Equals($right, $comparison) -or
-        $left.StartsWith($rightPrefix, $comparison) -or
-        $right.StartsWith($leftPrefix, $comparison)) {
-        throw "$LeftName and $RightName must not overlap."
-    }
 }
 
 function Invoke-BunkFySkopeo {
@@ -337,6 +283,11 @@ try {
         (Join-Path $stagingDirectory 'checksums.sha256'),
         "$recordHash  promotion.json`n",
         [Text.UTF8Encoding]::new($false))
+    [void](Get-BunkFyVerifiedImagePromotion `
+            -PromotionDirectory $stagingDirectory `
+            -ExpectedReleaseId $ReleaseId `
+            -ExpectedSourceCommit $ExpectedSourceCommit `
+            -AllowFixtureEvidence:$fixtureMode)
     [IO.Directory]::CreateDirectory((Split-Path -Parent $resolvedOutputDirectory)) |
         Out-Null
     [IO.Directory]::Move($stagingDirectory, $resolvedOutputDirectory)

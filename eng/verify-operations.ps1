@@ -11,11 +11,14 @@ $scripts = @(
     (Join-Path $PSScriptRoot 'operations\restore-preview.ps1'),
     (Join-Path $PSScriptRoot 'operations\rehearse-preview-recovery.ps1'),
     (Join-Path $PSScriptRoot 'operations\rehearse-production-migrations.ps1'),
+    (Join-Path $PSScriptRoot 'image-promotion.common.ps1'),
+    (Join-Path $PSScriptRoot 'verify-image-promotion.ps1'),
     (Join-Path $PSScriptRoot 'operations\deployed-public-edge.common.ps1'),
     (Join-Path $PSScriptRoot 'operations\deployed-authenticated-smoke.common.ps1'),
     (Join-Path $PSScriptRoot 'operations\verify-deployed-adapter-host.ps1'),
     (Join-Path $PSScriptRoot 'operations\verify-deployed-admin-boundary.ps1'),
     (Join-Path $PSScriptRoot 'operations\verify-deployed-public-edge.ps1'),
+    (Join-Path $PSScriptRoot 'operations\rehearse-deployed-release-rollback.ps1'),
     (Join-Path $PSScriptRoot 'operations\verify-deployed-operations-notifications.ps1'),
     (Join-Path $PSScriptRoot 'operations\verify-deployed-workspace-enrollment.ps1'),
     (Join-Path $PSScriptRoot 'operations\verify-deployed-workspace-invitation.ps1'),
@@ -23,6 +26,7 @@ $scripts = @(
     (Join-Path $PSScriptRoot 'test-deployed-adapter-host.ps1'),
     (Join-Path $PSScriptRoot 'test-deployed-admin-boundary.ps1'),
     (Join-Path $PSScriptRoot 'test-deployed-public-edge.ps1'),
+    (Join-Path $PSScriptRoot 'test-deployed-release-rollback.ps1'),
     (Join-Path $PSScriptRoot 'test-deployed-operations-notifications.ps1'),
     (Join-Path $PSScriptRoot 'test-deployed-workspace-enrollment.ps1'),
     (Join-Path $PSScriptRoot 'test-deployed-workspace-invitation.ps1'),
@@ -222,6 +226,11 @@ $workerEnvironment = $resolvedCompose.services.worker.environment
 if ($workerEnvironment.BunkFy__Deployment__ReleaseId -ne
     $apiEnvironment.BunkFy__Deployment__ReleaseId) {
     throw 'Preview API and Worker must share one release identity.'
+}
+$webEnvironment = $resolvedCompose.services.web.environment
+if ($webEnvironment.BUNKFY_RELEASE_ID -ne
+    $apiEnvironment.BunkFy__Deployment__ReleaseId) {
+    throw 'Preview web, API, and Worker must share one release identity.'
 }
 if ($resolvedCompose.services.api.image -ne 'bunkfy/backend:preview' -or
     $resolvedCompose.services.migrations.image -ne $resolvedCompose.services.api.image -or
@@ -506,9 +515,13 @@ foreach ($requiredToken in @(
         '$script:BunkFyPublicEdgeMaximumBodyBytes = 64KB',
         'Assert-BunkFyPublicEdgeOrigin',
         'Assert-BunkFyPublicEdgeSecurityHeaders',
+        'Assert-BunkFyWebReleaseIdentity',
         'Assert-BunkFySmokeResponse',
+        'New-BunkFyPublicEdgeHttpClient',
+        'Get-BunkFyObservedComposedReleaseId',
         'ExpectedReleaseId',
         'releaseId',
+        '$handler.AllowAutoRedirect = $false',
         'HttpCompletionOption]::ResponseHeadersRead',
         'CancellationTokenSource',
         'Content-Security-Policy',
@@ -521,13 +534,12 @@ foreach ($requiredToken in @(
 $deployedEdgeProbe = Get-Content -LiteralPath (
     Join-Path $PSScriptRoot 'operations\verify-deployed-public-edge.ps1') -Raw
 foreach ($requiredToken in @(
-        '$handler.AllowAutoRedirect = $false',
         '/healthz',
         '/api/smoke',
         '/api/admin/audit/',
         'ExpectedReleaseId',
         '-HostHeader $UntrustedHost',
-        'schemaVersion = 2',
+        'schemaVersion = 3',
         "evidenceKind = 'bunkfy-deployed-public-edge-probe'",
         'releaseId = $observedReleaseId',
         "'registry-and-image-provenance-require-promotion-record'",
@@ -552,6 +564,49 @@ foreach ($forbiddenToken in @(
 
 & (Join-Path $PSScriptRoot 'test-deployed-public-edge.ps1')
 Write-Host 'BunkFy deployed public edge probe policy is valid.'
+
+$deployedRollbackRehearsal = Get-Content -LiteralPath (
+    Join-Path $PSScriptRoot 'operations\rehearse-deployed-release-rollback.ps1') -Raw
+foreach ($requiredToken in @(
+        'Get-BunkFyVerifiedImagePromotion',
+        'Get-BunkFyObservedComposedReleaseId',
+        'verify-deployed-public-edge.ps1',
+        'rollbackEvidenceReference',
+        'checksums.sha256',
+        "evidenceKind = 'bunkfy-deployed-release-rollback-rehearsal'",
+        "'deployment-control-plane-and-commands-not-observed'",
+        "'worker-and-admin-release-identities-not-observed'",
+        "'public-smoke-does-not-prove-all-schema-and-domain-compatibility'",
+        "'registry-availability-and-immutability-not-reverified'",
+        "'hosted-approval-alerting-and-traffic-drain-not-observed'")) {
+    if (-not $deployedRollbackRehearsal.Contains(
+            $requiredToken,
+            [StringComparison]::Ordinal)) {
+        throw "Deployed release rollback rehearsal policy is missing '$requiredToken'."
+    }
+}
+foreach ($forbiddenToken in @(
+        'DangerousAcceptAnyServerCertificateValidator',
+        'ServerCertificateCustomValidationCallback',
+        '-SkipCertificateCheck',
+        'Invoke-Expression',
+        'Start-Process',
+        'docker pull',
+        'docker build',
+        'kubectl',
+        'Authorization',
+        'AccessToken',
+        'Password',
+        'Credential')) {
+    if ($deployedRollbackRehearsal.Contains(
+            $forbiddenToken,
+            [StringComparison]::OrdinalIgnoreCase)) {
+        throw "Deployed release rollback rehearsal contains forbidden token '$forbiddenToken'."
+    }
+}
+
+& (Join-Path $PSScriptRoot 'test-deployed-release-rollback.ps1')
+Write-Host 'BunkFy deployed release rollback rehearsal policy is valid.'
 
 $adminBoundaryProbe = Get-Content -LiteralPath (
     Join-Path $PSScriptRoot 'operations\verify-deployed-admin-boundary.ps1') -Raw

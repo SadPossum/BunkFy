@@ -267,7 +267,7 @@ try {
     $adminEvidence = Get-Content -LiteralPath $adminEvidencePath -Raw |
         ConvertFrom-Json -Depth 8
     if ($publicEvidence.result -cne 'passed' -or
-        @($publicEvidence.checks).Count -ne 5 -or
+        @($publicEvidence.checks).Count -ne 6 -or
         $adminEvidence.result -cne 'passed' -or
         $adminEvidence.expectedAdminReachability -cne 'allowed' -or
         @($adminEvidence.checks).Count -ne 4) {

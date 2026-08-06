@@ -244,6 +244,35 @@ function Assert-BunkFyPublicEdgeSecurityHeaders {
     Assert-BunkFyStrictTransportSecurity -Response $Response
 }
 
+function Get-BunkFyWebReleaseIdentity {
+    param([Parameter(Mandatory = $true)][object] $Response)
+
+    $actual = Get-BunkFyUnambiguousHeaderValue `
+        -Response $Response `
+        -Name 'X-BunkFy-Release-Id'
+    if ($actual -cnotmatch '^[a-z0-9][a-z0-9._-]{2,127}$') {
+        throw "The web release id '$actual' is invalid."
+    }
+
+    return $actual
+}
+
+function Assert-BunkFyWebReleaseIdentity {
+    param(
+        [Parameter(Mandatory = $true)][object] $Response,
+        [Parameter(Mandatory = $true)]
+        [ValidatePattern('^[a-z0-9][a-z0-9._-]{2,127}$')]
+        [string] $ExpectedReleaseId
+    )
+
+    $actual = Get-BunkFyWebReleaseIdentity -Response $Response
+    if ($actual -cne $ExpectedReleaseId) {
+        throw "The web release id '$actual' does not match '$ExpectedReleaseId'."
+    }
+
+    return $actual
+}
+
 function Assert-BunkFyResponseStatus {
     param(
         [Parameter(Mandatory = $true)][object] $Response,
@@ -280,13 +309,8 @@ function Get-BunkFyBoundedUtf8Body {
     }
 }
 
-function Assert-BunkFySmokeResponse {
-    param(
-        [Parameter(Mandatory = $true)][object] $Response,
-        [Parameter(Mandatory = $true)]
-        [ValidatePattern('^[a-z0-9][a-z0-9._-]{2,127}$')]
-        [string] $ExpectedReleaseId
-    )
+function Get-BunkFySmokeReleaseIdentity {
+    param([Parameter(Mandatory = $true)][object] $Response)
 
     Assert-BunkFyResponseStatus $Response 200 '/api/smoke'
     Assert-BunkFyResponseContentType $Response 'application/json' '/api/smoke'
@@ -313,8 +337,9 @@ function Assert-BunkFySmokeResponse {
         $payload.status -cne 'ok') {
         throw 'The /api/smoke response does not identify the BunkFy public API.'
     }
-    if ($payload.releaseId -cne $ExpectedReleaseId) {
-        throw "The /api/smoke release id '$($payload.releaseId)' does not match '$ExpectedReleaseId'."
+    if ($payload.releaseId -isnot [string] -or
+        $payload.releaseId -cnotmatch '^[a-z0-9][a-z0-9._-]{2,127}$') {
+        throw 'The /api/smoke response contains an invalid release id.'
     }
 
     $timestamp = [DateTimeOffset]::MinValue
@@ -331,6 +356,41 @@ function Assert-BunkFySmokeResponse {
     }
 
     return [string]$payload.releaseId
+}
+
+function Assert-BunkFySmokeResponse {
+    param(
+        [Parameter(Mandatory = $true)][object] $Response,
+        [Parameter(Mandatory = $true)]
+        [ValidatePattern('^[a-z0-9][a-z0-9._-]{2,127}$')]
+        [string] $ExpectedReleaseId
+    )
+
+    $actual = Get-BunkFySmokeReleaseIdentity -Response $Response
+    if ($actual -cne $ExpectedReleaseId) {
+        throw "The /api/smoke release id '$actual' does not match '$ExpectedReleaseId'."
+    }
+
+    return $actual
+}
+
+function New-BunkFyPublicEdgeHttpClient {
+    param(
+        [ValidatePattern('^[A-Za-z0-9][A-Za-z0-9./_-]{2,127}$')]
+        [string] $UserAgent = 'BunkFy-Deployed-Public-Edge-Probe/1'
+    )
+
+    $handler = [Net.Http.HttpClientHandler]::new()
+    $handler.AllowAutoRedirect = $false
+    $handler.UseCookies = $false
+    $handler.AutomaticDecompression =
+        [Net.DecompressionMethods]::GZip -bor
+        [Net.DecompressionMethods]::Deflate -bor
+        [Net.DecompressionMethods]::Brotli
+    $client = [Net.Http.HttpClient]::new($handler, $true)
+    $client.Timeout = [Threading.Timeout]::InfiniteTimeSpan
+    $client.DefaultRequestHeaders.UserAgent.ParseAdd($UserAgent)
+    return $client
 }
 
 function Invoke-BunkFyPublicEdgeRequest {
@@ -420,5 +480,37 @@ function Invoke-BunkFyPublicEdgeRequest {
     finally {
         $cancellation.Dispose()
         $request.Dispose()
+    }
+}
+
+function Get-BunkFyObservedComposedReleaseId {
+    param(
+        [Parameter(Mandatory = $true)][Net.Http.HttpClient] $Client,
+        [Parameter(Mandatory = $true)][Uri] $Origin,
+        [Parameter(Mandatory = $true)][int] $TimeoutSeconds
+    )
+
+    try {
+        $rootResponse = Invoke-BunkFyPublicEdgeRequest `
+            -Client $Client `
+            -Uri ([Uri]::new($Origin, '/')) `
+            -TimeoutSeconds $TimeoutSeconds
+        if ($rootResponse.StatusCode -ne 200) {
+            return $null
+        }
+        $webReleaseId = Get-BunkFyWebReleaseIdentity -Response $rootResponse
+
+        $smokeResponse = Invoke-BunkFyPublicEdgeRequest `
+            -Client $Client `
+            -Uri ([Uri]::new($Origin, '/api/smoke')) `
+            -TimeoutSeconds $TimeoutSeconds
+        $apiReleaseId = Get-BunkFySmokeReleaseIdentity -Response $smokeResponse
+        if ($webReleaseId -cne $apiReleaseId) {
+            return $null
+        }
+        return $webReleaseId
+    }
+    catch {
+        return $null
     }
 }

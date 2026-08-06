@@ -227,8 +227,10 @@ foreach ($script in @(
         'eng/scan-oci-image.ps1',
         'eng/write-image-evidence.ps1',
         'eng/image-candidate.common.ps1',
+        'eng/image-promotion.common.ps1',
         'eng/package-image-candidate.ps1',
         'eng/verify-image-candidate.ps1',
+        'eng/verify-image-promotion.ps1',
         'eng/operations/promote-image-candidate.ps1',
         'eng/test-image-candidate-package.ps1'
     )) {
@@ -336,6 +338,7 @@ foreach ($token in @(
         'registry tag',
         'candidate.AttestationsVerified',
         'Assert-BunkFyDisjointPromotionPaths',
+        'Get-BunkFyVerifiedImagePromotion',
         "evidenceKind = 'bunkfy-image-promotion'",
         'digestReference',
         'checksums.sha256',
@@ -345,6 +348,24 @@ foreach ($token in @(
             $token,
             [System.StringComparison]::OrdinalIgnoreCase) -lt 0) {
         throw "OCI candidate promoter is missing '$token'."
+    }
+}
+
+$promotionVerifier = Read-TextFile `
+    -RelativePath 'eng/image-promotion.common.ps1' `
+    -MaximumBytes 64KB
+foreach ($token in @(
+        'Get-BunkFyClosedChecksumSet',
+        'Assert-BunkFyCandidateProperties',
+        'promotionEvidenceReference',
+        'Resolve-BunkFyPromotionDestination',
+        'requires attested candidate bytes',
+        'registry.fixture.invalid/',
+        'ChecksumsSha256')) {
+    if ($promotionVerifier.IndexOf(
+            $token,
+            [System.StringComparison]::OrdinalIgnoreCase) -lt 0) {
+        throw "Image promotion verifier is missing '$token'."
     }
 }
 foreach ($forbiddenToken in @(

@@ -20,6 +20,10 @@ $promoter = Join-Path $root 'eng/operations/promote-image-candidate.ps1'
 if (-not [IO.File]::Exists($promoter)) {
     throw "Missing image candidate promoter '$promoter'."
 }
+$promotionVerifier = Join-Path $root 'eng/verify-image-promotion.ps1'
+if (-not [IO.File]::Exists($promotionVerifier)) {
+    throw "Missing image promotion verifier '$promotionVerifier'."
+}
 
 function Write-TestJson {
     param(
@@ -362,6 +366,12 @@ try {
         -PassThru `
         -Confirm:$false
     Assert-TestClosedChecksums -Directory $promotionDirectory
+    $verifiedPromotion = & $promotionVerifier `
+        -PromotionDirectory $promotionDirectory `
+        -ExpectedReleaseId $releaseId `
+        -ExpectedSourceCommit $sourceCommit `
+        -AllowFixtureEvidence `
+        -PassThru
     $promotionImages = @($promotion.images)
     if ($promotion.schemaVersion -ne 1 -or
         $promotion.evidenceKind -cne 'bunkfy-image-promotion' -or
@@ -373,6 +383,11 @@ try {
         $promotionImages.Count -ne 2 -or
         @($promotionImages | Where-Object { $_.outcome -cne 'published' }).Count -ne 0) {
         throw 'Candidate promotion fixture emitted invalid evidence.'
+    }
+    if ($verifiedPromotion.PromotionEvidenceReference -cne
+        $promotion.promotionEvidenceReference -or
+        @($verifiedPromotion.Images).Count -ne 2) {
+        throw 'Image promotion verifier did not preserve the promotion identity.'
     }
     foreach ($image in $promotionImages) {
         $candidateImage = @(
@@ -450,6 +465,25 @@ try {
         } `
         -MessagePattern 'must not overlap' `
         -Context 'candidate promoter'
+    Invoke-TestExpectedFailure `
+        -ScriptPath $promotionVerifier `
+        -Arguments @{
+            PromotionDirectory = $promotionDirectory
+            ExpectedReleaseId = $releaseId
+            ExpectedSourceCommit = $sourceCommit
+        } `
+        -MessagePattern 'requires attested candidate bytes' `
+        -Context 'image promotion verifier'
+    Invoke-TestExpectedFailure `
+        -ScriptPath $promotionVerifier `
+        -Arguments @{
+            PromotionDirectory = $promotionDirectory
+            ExpectedReleaseId = 'release-fixture-other'
+            ExpectedSourceCommit = $sourceCommit
+            AllowFixtureEvidence = $true
+        } `
+        -MessagePattern 'expected release identity' `
+        -Context 'image promotion verifier'
 
     Invoke-TestExpectedFailure `
         -ScriptPath $verifier `
