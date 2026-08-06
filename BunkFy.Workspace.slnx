@@ -99,6 +99,7 @@
     <File Path="apps/backend/docs/planning/imap-reservation-mail-key-rotation-task.md" />
     <File Path="apps/backend/docs/planning/ingestion-adapter-ingress-task.md" />
     <File Path="apps/backend/docs/planning/ingestion-data-rights-workflow-task.md" />
+    <File Path="apps/backend/docs/planning/ingestion-execution-mutation-serialization-task.md" />
     <File Path="apps/backend/docs/planning/ingestion-legal-holds-task.md" />
     <File Path="apps/backend/docs/planning/ingestion-module-task.md" />
     <File Path="apps/backend/docs/planning/ingestion-operational-surface-hardening-task.md" />
