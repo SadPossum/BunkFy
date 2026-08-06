@@ -168,6 +168,12 @@ every active workspace and property-scoped schedules for each
 processing-enabled property. TaskRuntime owns occurrences, leases, retries,
 and worker recovery; no recurring Admin CLI enqueue is required.
 
+Use the [deployed Retention verifier](deployed-retention-verification.md) to
+observe a fresh hourly occurrence through the tenant-scoped public contract and
+require the full returned catalogue to be current and healthy. The probe is
+read-only; maintenance-owner topology, owner-local deletion, restart recovery,
+and alert delivery remain deployment-owned evidence.
+
 ```powershell
 docker @compose run --rm admin-cli -t default -a bootstrap-owner retention list
 ```

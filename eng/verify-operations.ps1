@@ -17,11 +17,13 @@ $scripts = @(
     (Join-Path $PSScriptRoot 'operations\verify-deployed-operations-notifications.ps1'),
     (Join-Path $PSScriptRoot 'operations\verify-deployed-workspace-enrollment.ps1'),
     (Join-Path $PSScriptRoot 'operations\verify-deployed-workspace-invitation.ps1'),
+    (Join-Path $PSScriptRoot 'operations\verify-deployed-retention.ps1'),
     (Join-Path $PSScriptRoot 'test-deployed-adapter-host.ps1'),
     (Join-Path $PSScriptRoot 'test-deployed-public-edge.ps1'),
     (Join-Path $PSScriptRoot 'test-deployed-operations-notifications.ps1'),
     (Join-Path $PSScriptRoot 'test-deployed-workspace-enrollment.ps1'),
     (Join-Path $PSScriptRoot 'test-deployed-workspace-invitation.ps1'),
+    (Join-Path $PSScriptRoot 'test-deployed-retention.ps1'),
     (Join-Path $PSScriptRoot 'new-preview-env.ps1'),
     (Join-Path $PSScriptRoot 'preview.ps1')
 )
@@ -561,3 +563,36 @@ foreach ($forbiddenToken in @(
 
 & (Join-Path $PSScriptRoot 'test-deployed-adapter-host.ps1')
 Write-Host 'BunkFy deployed AdapterHost probe policy is valid.'
+
+$retentionProbe = Get-Content -LiteralPath (
+    Join-Path $PSScriptRoot 'operations\verify-deployed-retention.ps1') -Raw
+foreach ($requiredToken in @(
+        '$handler.AllowAutoRedirect = $false',
+        'BUNKFY_SMOKE_RETENTION_READER_TOKEN',
+        '/api/retention/schedules?page=',
+        "DataClassKey = 'raw-source-evidence'",
+        "DataClassKey = 'sensitive-reservation-history'",
+        'cross-workspace-retention-denied',
+        'automatic-retention-occurrence-observed',
+        "evidenceKind = 'bunkfy-deployed-retention-probe'",
+        "'owner-data-not-seeded-or-read'",
+        "'generic-task-lease-and-restart-not-observed'")) {
+    if (-not $retentionProbe.Contains($requiredToken, [StringComparison]::Ordinal)) {
+        throw "Deployed Retention probe policy is missing '$requiredToken'."
+    }
+}
+foreach ($forbiddenToken in @(
+        'DangerousAcceptAnyServerCertificateValidator',
+        'ServerCertificateCustomValidationCallback',
+        '-SkipCertificateCheck',
+        '$handler.AllowAutoRedirect = $true',
+        '-Method POST',
+        '-Method PUT',
+        '/api/admin/')) {
+    if ($retentionProbe.Contains($forbiddenToken, [StringComparison]::OrdinalIgnoreCase)) {
+        throw "Deployed Retention probe contains forbidden token '$forbiddenToken'."
+    }
+}
+
+& (Join-Path $PSScriptRoot 'test-deployed-retention.ps1')
+Write-Host 'BunkFy deployed Retention probe policy is valid.'

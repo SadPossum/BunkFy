@@ -99,3 +99,8 @@ The [deployed AdapterHost verifier](deployed-adapter-host-verification.md)
 correlates a deliberately seeded synthetic provider record with remote-lease,
 receipt-provenance, and checkpoint evidence. AdapterHost health and status stay
 on an internal or loopback origin and are never added to this public edge.
+
+The read-only [deployed Retention verifier](deployed-retention-verification.md)
+uses one tenant-scoped account to observe a fresh scheduled occurrence and the
+PII-minimized health catalogue. Its credential and schedule data deliberately
+remain outside this unauthenticated edge probe.

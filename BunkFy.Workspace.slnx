@@ -750,6 +750,7 @@
     <File Path="docs/operations/deployed-adapter-host-verification.md" />
     <File Path="docs/operations/deployed-operations-notifications-verification.md" />
     <File Path="docs/operations/deployed-public-edge-verification.md" />
+    <File Path="docs/operations/deployed-retention-verification.md" />
     <File Path="docs/operations/deployed-workspace-browser-rehearsal.md" />
     <File Path="docs/operations/deployed-workspace-enrollment-verification.md" />
     <File Path="docs/operations/deployed-workspace-invitation-verification.md" />
@@ -780,6 +781,7 @@
     <File Path="eng/test-deployed-adapter-host.ps1" />
     <File Path="eng/test-deployed-operations-notifications.ps1" />
     <File Path="eng/test-deployed-public-edge.ps1" />
+    <File Path="eng/test-deployed-retention.ps1" />
     <File Path="eng/test-deployed-workspace-enrollment.ps1" />
     <File Path="eng/test-deployed-workspace-invitation.ps1" />
     <File Path="eng/test-image-candidate-package.ps1" />
@@ -803,6 +805,7 @@
     <File Path="eng/operations/verify-deployed-adapter-host.ps1" />
     <File Path="eng/operations/verify-deployed-operations-notifications.ps1" />
     <File Path="eng/operations/verify-deployed-public-edge.ps1" />
+    <File Path="eng/operations/verify-deployed-retention.ps1" />
     <File Path="eng/operations/verify-deployed-workspace-enrollment.ps1" />
     <File Path="eng/operations/verify-deployed-workspace-invitation.ps1" />
     <File Path="eng/operations/verify-preview-isolation.ps1" />
