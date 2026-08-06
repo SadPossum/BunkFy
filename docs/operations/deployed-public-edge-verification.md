@@ -105,6 +105,11 @@ uses two authenticated accounts and a reversible inventory block to prove the
 durable notification and SSE path. Its mutation and credentials deliberately
 remain outside this public-edge probe.
 
+The mutation-bearing
+[Reservations and Inventory verifier](deployed-reservations-inventory-verification.md)
+proves exact reservation replay, allocation, check-in, checkout, and inventory
+release without retaining scoped or guest coordinates in passing evidence.
+
 The [deployed AdapterHost verifier](deployed-adapter-host-verification.md)
 correlates a deliberately seeded synthetic provider record with remote-lease,
 receipt-provenance, and checkpoint evidence. AdapterHost health and status stay

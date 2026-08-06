@@ -23,6 +23,7 @@ $scripts = @(
     (Join-Path $PSScriptRoot 'operations\verify-deployed-public-edge.ps1'),
     (Join-Path $PSScriptRoot 'operations\rehearse-deployed-release-rollback.ps1'),
     (Join-Path $PSScriptRoot 'operations\verify-deployed-operations-notifications.ps1'),
+    (Join-Path $PSScriptRoot 'operations\verify-deployed-reservations-inventory.ps1'),
     (Join-Path $PSScriptRoot 'operations\verify-deployed-workspace-enrollment.ps1'),
     (Join-Path $PSScriptRoot 'operations\verify-deployed-workspace-invitation.ps1'),
     (Join-Path $PSScriptRoot 'operations\verify-deployed-retention.ps1'),
@@ -31,6 +32,7 @@ $scripts = @(
     (Join-Path $PSScriptRoot 'test-deployed-public-edge.ps1'),
     (Join-Path $PSScriptRoot 'test-deployed-release-rollback.ps1'),
     (Join-Path $PSScriptRoot 'test-deployed-operations-notifications.ps1'),
+    (Join-Path $PSScriptRoot 'test-deployed-reservations-inventory.ps1'),
     (Join-Path $PSScriptRoot 'test-deployed-workspace-enrollment.ps1'),
     (Join-Path $PSScriptRoot 'test-deployed-workspace-invitation.ps1'),
     (Join-Path $PSScriptRoot 'test-deployed-retention.ps1'),
@@ -782,6 +784,42 @@ foreach ($forbiddenToken in @(
 
 & (Join-Path $PSScriptRoot 'test-deployed-operations-notifications.ps1')
 Write-Host 'BunkFy deployed Operations Notifications probe policy is valid.'
+
+$reservationsInventoryProbe = Get-Content -LiteralPath (
+    Join-Path $PSScriptRoot 'operations\verify-deployed-reservations-inventory.ps1') -Raw
+foreach ($requiredToken in @(
+        "SupportsShouldProcess = `$true",
+        '$handler.AllowAutoRedirect = $false',
+        'ExpectedReleaseId',
+        'release-identity-continuous',
+        'BUNKFY_SMOKE_RESERVATION_OPERATOR_TOKEN',
+        '/api/inventory/properties/',
+        '/api/reservations/properties/',
+        'reservation-create-replay-stable',
+        'reservation-checkout-converged',
+        'inventory-released-after-checkout',
+        'Complete-SmokeReservationBestEffort',
+        "evidenceKind = 'bunkfy-deployed-reservations-inventory-probe'",
+        "'durable-guest-record-not-created'",
+        "'synthetic-checked-out-reservation-retained'")) {
+    if (-not $reservationsInventoryProbe.Contains($requiredToken, [StringComparison]::Ordinal)) {
+        throw "Deployed Reservations and Inventory probe policy is missing '$requiredToken'."
+    }
+}
+foreach ($forbiddenToken in @(
+        'DangerousAcceptAnyServerCertificateValidator',
+        'ServerCertificateCustomValidationCallback',
+        '-SkipCertificateCheck',
+        '$handler.AllowAutoRedirect = $true',
+        '/api/admin/',
+        '/api/guests')) {
+    if ($reservationsInventoryProbe.Contains($forbiddenToken, [StringComparison]::OrdinalIgnoreCase)) {
+        throw "Deployed Reservations and Inventory probe contains forbidden token '$forbiddenToken'."
+    }
+}
+
+& (Join-Path $PSScriptRoot 'test-deployed-reservations-inventory.ps1')
+Write-Host 'BunkFy deployed Reservations and Inventory probe policy is valid.'
 
 $adapterHostProbe = Get-Content -LiteralPath (
     Join-Path $PSScriptRoot 'operations\verify-deployed-adapter-host.ps1') -Raw

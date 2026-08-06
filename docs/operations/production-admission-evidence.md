@@ -33,6 +33,7 @@ Provide the exact retained files or directories for:
 - workspace [invitation](deployed-workspace-invitation-verification.md) and
   [QR enrollment](deployed-workspace-enrollment-verification.md) results;
 - [Operations Notifications](deployed-operations-notifications-verification.md),
+  [Reservations and Inventory lifecycle](deployed-reservations-inventory-verification.md),
   [AdapterHost](deployed-adapter-host-verification.md), and
   [Retention](deployed-retention-verification.md) results.
 
@@ -71,6 +72,7 @@ $admission = @{
   WorkspaceInvitationEvidencePath = '/evidence/probes/workspace-invitation.json'
   WorkspaceEnrollmentEvidencePath = '/evidence/probes/workspace-enrollment.json'
   OperationsNotificationsEvidencePath = '/evidence/probes/notifications.json'
+  ReservationsInventoryEvidencePath = '/evidence/probes/reservations-inventory.json'
   AdapterHostEvidencePath = '/evidence/probes/adapter-host.json'
   RetentionEvidencePath = '/evidence/probes/retention.json'
   BrowserRehearsalReference = 'record:BROWSER-123'
@@ -92,8 +94,8 @@ after the candidate has been probed.
 
 The admission record contains release and image identities, evidence kinds,
 timestamps, check counts, SHA-256 bindings, and the four private references. It
-does not copy workspace, property, Staff, guest, notification, adapter, or
-Retention coordinates from source evidence.
+does not copy workspace, property, Inventory, Reservation, Staff, guest,
+notification, adapter, or Retention coordinates from source evidence.
 
 ## Verify And Approve
 

@@ -140,6 +140,12 @@ function New-TestProbeEvidence {
             $record['createdNotification'] = [ordered]@{ id = [Guid]::NewGuid().ToString('D'); streamSequence = 41 }
             $record['releasedNotification'] = [ordered]@{ id = [Guid]::NewGuid().ToString('D'); streamSequence = 42 }
         }
+        'reservations-inventory' {
+            $record['origin'] = $Origin.GetLeftPart([UriPartial]::Authority)
+            $record['releaseId'] = $ReleaseId
+            $record['transport'] = 'loopback-http-fixture'
+            $record['result'] = 'passed'
+        }
         'adapter-host' {
             $record['publicOrigin'] = $Origin.GetLeftPart([UriPartial]::Authority)
             $record['releaseId'] = $ReleaseId
@@ -332,6 +338,7 @@ try {
         Invitation = Join-Path $temporaryRoot 'invitation.json'
         Enrollment = Join-Path $temporaryRoot 'enrollment.json'
         Notifications = Join-Path $temporaryRoot 'notifications.json'
+        ReservationsInventory = Join-Path $temporaryRoot 'reservations-inventory.json'
         AdapterHost = Join-Path $temporaryRoot 'adapter-host.json'
         Retention = Join-Path $temporaryRoot 'retention.json'
     }
@@ -341,6 +348,7 @@ try {
     New-TestProbeEvidence -Path $probePaths.Invitation -SpecificationName workspace-invitation -Origin $origin -ReleaseId $candidateRelease
     New-TestProbeEvidence -Path $probePaths.Enrollment -SpecificationName workspace-enrollment -Origin $origin -ReleaseId $candidateRelease
     New-TestProbeEvidence -Path $probePaths.Notifications -SpecificationName operations-notifications -Origin $origin -ReleaseId $candidateRelease
+    New-TestProbeEvidence -Path $probePaths.ReservationsInventory -SpecificationName reservations-inventory -Origin $origin -ReleaseId $candidateRelease
     New-TestProbeEvidence -Path $probePaths.AdapterHost -SpecificationName adapter-host -Origin $origin -ReleaseId $candidateRelease
     New-TestProbeEvidence -Path $probePaths.Retention -SpecificationName retention -Origin $origin -ReleaseId $candidateRelease
 
@@ -362,6 +370,7 @@ try {
         WorkspaceInvitationEvidencePath = $probePaths.Invitation
         WorkspaceEnrollmentEvidencePath = $probePaths.Enrollment
         OperationsNotificationsEvidencePath = $probePaths.Notifications
+        ReservationsInventoryEvidencePath = $probePaths.ReservationsInventory
         AdapterHostEvidencePath = $probePaths.AdapterHost
         RetentionEvidencePath = $probePaths.Retention
         BrowserRehearsalReference = 'record:BROWSER-123'
@@ -388,7 +397,7 @@ try {
         $assembled.AdmissionEvidenceReference -cne $verified.AdmissionEvidenceReference -or
         $verified.AdmissionEvidenceReference -cne $admissionReference -or
         $verified.ReleaseId -cne $candidateRelease -or
-        @($verified.Record.evidence).Count -ne 12 -or
+        @($verified.Record.evidence).Count -ne 13 -or
         @($verified.Record.privateEvidence).Count -ne 4 -or
         @($verified.Record.checks).Count -ne 7) {
         throw 'Production admission fixture emitted invalid closed evidence.'
