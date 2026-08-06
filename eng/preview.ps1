@@ -62,6 +62,11 @@ foreach ($entry in $minimumSecretLengths.GetEnumerator()) {
     }
 }
 
+$releaseId = [string]$settings['BUNKFY_RELEASE_ID']
+if ($releaseId -cnotmatch '^[a-z0-9][a-z0-9._-]{2,127}$') {
+    throw 'BUNKFY_RELEASE_ID must be a 3-128 character non-secret release identifier.'
+}
+
 $dataRightsKeyNames = @(
     'BUNKFY_DATA_RIGHTS_PSEUDONYMISATION_KEY',
     'BUNKFY_DATA_RIGHTS_REPLAY_ENVELOPE_KEY',

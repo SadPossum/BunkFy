@@ -23,6 +23,10 @@ Review `deploy/preview/.env`, set `BUNKFY_PUBLIC_URL` to the externally visible 
 https://your-bunkfy-host/auth/complete
 ```
 
+Set `BUNKFY_RELEASE_ID` to a new non-secret identifier for each deployed
+candidate. The API and Worker receive the same value, and deployed edge evidence
+must match it. `preview-local` is only the local default.
+
 The generated file is ignored by Git. Keep it in the server secret store or protected deployment workspace. PostgreSQL and NATS credentials must remain URL/connection-string safe.
 
 `preview.ps1 build` and `preview.ps1 up` refresh the backend's ignored GMA
@@ -54,6 +58,11 @@ Before promoting a production candidate, run the isolated
 same Production `Plan` and approved `Apply` admission path against a disposable,
 internal PostgreSQL target and retains non-secret evidence without changing the
 preview deployment.
+
+Publish retained exact candidate bytes through the
+[image candidate promotion](image-candidate-promotion.md) boundary. Production
+hosts require the resulting release id and promotion evidence reference, plus a
+separately approved rollback or recovery evidence reference.
 
 ## First Owner
 

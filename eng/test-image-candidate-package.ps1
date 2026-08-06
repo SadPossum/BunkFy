@@ -16,6 +16,10 @@ $verifier = Join-Path $root 'eng/verify-image-candidate.ps1'
 if (-not [IO.File]::Exists($verifier)) {
     throw "Missing image candidate verifier '$verifier'."
 }
+$promoter = Join-Path $root 'eng/operations/promote-image-candidate.ps1'
+if (-not [IO.File]::Exists($promoter)) {
+    throw "Missing image candidate promoter '$promoter'."
+}
 
 function Write-TestJson {
     param(
@@ -58,7 +62,10 @@ function Add-TestTarEntry {
 }
 
 function New-TestOciArchive {
-    param([Parameter(Mandatory = $true)][string] $Path)
+    param(
+        [Parameter(Mandatory = $true)][string] $Path,
+        [switch] $IncludeAdditionalDescriptor
+    )
 
     $encoding = [Text.UTF8Encoding]::new($false)
     $configBytes = $encoding.GetBytes('{}')
@@ -76,18 +83,42 @@ function New-TestOciArchive {
     $manifestBytes = $encoding.GetBytes(
         (($manifest | ConvertTo-Json -Depth 8 -Compress) + "`n"))
     $manifestHash = Get-TestSha256 -Bytes $manifestBytes
+    $descriptors = @(
+        [ordered]@{
+            mediaType = 'application/vnd.oci.image.manifest.v1+json'
+            digest = "sha256:$manifestHash"
+            size = $manifestBytes.Length
+            platform = [ordered]@{
+                architecture = 'amd64'
+                os = 'linux'
+            }
+        })
+    $additionalManifestBytes = $null
+    $additionalManifestHash = $null
+    if ($IncludeAdditionalDescriptor) {
+        $additionalManifest = [ordered]@{
+            schemaVersion = 2
+            mediaType = 'application/vnd.oci.image.manifest.v1+json'
+            config = $manifest.config
+            layers = @()
+            annotations = [ordered]@{ 'fixture.kind' = 'unexpected' }
+        }
+        $additionalManifestBytes = $encoding.GetBytes(
+            (($additionalManifest | ConvertTo-Json -Depth 8 -Compress) + "`n"))
+        $additionalManifestHash = Get-TestSha256 -Bytes $additionalManifestBytes
+        $descriptors += [ordered]@{
+            mediaType = 'application/vnd.oci.image.manifest.v1+json'
+            digest = "sha256:$additionalManifestHash"
+            size = $additionalManifestBytes.Length
+            platform = [ordered]@{
+                architecture = 'amd64'
+                os = 'linux'
+            }
+        }
+    }
     $index = [ordered]@{
         schemaVersion = 2
-        manifests = @(
-            [ordered]@{
-                mediaType = 'application/vnd.oci.image.manifest.v1+json'
-                digest = "sha256:$manifestHash"
-                size = $manifestBytes.Length
-                platform = [ordered]@{
-                    architecture = 'amd64'
-                    os = 'linux'
-                }
-            })
+        manifests = $descriptors
     }
     $layoutBytes = $encoding.GetBytes("{`"imageLayoutVersion`":`"1.0.0`"}`n")
     $indexBytes = $encoding.GetBytes(
@@ -114,6 +145,12 @@ function New-TestOciArchive {
                 -Writer $writer `
                 -Name "blobs/sha256/$manifestHash" `
                 -Bytes $manifestBytes
+            if ($IncludeAdditionalDescriptor) {
+                Add-TestTarEntry `
+                    -Writer $writer `
+                    -Name "blobs/sha256/$additionalManifestHash" `
+                    -Bytes $additionalManifestBytes
+            }
         }
         finally {
             $writer.Dispose()
@@ -309,6 +346,111 @@ try {
         $verifiedBundle.AttestationsVerified) {
         throw 'Candidate verifier did not return the admitted bundle identity.'
     }
+
+    $releaseId = 'release-fixture-001'
+    $fixtureRegistry = Join-Path $temporaryRoot 'fixture-registry'
+    $promotionDirectory = Join-Path $temporaryRoot 'promotion'
+    $promotion = & $promoter `
+        -BundleDirectory $bundleDirectory `
+        -ExpectedSourceCommit $sourceCommit `
+        -ReleaseId $releaseId `
+        -BackendDestination "registry.fixture.invalid/bunkfy/backend:$releaseId" `
+        -WebDestination "registry.fixture.invalid/bunkfy/web:$releaseId" `
+        -OutputDirectory $promotionDirectory `
+        -FixtureRegistryDirectory $fixtureRegistry `
+        -AllowUnattested `
+        -PassThru `
+        -Confirm:$false
+    Assert-TestClosedChecksums -Directory $promotionDirectory
+    $promotionImages = @($promotion.images)
+    if ($promotion.schemaVersion -ne 1 -or
+        $promotion.evidenceKind -cne 'bunkfy-image-promotion' -or
+        $promotion.result -cne 'passed' -or
+        $promotion.releaseId -cne $releaseId -or
+        $promotion.sourceCommit -cne $sourceCommit -or
+        $promotion.candidate.attestationsVerified -ne $false -or
+        $promotion.promotionEvidenceReference -cnotmatch '^promotion:[0-9a-f]{32}$' -or
+        $promotionImages.Count -ne 2 -or
+        @($promotionImages | Where-Object { $_.outcome -cne 'published' }).Count -ne 0) {
+        throw 'Candidate promotion fixture emitted invalid evidence.'
+    }
+    foreach ($image in $promotionImages) {
+        $candidateImage = @(
+            $verifiedBundle.Images |
+                Where-Object { $_.Name -ceq $image.name })
+        $fixtureArchive = Join-Path $fixtureRegistry "$($image.name).oci.tar"
+        if ($candidateImage.Count -ne 1 -or
+            $image.sourceManifestDigest -cne $candidateImage[0].ManifestDigest -or
+            $image.digestReference -cne
+                "registry.fixture.invalid/bunkfy/$($image.name)@$($candidateImage[0].ManifestDigest)" -or
+            -not [IO.File]::Exists($fixtureArchive) -or
+            (Get-FileHash -LiteralPath $fixtureArchive -Algorithm SHA256).Hash.ToLowerInvariant() -cne
+                $candidateImage[0].Sha256) {
+            throw "Candidate promotion did not preserve '$($image.name)' identity."
+        }
+    }
+
+    $idempotentDirectory = Join-Path $temporaryRoot 'promotion-idempotent'
+    $idempotent = & $promoter `
+        -BundleDirectory $bundleDirectory `
+        -ExpectedSourceCommit $sourceCommit `
+        -ReleaseId $releaseId `
+        -BackendDestination "registry.fixture.invalid/bunkfy/backend:$releaseId" `
+        -WebDestination "registry.fixture.invalid/bunkfy/web:$releaseId" `
+        -OutputDirectory $idempotentDirectory `
+        -FixtureRegistryDirectory $fixtureRegistry `
+        -AllowUnattested `
+        -PassThru `
+        -Confirm:$false
+    if (@($idempotent.images | Where-Object {
+                $_.outcome -cne 'already-present' }).Count -ne 0) {
+        throw 'Candidate promotion fixture was not idempotent for identical bytes.'
+    }
+    Invoke-TestExpectedFailure `
+        -ScriptPath $promoter `
+        -Arguments @{
+            BundleDirectory = $bundleDirectory
+            ExpectedSourceCommit = $sourceCommit
+            ReleaseId = $releaseId
+            BackendDestination = 'registry.fixture.invalid/bunkfy/backend:wrong-tag'
+            WebDestination = "registry.fixture.invalid/bunkfy/web:$releaseId"
+            OutputDirectory = (Join-Path $temporaryRoot 'rejected-tag')
+            FixtureRegistryDirectory = $fixtureRegistry
+            AllowUnattested = $true
+            Confirm = $false
+        } `
+        -MessagePattern 'exact release id' `
+        -Context 'candidate promoter'
+    Invoke-TestExpectedFailure `
+        -ScriptPath $promoter `
+        -Arguments @{
+            BundleDirectory = $bundleDirectory
+            ExpectedSourceCommit = $sourceCommit
+            ReleaseId = $releaseId
+            BackendDestination = "registry.example.test/bunkfy/backend:$releaseId"
+            WebDestination = "registry.example.test/bunkfy/web:$releaseId"
+            OutputDirectory = (Join-Path $temporaryRoot 'rejected-unattested')
+            AllowUnattested = $true
+            Confirm = $false
+        } `
+        -MessagePattern 'restricted to the local fixture' `
+        -Context 'candidate promoter'
+    Invoke-TestExpectedFailure `
+        -ScriptPath $promoter `
+        -Arguments @{
+            BundleDirectory = $bundleDirectory
+            ExpectedSourceCommit = $sourceCommit
+            ReleaseId = $releaseId
+            BackendDestination = "registry.fixture.invalid/bunkfy/backend:$releaseId"
+            WebDestination = "registry.fixture.invalid/bunkfy/web:$releaseId"
+            OutputDirectory = (Join-Path $bundleDirectory 'promotion-evidence')
+            FixtureRegistryDirectory = $fixtureRegistry
+            AllowUnattested = $true
+            Confirm = $false
+        } `
+        -MessagePattern 'must not overlap' `
+        -Context 'candidate promoter'
+
     Invoke-TestExpectedFailure `
         -ScriptPath $verifier `
         -Arguments @{
@@ -363,6 +505,28 @@ try {
         throw 'Rejected unlisted evidence left a candidate bundle.'
     }
     [IO.File]::Delete($unlistedPath)
+
+    $ambiguousArchive = Join-Path $temporaryRoot 'ambiguous.oci.tar'
+    $ambiguousDigest = New-TestOciArchive `
+        -Path $ambiguousArchive `
+        -IncludeAdditionalDescriptor
+    if ($ambiguousDigest -cne $backendDigest) {
+        throw 'Ambiguous OCI fixture changed the expected manifest digest.'
+    }
+    $ambiguousOutput = Join-Path $temporaryRoot 'rejected-ambiguous-archive'
+    Invoke-TestExpectedFailure `
+        -ScriptPath $packager `
+        -Arguments @{
+            EvidenceDirectory = $evidenceDirectory
+            BackendArchivePath = $ambiguousArchive
+            WebArchivePath = $webArchive
+            OutputDirectory = $ambiguousOutput
+        } `
+        -MessagePattern 'exactly one top-level manifest descriptor' `
+        -Context 'candidate packager'
+    if ([IO.Directory]::Exists($ambiguousOutput)) {
+        throw 'Rejected ambiguous OCI archive left a candidate bundle.'
+    }
 
     $evidenceManifest.images[0].manifestDigest = 'sha256:' + ('f' * 64)
     Write-TestJson `

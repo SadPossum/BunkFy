@@ -365,8 +365,12 @@ function Get-BunkFyOciArchiveEvidence {
         if ($layout.imageLayoutVersion -ne '1.0.0' -or $index.schemaVersion -ne 2) {
             throw "OCI archive for '$Name' has an unsupported layout."
         }
+        $descriptors = @($index.manifests)
+        if ($descriptors.Count -ne 1) {
+            throw "OCI archive for '$Name' must contain exactly one top-level manifest descriptor."
+        }
         $matchingDescriptors = @(
-            @($index.manifests) |
+            $descriptors |
                 Where-Object { $_.digest -ceq $ExpectedManifestDigest })
         if ($matchingDescriptors.Count -ne 1) {
             throw "OCI archive for '$Name' does not contain its recorded manifest digest."

@@ -151,6 +151,7 @@ $overrideValues = [ordered]@{
     BUNKFY_VOLUME_PREFIX = $volumePrefix
     BUNKFY_PUBLIC_PORT = [string]$publicPort
     BUNKFY_ADMIN_PORT = [string]$adminPort
+    BUNKFY_RELEASE_ID = "recovery-$shortId"
 }
 $previousValues = [ordered]@{}
 foreach ($entry in $overrideValues.GetEnumerator()) {
@@ -203,6 +204,7 @@ try {
 
     & $publicProbeScript `
         -PublicOrigin $publicOrigin `
+        -ExpectedReleaseId $overrideValues.BUNKFY_RELEASE_ID `
         -AllowLoopbackHttp `
         -TimeoutSeconds $RequestTimeoutSeconds `
         -OutputPath $publicEvidencePath

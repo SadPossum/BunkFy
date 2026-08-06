@@ -1,6 +1,9 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)][Uri] $PublicOrigin,
+    [Parameter(Mandatory = $true)]
+    [ValidatePattern('^[a-z0-9][a-z0-9._-]{2,127}$')]
+    [string] $ExpectedReleaseId,
     [string] $OutputPath,
     [ValidateRange(1, 60)][int] $TimeoutSeconds = 15,
     [ValidateLength(1, 253)][string] $UntrustedHost = 'untrusted.invalid',
@@ -93,7 +96,9 @@ try {
         -Client $client `
         -Uri ([Uri]::new($origin, '/api/smoke')) `
         -TimeoutSeconds $TimeoutSeconds
-    Assert-BunkFySmokeResponse -Response $smokeResponse
+    $observedReleaseId = Assert-BunkFySmokeResponse `
+        -Response $smokeResponse `
+        -ExpectedReleaseId $ExpectedReleaseId
     $checks.Add([ordered]@{
         name = 'public-api-smoke'
         path = '/api/smoke'
@@ -130,15 +135,16 @@ finally {
 }
 
 $evidence = [ordered]@{
-    schemaVersion = 1
+    schemaVersion = 2
     evidenceKind = 'bunkfy-deployed-public-edge-probe'
     generatedAtUtc = [DateTimeOffset]::UtcNow.ToString('O')
     origin = $origin.GetLeftPart([UriPartial]::Authority)
+    releaseId = $observedReleaseId
     transport = if ($origin.Scheme -eq 'https') { 'trusted-https' } else { 'loopback-http-fixture' }
     result = 'passed'
     checks = @($checks)
     limitations = @(
-        'release-identity-not-observed',
+        'registry-and-image-provenance-require-promotion-record',
         'private-infrastructure-not-observed',
         'authenticated-workflows-not-executed'
     )

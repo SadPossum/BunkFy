@@ -89,11 +89,15 @@ are binary build output; the ordinary evidence artifact remains retained for
 
 This bundle is a promotion input, not a release. It has no registry reference,
 deployable reference, environment, or approval, and expiry does not alter the
-longer-lived evidence record.
+longer-lived evidence record. The separate
+[image candidate promotion](image-candidate-promotion.md) command consumes the
+attested bundle without rebuilding it and emits digest-qualified registry
+references plus a closed promotion record.
 
 ## Deliberate Limits
 
-- No registry login, registry write permission, or image push exists.
+- The candidate workflow has no registry login, registry write permission, or
+  image push.
 - No registry reference is written to the evidence manifest.
 - No deployment or environment promotion occurs.
 - No hosted-production declaration is generated.
@@ -104,7 +108,8 @@ longer-lived evidence record.
 - No image-security exception path exists yet; blocking findings must be fixed
   before this gate can pass.
 
-An approved release channel must later publish the already-gated bytes,
-associate the registry digest and attestations with that immutable artifact,
-and prove private infrastructure and rollout controls. Until then, a successful
-candidate gate is build and scan evidence, not launch approval.
+The manual promotion boundary can publish the already-gated bytes to an
+operator-selected registry and associate their exact digests with the candidate
+attestations. It still does not deploy an environment or prove private rollout,
+approval, registry immutability policy, or rollback controls. A successful
+candidate gate remains build and scan evidence, not launch approval.

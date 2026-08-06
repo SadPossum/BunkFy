@@ -229,6 +229,7 @@ foreach ($script in @(
         'eng/image-candidate.common.ps1',
         'eng/package-image-candidate.ps1',
         'eng/verify-image-candidate.ps1',
+        'eng/operations/promote-image-candidate.ps1',
         'eng/test-image-candidate-package.ps1'
     )) {
     Assert-PowerShellSyntax -RelativePath $script
@@ -284,6 +285,7 @@ foreach ($token in @(
         'Get-BunkFyClosedChecksumSet',
         'is not a closed checksummed file set.',
         'contains an unlisted or missing directory.',
+        'exactly one top-level manifest descriptor',
         'manifest descriptor size',
         'Assert-BunkFyImageEvidenceManifest'
     )) {
@@ -317,6 +319,46 @@ foreach ($token in @(
             $token,
             [System.StringComparison]::Ordinal) -lt 0) {
         throw "OCI candidate verifier is missing '$token'."
+    }
+}
+
+$candidatePromoter = Read-TextFile `
+    -RelativePath 'eng/operations/promote-image-candidate.ps1' `
+    -MaximumBytes 64KB
+foreach ($token in @(
+        "SupportsShouldProcess = `$true",
+        'verify-image-candidate.ps1',
+        'AllowUnattested is restricted to the local fixture registry mode.',
+        'Get-Command $SkopeoPath -CommandType Application',
+        "'--preserve-digests'",
+        "'--retry-times', '3'",
+        "'--digestfile'",
+        'registry tag',
+        'candidate.AttestationsVerified',
+        'Assert-BunkFyDisjointPromotionPaths',
+        "evidenceKind = 'bunkfy-image-promotion'",
+        'digestReference',
+        'checksums.sha256',
+        "'deployment-not-observed'",
+        "'rollback-not-executed'")) {
+    if ($candidatePromoter.IndexOf(
+            $token,
+            [System.StringComparison]::OrdinalIgnoreCase) -lt 0) {
+        throw "OCI candidate promoter is missing '$token'."
+    }
+}
+foreach ($forbiddenToken in @(
+        '--dest-username',
+        '--dest-password',
+        '--dest-tls-verify=false',
+        '--src-tls-verify=false',
+        'DangerousAcceptAnyServerCertificateValidator',
+        'ServerCertificateCustomValidationCallback',
+        'http://')) {
+    if ($candidatePromoter.Contains(
+            $forbiddenToken,
+            [System.StringComparison]::OrdinalIgnoreCase)) {
+        throw "OCI candidate promoter contains forbidden token '$forbiddenToken'."
     }
 }
 

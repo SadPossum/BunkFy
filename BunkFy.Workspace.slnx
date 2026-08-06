@@ -755,6 +755,7 @@
     <File Path="docs/operations/deployed-workspace-browser-rehearsal.md" />
     <File Path="docs/operations/deployed-workspace-enrollment-verification.md" />
     <File Path="docs/operations/deployed-workspace-invitation-verification.md" />
+    <File Path="docs/operations/image-candidate-promotion.md" />
     <File Path="docs/operations/preview-deployment.md" />
     <File Path="docs/operations/preview-recovery-rehearsal.md" />
     <File Path="docs/operations/product-image-evidence.md" />
@@ -802,6 +803,7 @@
     <File Path="eng/operations/deployed-public-edge.common.ps1" />
     <File Path="eng/operations/offboard-staff-access.ps1" />
     <File Path="eng/operations/preview-state.common.ps1" />
+    <File Path="eng/operations/promote-image-candidate.ps1" />
     <File Path="eng/operations/provision-staff-access.ps1" />
     <File Path="eng/operations/rehearse-preview-recovery.ps1" />
     <File Path="eng/operations/rehearse-production-migrations.ps1" />

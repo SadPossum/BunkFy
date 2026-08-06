@@ -35,7 +35,9 @@ images, confirmation links, or full provider payloads in release evidence.
 Keep the passing JSON evidence from all three probes with the same candidate:
 
 ```powershell
-./eng/operations/verify-deployed-public-edge.ps1 -Origin https://candidate.example
+./eng/operations/verify-deployed-public-edge.ps1 `
+  -PublicOrigin https://candidate.example `
+  -ExpectedReleaseId <promotion-record-release-id>
 ./eng/operations/verify-deployed-workspace-invitation.ps1 `
   -Origin https://candidate.example `
   -WorkspaceId <workspace-id> `

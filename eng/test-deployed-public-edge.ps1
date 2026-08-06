@@ -84,6 +84,7 @@ function Start-BunkFyEdgeFixtureServer {
                                 application = 'BunkFy'
                                 service = 'BunkFy.Host.Api'
                                 status = 'ok'
+                                releaseId = 'release-fixture-001'
                                 timestampUtc = [DateTimeOffset]::UtcNow.ToString('O')
                             } | ConvertTo-Json -Compress
                         }
@@ -112,6 +113,12 @@ function Start-BunkFyEdgeFixtureServer {
                             application = 'BunkFy'
                             service = 'BunkFy.Host.Api'
                             status = 'ok'
+                            releaseId = if ($Mode -eq 'ReleaseMismatch') {
+                                'release-fixture-other'
+                            }
+                            else {
+                                'release-fixture-001'
+                            }
                             timestampUtc = [DateTimeOffset]::UtcNow.ToString('O')
                         } | ConvertTo-Json -Compress
                     }
@@ -233,6 +240,7 @@ function Assert-BunkFyProbeRejected {
         try {
             & $probeScript `
                 -PublicOrigin $server.Origin `
+                -ExpectedReleaseId 'release-fixture-001' `
                 -AllowLoopbackHttp `
                 -OutputPath $output
         }
@@ -262,6 +270,7 @@ try {
     try {
         & $probeScript `
             -PublicOrigin $validServer.Origin `
+            -ExpectedReleaseId 'release-fixture-001' `
             -AllowLoopbackHttp `
             -OutputPath $validOutput
         Stop-BunkFyEdgeFixtureServer -Server $validServer -RequireCompleted
@@ -274,10 +283,11 @@ try {
     }
 
     $evidence = Get-Content -LiteralPath $validOutput -Raw | ConvertFrom-Json -Depth 8
-    if ($evidence.schemaVersion -ne 1 -or
+    if ($evidence.schemaVersion -ne 2 -or
         $evidence.evidenceKind -cne 'bunkfy-deployed-public-edge-probe' -or
         $evidence.result -cne 'passed' -or
         $evidence.transport -cne 'loopback-http-fixture' -or
+        $evidence.releaseId -cne 'release-fixture-001' -or
         @($evidence.checks).Count -ne 5 -or
         @($evidence.limitations).Count -ne 3) {
         throw 'Valid edge fixture emitted unexpected evidence.'
@@ -289,6 +299,9 @@ try {
         }
     }
 
+    Assert-BunkFyProbeRejected `
+        -Mode 'ReleaseMismatch' `
+        -ExpectedMessage 'does not match'
     Assert-BunkFyProbeRejected `
         -Mode 'MissingHeader' `
         -ExpectedMessage 'X-Permitted-Cross-Domain-Policies'

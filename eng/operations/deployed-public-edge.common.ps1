@@ -281,7 +281,12 @@ function Get-BunkFyBoundedUtf8Body {
 }
 
 function Assert-BunkFySmokeResponse {
-    param([Parameter(Mandatory = $true)][object] $Response)
+    param(
+        [Parameter(Mandatory = $true)][object] $Response,
+        [Parameter(Mandatory = $true)]
+        [ValidatePattern('^[a-z0-9][a-z0-9._-]{2,127}$')]
+        [string] $ExpectedReleaseId
+    )
 
     Assert-BunkFyResponseStatus $Response 200 '/api/smoke'
     Assert-BunkFyResponseContentType $Response 'application/json' '/api/smoke'
@@ -293,7 +298,12 @@ function Assert-BunkFySmokeResponse {
         throw "The /api/smoke response is not valid JSON: $($_.Exception.Message)"
     }
 
-    $expectedNames = @('application', 'service', 'status', 'timestampUtc')
+    $expectedNames = @(
+        'application',
+        'releaseId',
+        'service',
+        'status',
+        'timestampUtc')
     $actualNames = @($payload.PSObject.Properties.Name | Sort-Object)
     if (@(Compare-Object -ReferenceObject $expectedNames -DifferenceObject $actualNames).Count -gt 0) {
         throw 'The /api/smoke response does not have the expected closed shape.'
@@ -302,6 +312,9 @@ function Assert-BunkFySmokeResponse {
         $payload.service -cne 'BunkFy.Host.Api' -or
         $payload.status -cne 'ok') {
         throw 'The /api/smoke response does not identify the BunkFy public API.'
+    }
+    if ($payload.releaseId -cne $ExpectedReleaseId) {
+        throw "The /api/smoke release id '$($payload.releaseId)' does not match '$ExpectedReleaseId'."
     }
 
     $timestamp = [DateTimeOffset]::MinValue
@@ -316,6 +329,8 @@ function Assert-BunkFySmokeResponse {
     if ($timestamp -lt $now.AddMinutes(-10) -or $timestamp -gt $now.AddMinutes(1)) {
         throw 'The /api/smoke timestamp is outside the allowed clock-skew window.'
     }
+
+    return [string]$payload.releaseId
 }
 
 function Invoke-BunkFyPublicEdgeRequest {

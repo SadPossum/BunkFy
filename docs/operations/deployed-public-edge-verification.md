@@ -20,7 +20,7 @@ The probe will fail closed unless one origin:
   header policy;
 - exposes a healthy edge at `/healthz`;
 - proxies `/api/smoke` to the BunkFy public API and returns the expected bounded
-  service identity;
+  service and release identity;
 - returns `404` for a representative Admin API route on the public origin; and
 - rejects an untrusted `Host` value instead of forwarding a successful public
   API response.
@@ -31,10 +31,13 @@ bodies or raw headers.
 
 ## Evidence Boundary
 
-The result is one external observation at one time. It does not prove:
+The result is one external observation at one time. It proves that the expected
+non-secret release id answers through the composed public edge, but it does not
+prove:
 
-- which source commit or image digest is deployed;
-- registry promotion, signatures, or private deployment approval;
+- the source commit or image digests bound to that release id without the
+  separately retained promotion record;
+- registry signatures, tag-policy enforcement, or private deployment approval;
 - private network, IAM, secret-store, object-store, database, broker, or key
   protection;
 - Admin API reachability from an authorized private network;
@@ -43,10 +46,9 @@ The result is one external observation at one time. It does not prove:
 - authenticated multi-account onboarding, access, notification, and adapter
   workflows.
 
-Those controls remain private deployment evidence. In particular, an operator
-cannot turn a supplied commit or digest string into release proof through this
-probe; release identity must come from the attested candidate and private
-promotion record.
+Those controls remain private deployment evidence. The expected release id must
+come from the attested candidate's promotion record; a caller-chosen string is
+not release provenance by itself.
 
 ## Delivery
 
@@ -55,7 +57,8 @@ same public route as a browser:
 
 ```powershell
 ./eng/operations/verify-deployed-public-edge.ps1 `
-  -PublicOrigin https://bunkfy.example/
+  -PublicOrigin https://bunkfy.example/ `
+  -ExpectedReleaseId release-20260806-01
 ```
 
 The origin must not contain a path, query, fragment, or credentials. Redirects
@@ -67,14 +70,15 @@ otherwise the result is written below ignored `.tmp/deployment-probes`.
 fixture. It cannot enable plain HTTP for a remote host. Do not treat a loopback
 result as hosted edge evidence.
 
-The versioned JSON output records the origin, transport class, five check names
-and statuses, and three explicit limitations. It excludes response bodies, raw
-headers, credentials, source commits, and image digests. The file is written
-atomically only after all checks pass; an existing file requires `-Force` and a
-reparse-point target is rejected.
+The versioned JSON output records the origin, release id, transport class, five
+check names and statuses, and three explicit limitations. It excludes response
+bodies, raw headers, credentials, source commits, and image digests. The file is
+written atomically only after all checks pass; an existing file requires
+`-Force` and a reparse-point target is rejected.
 
 Repository verification runs `eng/test-deployed-public-edge.ps1`. The fixture
-proves the valid loopback path and rejection of a missing security header, a
+proves the valid loopback path and rejection of a release-id mismatch, a
+missing security header, a
 publicly reachable Admin route, a successful untrusted-Host request, policy
 directives outside the checked-in CSP or Permissions-Policy, and insecure
 non-loopback HTTP. It does not contact a deployed environment.

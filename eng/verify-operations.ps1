@@ -213,11 +213,16 @@ if ($migrationsEnvironment.DOTNET_ENVIRONMENT -ne 'Preview' -or
 
 $apiEnvironment = $resolvedCompose.services.api.environment
 if ($apiEnvironment.DOTNET_ENVIRONMENT -ne 'Preview' -or
-    $apiEnvironment.BunkFy__Deployment__Profile -ne 'Preview') {
-    throw 'The preview API must retain both the Preview host environment and deployment profile.'
+    $apiEnvironment.BunkFy__Deployment__Profile -ne 'Preview' -or
+    $apiEnvironment.BunkFy__Deployment__ReleaseId -ne 'preview-local') {
+    throw 'The preview API must retain its host environment, deployment profile, and release identity.'
 }
 
 $workerEnvironment = $resolvedCompose.services.worker.environment
+if ($workerEnvironment.BunkFy__Deployment__ReleaseId -ne
+    $apiEnvironment.BunkFy__Deployment__ReleaseId) {
+    throw 'Preview API and Worker must share one release identity.'
+}
 if ($resolvedCompose.services.api.image -ne 'bunkfy/backend:preview' -or
     $resolvedCompose.services.migrations.image -ne $resolvedCompose.services.api.image -or
     $resolvedCompose.services.worker.image -ne $resolvedCompose.services.api.image -or
@@ -352,6 +357,7 @@ foreach ($requiredToken in @(
         '-Force',
         'open-operations',
         'close-operations',
+        'BUNKFY_RELEASE_ID',
         "@('rm', '--stop', '--force', 'admin-api')",
         'docker network rm $managementNetwork')) {
     if (-not $previewScript.Contains($requiredToken, [StringComparison]::Ordinal)) {
@@ -419,6 +425,8 @@ foreach ($requiredToken in @(
         "schemaVersion -ne 4",
         '-AllowBackupPointProtectedLedger',
         '-RemoveFailedTarget',
+        'BUNKFY_RELEASE_ID',
+        '-ExpectedReleaseId',
         'verify-deployed-public-edge.ps1',
         'verify-deployed-admin-boundary.ps1',
         'Get-BunkFyStateTreeFingerprint',
@@ -499,6 +507,8 @@ foreach ($requiredToken in @(
         'Assert-BunkFyPublicEdgeOrigin',
         'Assert-BunkFyPublicEdgeSecurityHeaders',
         'Assert-BunkFySmokeResponse',
+        'ExpectedReleaseId',
+        'releaseId',
         'HttpCompletionOption]::ResponseHeadersRead',
         'CancellationTokenSource',
         'Content-Security-Policy',
@@ -515,9 +525,12 @@ foreach ($requiredToken in @(
         '/healthz',
         '/api/smoke',
         '/api/admin/audit/',
+        'ExpectedReleaseId',
         '-HostHeader $UntrustedHost',
+        'schemaVersion = 2',
         "evidenceKind = 'bunkfy-deployed-public-edge-probe'",
-        "'release-identity-not-observed'",
+        'releaseId = $observedReleaseId',
+        "'registry-and-image-provenance-require-promotion-record'",
         "'private-infrastructure-not-observed'",
         "'authenticated-workflows-not-executed'")) {
     if (-not $deployedEdgeProbe.Contains($requiredToken, [StringComparison]::Ordinal)) {
