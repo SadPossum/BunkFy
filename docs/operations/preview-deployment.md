@@ -137,6 +137,12 @@ the same candidate to verify registration adapters, mail or identity-provider
 delivery, redirect continuity, QR rendering, and Worker restart recovery.
 Repository API probes deliberately do not claim those deployment facts.
 
+For a reversible, two-account proof of product notification projection, actor
+exclusion, individual read state, and the durable SSE feed, use the
+[deployed Operations Notifications verifier](deployed-operations-notifications-verification.md).
+It creates and releases one inventory block and retains the released block plus
+two notification-history records as smoke evidence.
+
 ## Retention
 
 The Worker owns bounded cleanup. Current preview windows are:

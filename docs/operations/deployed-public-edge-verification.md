@@ -89,3 +89,8 @@ test-data lifecycle. Browser rendering, registration, and email or OAuth
 delivery remain deployment-owned checks and are defined by the
 [deployed browser rehearsal](deployed-workspace-browser-rehearsal.md). This
 public edge probe must not accept credentials or mutate tenant data.
+
+The separate [Operations Notifications verifier](deployed-operations-notifications-verification.md)
+uses two authenticated accounts and a reversible inventory block to prove the
+durable notification and SSE path. Its mutation and credentials deliberately
+remain outside this public-edge probe.

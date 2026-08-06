@@ -13,9 +13,11 @@ $scripts = @(
     (Join-Path $PSScriptRoot 'operations\deployed-public-edge.common.ps1'),
     (Join-Path $PSScriptRoot 'operations\deployed-authenticated-smoke.common.ps1'),
     (Join-Path $PSScriptRoot 'operations\verify-deployed-public-edge.ps1'),
+    (Join-Path $PSScriptRoot 'operations\verify-deployed-operations-notifications.ps1'),
     (Join-Path $PSScriptRoot 'operations\verify-deployed-workspace-enrollment.ps1'),
     (Join-Path $PSScriptRoot 'operations\verify-deployed-workspace-invitation.ps1'),
     (Join-Path $PSScriptRoot 'test-deployed-public-edge.ps1'),
+    (Join-Path $PSScriptRoot 'test-deployed-operations-notifications.ps1'),
     (Join-Path $PSScriptRoot 'test-deployed-workspace-enrollment.ps1'),
     (Join-Path $PSScriptRoot 'test-deployed-workspace-invitation.ps1'),
     (Join-Path $PSScriptRoot 'new-preview-env.ps1'),
@@ -488,3 +490,36 @@ foreach ($forbiddenToken in @(
 
 & (Join-Path $PSScriptRoot 'test-deployed-workspace-enrollment.ps1')
 Write-Host 'BunkFy deployed workspace enrollment probe policy is valid.'
+
+$operationsNotificationsProbe = Get-Content -LiteralPath (
+    Join-Path $PSScriptRoot 'operations\verify-deployed-operations-notifications.ps1') -Raw
+foreach ($requiredToken in @(
+        "SupportsShouldProcess = `$true",
+        '$handler.AllowAutoRedirect = $false',
+        'BUNKFY_SMOKE_NOTIFICATION_ACTOR_TOKEN',
+        'BUNKFY_SMOKE_NOTIFICATION_OBSERVER_TOKEN',
+        '/api/notifications/history/stream?afterSequence=',
+        'manual-inventory-block-created',
+        'manual-inventory-block-released',
+        'initiating-actor-excluded',
+        'Release-SmokeBlockBestEffort',
+        "evidenceKind = 'bunkfy-deployed-operations-notifications-probe'",
+        "'browser-attention-rendering-not-exercised'",
+        "'released-block-and-notification-history-retained'")) {
+    if (-not $operationsNotificationsProbe.Contains($requiredToken, [StringComparison]::Ordinal)) {
+        throw "Deployed Operations Notifications probe policy is missing '$requiredToken'."
+    }
+}
+foreach ($forbiddenToken in @(
+        'DangerousAcceptAnyServerCertificateValidator',
+        'ServerCertificateCustomValidationCallback',
+        '-SkipCertificateCheck',
+        '$handler.AllowAutoRedirect = $true',
+        '/api/notifications/read-all')) {
+    if ($operationsNotificationsProbe.Contains($forbiddenToken, [StringComparison]::OrdinalIgnoreCase)) {
+        throw "Deployed Operations Notifications probe contains forbidden token '$forbiddenToken'."
+    }
+}
+
+& (Join-Path $PSScriptRoot 'test-deployed-operations-notifications.ps1')
+Write-Host 'BunkFy deployed Operations Notifications probe policy is valid.'
