@@ -9,6 +9,7 @@ $scripts = @(
     (Join-Path $PSScriptRoot 'operations\preview-state.common.ps1'),
     (Join-Path $PSScriptRoot 'operations\backup-preview.ps1'),
     (Join-Path $PSScriptRoot 'operations\restore-preview.ps1'),
+    (Join-Path $PSScriptRoot 'operations\rehearse-production-migrations.ps1'),
     (Join-Path $PSScriptRoot 'new-preview-env.ps1'),
     (Join-Path $PSScriptRoot 'preview.ps1')
 )
@@ -300,3 +301,49 @@ if ($restoreScript.Contains('$expectedCommits', [StringComparison]::Ordinal)) {
 }
 
 Write-Host 'BunkFy preview backup and restore guards are valid.'
+
+$migrationRehearsalScript = Get-Content -LiteralPath (
+    Join-Path $PSScriptRoot 'operations\rehearse-production-migrations.ps1') -Raw
+foreach ($requiredToken in @(
+        "DOTNET_ENVIRONMENT = 'Production'",
+        'cat-file -e',
+        "Migrations__Mode = `$Mode",
+        'Migrations__ProductionAdmission__ContainerImageDigest',
+        'Migrations__ProductionAdmission__ApprovedDatabaseTargetSha256',
+        'Migrations__ProductionAdmission__ApprovedTargetCatalogSha256',
+        "DataRights__LedgerDelta__Provider = 'External'",
+        "DataRights__TenantTerminationReplay__Provider = 'External'",
+        'DataRights__Pseudonymisation__Keys__1',
+        'DataRights__ReplayEnvelope__Keys__1',
+        'DataRights__ExportArtifacts__Keys__1',
+        'Ingestion__AnonymisationFingerprints__Keys__1',
+        "'network',",
+        "'create',",
+        "'--internal',",
+        "'--rm'",
+        'Get-BunkFyDatabaseSchemaFingerprint',
+        "'pg_dump',",
+        "'--schema-only',",
+        'Malformed source admission',
+        'Malformed backup-evidence admission',
+        'Wrong database-target admission',
+        'PendingMigrationCount -ne 0',
+        'Approved apply rerun',
+        'Remove-BunkFyRehearsalResources',
+        'resourcesRemoved = $true',
+        "evidenceKind = 'bunkfy-production-migration-rehearsal'")) {
+    if (-not $migrationRehearsalScript.Contains($requiredToken, [StringComparison]::Ordinal)) {
+        throw "Production migration rehearsal guard is missing '$requiredToken'."
+    }
+}
+foreach ($forbiddenToken in @(
+        'docker pull',
+        'docker build',
+        "'--publish'",
+        "'-p'")) {
+    if ($migrationRehearsalScript.Contains($forbiddenToken, [StringComparison]::Ordinal)) {
+        throw "Production migration rehearsal contains forbidden token '$forbiddenToken'."
+    }
+}
+
+Write-Host 'BunkFy Production migration rehearsal policy is valid.'

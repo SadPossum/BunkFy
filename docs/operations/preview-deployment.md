@@ -49,6 +49,12 @@ The Compose host intentionally does not terminate TLS. A remote deployment must 
 
 Schema rollback is restore-based, not an automatic down-migration. Take and verify a backup before deploying a migration that cannot tolerate application rollback.
 
+Before promoting a production candidate, run the isolated
+[Production migration rehearsal](production-migration-rehearsal.md). It uses the
+same Production `Plan` and approved `Apply` admission path against a disposable,
+internal PostgreSQL target and retains non-secret evidence without changing the
+preview deployment.
+
 ## First Owner
 
 Password and enabled external-provider registration are available through the browser. A new account has no PMS access until it creates a workspace or accepts an active invitation or enrollment link. Creating a workspace grants its creator the first tenant-scoped owner membership and provisions the linked Staff profile.
