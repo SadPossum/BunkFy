@@ -13,8 +13,10 @@ $scripts = @(
     (Join-Path $PSScriptRoot 'operations\deployed-public-edge.common.ps1'),
     (Join-Path $PSScriptRoot 'operations\deployed-authenticated-smoke.common.ps1'),
     (Join-Path $PSScriptRoot 'operations\verify-deployed-public-edge.ps1'),
+    (Join-Path $PSScriptRoot 'operations\verify-deployed-workspace-enrollment.ps1'),
     (Join-Path $PSScriptRoot 'operations\verify-deployed-workspace-invitation.ps1'),
     (Join-Path $PSScriptRoot 'test-deployed-public-edge.ps1'),
+    (Join-Path $PSScriptRoot 'test-deployed-workspace-enrollment.ps1'),
     (Join-Path $PSScriptRoot 'test-deployed-workspace-invitation.ps1'),
     (Join-Path $PSScriptRoot 'new-preview-env.ps1'),
     (Join-Path $PSScriptRoot 'preview.ps1')
@@ -450,3 +452,39 @@ foreach ($forbiddenToken in @(
 
 & (Join-Path $PSScriptRoot 'test-deployed-workspace-invitation.ps1')
 Write-Host 'BunkFy deployed workspace invitation probe policy is valid.'
+
+$workspaceEnrollmentProbe = Get-Content -LiteralPath (
+    Join-Path $PSScriptRoot 'operations\verify-deployed-workspace-enrollment.ps1') -Raw
+foreach ($requiredToken in @(
+        "SupportsShouldProcess = `$true",
+        '$handler.AllowAutoRedirect = $false',
+        'BUNKFY_SMOKE_OWNER_TOKEN',
+        'BUNKFY_SMOKE_APPLICANT_TOKEN',
+        '/api/workspace-staff-enrollment/sources/enrollment-links',
+        '/api/organization-enrollment/preview',
+        '/api/organization-enrollment/claim',
+        '/join-requests/',
+        "-Decision reject",
+        "-Decision approve",
+        "'properties.read'",
+        "'staff.manage'",
+        'Disable-SmokeEnrollmentSourcesBestEffort',
+        "evidenceKind = 'bunkfy-deployed-workspace-enrollment-probe'",
+        "'browser-ui-and-qr-rendering-not-exercised'",
+        "'joined-member-not-automatically-offboarded'")) {
+    if (-not $workspaceEnrollmentProbe.Contains($requiredToken, [StringComparison]::Ordinal)) {
+        throw "Deployed workspace enrollment probe policy is missing '$requiredToken'."
+    }
+}
+foreach ($forbiddenToken in @(
+        'DangerousAcceptAnyServerCertificateValidator',
+        'ServerCertificateCustomValidationCallback',
+        '-SkipCertificateCheck',
+        '$handler.AllowAutoRedirect = $true')) {
+    if ($workspaceEnrollmentProbe.Contains($forbiddenToken, [StringComparison]::OrdinalIgnoreCase)) {
+        throw "Deployed workspace enrollment probe contains forbidden token '$forbiddenToken'."
+    }
+}
+
+& (Join-Path $PSScriptRoot 'test-deployed-workspace-enrollment.ps1')
+Write-Host 'BunkFy deployed workspace enrollment probe policy is valid.'

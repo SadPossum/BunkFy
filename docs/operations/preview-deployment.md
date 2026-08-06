@@ -130,7 +130,8 @@ For an externally observed two-account invitation and property-scope proof,
 use the [deployed workspace invitation verifier](deployed-workspace-invitation-verification.md).
 It intentionally creates a real membership and Staff profile, so run it with a
 dedicated smoke identity and offboard that identity explicitly after retaining
-the result.
+the result. The companion [workspace enrollment verifier](deployed-workspace-enrollment-verification.md)
+proves owner rejection and approval for reusable QR enrollment.
 
 ## Retention
 

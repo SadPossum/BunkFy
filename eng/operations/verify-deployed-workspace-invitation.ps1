@@ -10,6 +10,7 @@ param(
     [Security.SecureString] $ApplicantAccessToken,
     [ValidateRange(1, 60)][int] $RequestTimeoutSeconds = 15,
     [ValidateRange(10, 300)][int] $ConvergenceTimeoutSeconds = 90,
+    [ValidateRange(500, 5000)][int] $PollIntervalMilliseconds = 1000,
     [string] $OutputPath,
     [switch] $AllowLoopbackHttp,
     [switch] $Force
@@ -351,7 +352,7 @@ try {
         if ([DateTimeOffset]::UtcNow -ge $convergenceDeadline) {
             throw 'Staff onboarding did not converge before the timeout.'
         }
-        Start-Sleep -Milliseconds 500
+        Start-Sleep -Milliseconds $PollIntervalMilliseconds
     }
 
     while ($true) {
@@ -375,7 +376,7 @@ try {
         if ([DateTimeOffset]::UtcNow -ge $convergenceDeadline) {
             throw 'The applicant Staff profile did not become visible before the timeout.'
         }
-        Start-Sleep -Milliseconds 500
+        Start-Sleep -Milliseconds $PollIntervalMilliseconds
     }
     $checks.Add([ordered]@{ name = 'staff-profile-converged'; status = 'passed' })
 
@@ -411,7 +412,7 @@ try {
         if ([DateTimeOffset]::UtcNow -ge $convergenceDeadline) {
             throw 'The applicant access profile did not converge before the timeout.'
         }
-        Start-Sleep -Milliseconds 500
+        Start-Sleep -Milliseconds $PollIntervalMilliseconds
     }
     $checks.Add([ordered]@{ name = 'least-privilege-policy-evaluation'; status = 'passed' })
 
@@ -464,7 +465,7 @@ try {
         if ([DateTimeOffset]::UtcNow -ge $convergenceDeadline) {
             throw 'Owner-visible member access did not converge to the invitation plan.'
         }
-        Start-Sleep -Milliseconds 500
+        Start-Sleep -Milliseconds $PollIntervalMilliseconds
     }
 
     $replayedApplication = Read-SmokeJson `

@@ -80,9 +80,10 @@ tokens, invitation secrets, email addresses, Auth subject IDs, response bodies,
 and raw headers.
 
 This API-level probe does not exercise browser rendering, registration, email
-delivery, QR approval/rejection, notification delivery, adapters, restart, or
-rollback. Those remain separate deployment slices, and this result must not be
-presented as proof of them.
+delivery, notification delivery, adapters, restart, or rollback. Reusable QR
+approval and rejection have their own
+[deployment verifier](deployed-workspace-enrollment-verification.md); neither
+result should be presented as browser or delivery proof.
 
 ## Repository Verification
 

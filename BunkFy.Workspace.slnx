@@ -748,6 +748,7 @@
   </Folder>
   <Folder Name="/docs/operations/">
     <File Path="docs/operations/deployed-public-edge-verification.md" />
+    <File Path="docs/operations/deployed-workspace-enrollment-verification.md" />
     <File Path="docs/operations/deployed-workspace-invitation-verification.md" />
     <File Path="docs/operations/preview-deployment.md" />
     <File Path="docs/operations/product-image-evidence.md" />
@@ -774,6 +775,7 @@
     <File Path="eng/sync-github-modules.ps1" />
     <File Path="eng/sync-submodules.ps1" />
     <File Path="eng/test-deployed-public-edge.ps1" />
+    <File Path="eng/test-deployed-workspace-enrollment.ps1" />
     <File Path="eng/test-deployed-workspace-invitation.ps1" />
     <File Path="eng/test-image-candidate-package.ps1" />
     <File Path="eng/update-gma.ps1" />
@@ -794,6 +796,7 @@
     <File Path="eng/operations/rehearse-production-migrations.ps1" />
     <File Path="eng/operations/restore-preview.ps1" />
     <File Path="eng/operations/verify-deployed-public-edge.ps1" />
+    <File Path="eng/operations/verify-deployed-workspace-enrollment.ps1" />
     <File Path="eng/operations/verify-deployed-workspace-invitation.ps1" />
     <File Path="eng/operations/verify-preview-isolation.ps1" />
   </Folder>

@@ -48,7 +48,7 @@ Start the full local graph:
 .\eng\run-aspire.ps1
 ```
 
-For the single-node, production-shaped preview path, use the concise [preview deployment runbook](docs/operations/preview-deployment.md). External release checks include the [public edge probe](docs/operations/deployed-public-edge-verification.md) and the mutation-bearing [workspace invitation verifier](docs/operations/deployed-workspace-invitation-verification.md).
+For the single-node, production-shaped preview path, use the concise [preview deployment runbook](docs/operations/preview-deployment.md). External release checks include the [public edge probe](docs/operations/deployed-public-edge-verification.md), the mutation-bearing [workspace invitation verifier](docs/operations/deployed-workspace-invitation-verification.md), and the [workspace QR enrollment verifier](docs/operations/deployed-workspace-enrollment-verification.md).
 
 The Aspire AppHost starts the shared backend graph (PostgreSQL, NATS JetStream, MinIO, a one-shot migration gate, API, and opt-in worker/admin resources) plus the web client at `http://localhost:5173`. API and background processes wait for successful migrations, and backend-only and full-stack AppHosts consume the same composition code so their infrastructure and worker settings cannot drift.
 
