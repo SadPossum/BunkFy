@@ -12,10 +12,12 @@ $scripts = @(
     (Join-Path $PSScriptRoot 'operations\rehearse-production-migrations.ps1'),
     (Join-Path $PSScriptRoot 'operations\deployed-public-edge.common.ps1'),
     (Join-Path $PSScriptRoot 'operations\deployed-authenticated-smoke.common.ps1'),
+    (Join-Path $PSScriptRoot 'operations\verify-deployed-adapter-host.ps1'),
     (Join-Path $PSScriptRoot 'operations\verify-deployed-public-edge.ps1'),
     (Join-Path $PSScriptRoot 'operations\verify-deployed-operations-notifications.ps1'),
     (Join-Path $PSScriptRoot 'operations\verify-deployed-workspace-enrollment.ps1'),
     (Join-Path $PSScriptRoot 'operations\verify-deployed-workspace-invitation.ps1'),
+    (Join-Path $PSScriptRoot 'test-deployed-adapter-host.ps1'),
     (Join-Path $PSScriptRoot 'test-deployed-public-edge.ps1'),
     (Join-Path $PSScriptRoot 'test-deployed-operations-notifications.ps1'),
     (Join-Path $PSScriptRoot 'test-deployed-workspace-enrollment.ps1'),
@@ -523,3 +525,39 @@ foreach ($forbiddenToken in @(
 
 & (Join-Path $PSScriptRoot 'test-deployed-operations-notifications.ps1')
 Write-Host 'BunkFy deployed Operations Notifications probe policy is valid.'
+
+$adapterHostProbe = Get-Content -LiteralPath (
+    Join-Path $PSScriptRoot 'operations\verify-deployed-adapter-host.ps1') -Raw
+foreach ($requiredToken in @(
+        '$script:AdapterHostMaximumBodyBytes = 32KB',
+        '$handler.AllowAutoRedirect = $false',
+        'BUNKFY_SMOKE_INGESTION_OPERATOR_TOKEN',
+        "StatusEndpointExposure -ceq 'LoopbackOnly'",
+        '/health/live',
+        '/health/ready',
+        '/api/ingestion/properties/',
+        'remoteLeaseId',
+        'remoteWorkerId',
+        'rawPayloadFileId',
+        'server-checkpoint-advanced',
+        "evidenceKind = 'bunkfy-deployed-adapter-host-probe'",
+        "'synthetic-provider-record-injection-not-performed-by-probe'",
+        "'credential-rotation-and-process-restart-not-exercised'")) {
+    if (-not $adapterHostProbe.Contains($requiredToken, [StringComparison]::Ordinal)) {
+        throw "Deployed AdapterHost probe policy is missing '$requiredToken'."
+    }
+}
+foreach ($forbiddenToken in @(
+        'DangerousAcceptAnyServerCertificateValidator',
+        'ServerCertificateCustomValidationCallback',
+        '-SkipCertificateCheck',
+        '$handler.AllowAutoRedirect = $true',
+        'ReadAsByteArrayAsync',
+        '/raw-payload')) {
+    if ($adapterHostProbe.Contains($forbiddenToken, [StringComparison]::OrdinalIgnoreCase)) {
+        throw "Deployed AdapterHost probe contains forbidden token '$forbiddenToken'."
+    }
+}
+
+& (Join-Path $PSScriptRoot 'test-deployed-adapter-host.ps1')
+Write-Host 'BunkFy deployed AdapterHost probe policy is valid.'

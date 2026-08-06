@@ -94,3 +94,8 @@ The separate [Operations Notifications verifier](deployed-operations-notificatio
 uses two authenticated accounts and a reversible inventory block to prove the
 durable notification and SSE path. Its mutation and credentials deliberately
 remain outside this public-edge probe.
+
+The [deployed AdapterHost verifier](deployed-adapter-host-verification.md)
+correlates a deliberately seeded synthetic provider record with remote-lease,
+receipt-provenance, and checkpoint evidence. AdapterHost health and status stay
+on an internal or loopback origin and are never added to this public edge.

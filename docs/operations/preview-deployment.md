@@ -143,6 +143,13 @@ exclusion, individual read state, and the durable SSE feed, use the
 It creates and releases one inventory block and retains the released block plus
 two notification-history records as smoke evidence.
 
+For a provider-to-Ingestion proof through a target remote AdapterHost, use the
+[deployed AdapterHost verifier](deployed-adapter-host-verification.md). Start the
+read-only probe before placing one valid synthetic non-PII record in the real
+provider boundary. Complete its separate restart and credential-rotation
+rehearsal before promotion; repository automation cannot attest orchestrator or
+secret-store behavior.
+
 ## Retention
 
 The Worker owns bounded cleanup. Current preview windows are:
