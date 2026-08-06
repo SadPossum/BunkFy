@@ -133,6 +133,7 @@
     <File Path="apps/backend/docs/planning/production-file-surface-lockdown-task.md" />
     <File Path="apps/backend/docs/planning/properties-follow-up-notes.md" />
     <File Path="apps/backend/docs/planning/properties-module-task.md" />
+    <File Path="apps/backend/docs/planning/properties-mutation-serialization-task.md" />
     <File Path="apps/backend/docs/planning/properties-operational-surface-hardening-task.md" />
     <File Path="apps/backend/docs/planning/properties-personal-data-catalogue-task.md" />
     <File Path="apps/backend/docs/planning/properties-tenant-termination-owner-task.md" />
