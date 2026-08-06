@@ -140,6 +140,7 @@
     <File Path="apps/backend/docs/planning/reservation-record-retention-task.md" />
     <File Path="apps/backend/docs/planning/reservations-data-rights-workflow-task.md" />
     <File Path="apps/backend/docs/planning/reservations-module-task.md" />
+    <File Path="apps/backend/docs/planning/reservations-mutation-serialization-task.md" />
     <File Path="apps/backend/docs/planning/reservations-operational-surface-hardening-task.md" />
     <File Path="apps/backend/docs/planning/reservations-pii-minimization-task.md" />
     <File Path="apps/backend/docs/planning/reservations-stay-lifecycle-task.md" />
