@@ -753,12 +753,14 @@
     <File Path="eng/export-source-set.ps1" />
     <File Path="eng/guard-submodules-latest.ps1" />
     <File Path="eng/new-preview-env.ps1" />
+    <File Path="eng/package-image-candidate.ps1" />
     <File Path="eng/preview.ps1" />
     <File Path="eng/run-aspire.ps1" />
     <File Path="eng/scan-oci-image.ps1" />
     <File Path="eng/submodule-status.ps1" />
     <File Path="eng/sync-github-modules.ps1" />
     <File Path="eng/sync-submodules.ps1" />
+    <File Path="eng/test-image-candidate-package.ps1" />
     <File Path="eng/update-gma.ps1" />
     <File Path="eng/update-web-contracts.ps1" />
     <File Path="eng/verify-operations.ps1" />

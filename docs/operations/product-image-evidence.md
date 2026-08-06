@@ -29,7 +29,8 @@ channel.
    until an approved license policy and allowlist exist;
 7. emits a CycloneDX SBOM, SARIF, bounded scan summary, Buildx metadata,
    immutable OCI manifest digest, closed manifest, and SHA-256 checksums;
-8. attests and retains the evidence, then discards the local OCI archives.
+8. attests and retains the evidence, then normally discards the local OCI
+   archives.
 
 The backend image contains API, Worker, Admin API, Admin CLI, and migrations
 outputs. Those processes therefore share one exact backend digest. The web has
@@ -39,13 +40,41 @@ Build caches may reduce repeated work, but a candidate is never rebuilt between
 its scans and evidence creation. Docker integration tests are manual or weekly,
 so development uses focused tests and one end-of-slice Docker gate.
 
+## Optional Exact-Byte Bundle
+
+An operator can enable `retain_candidate_bytes` for a manual run when the exact
+scanned bytes may be promoted later. This default-off option creates a separate,
+closed `product-image-candidate-<commit>` artifact containing:
+
+- the backend and web OCI archives already built and scanned by that run;
+- the complete closed evidence directory;
+- a bundle manifest binding each archive SHA-256 to its recorded OCI manifest
+  digest and source commit; and
+- root checksums covered by a separate GitHub artifact attestation.
+
+The packager streams archive metadata, rejects links and unsafe paths, and
+requires the recorded manifest blob to match both its descriptor size and
+digest. It does not rebuild either image.
+
+Candidate bytes are short-lived because the uncompressed archives consume
+substantially more artifact storage than evidence alone. The dispatch form
+allows 1, 3, 7, 14, or 30 days and defaults to 7 days for an opt-in run. The
+artifact upload uses `compression-level: 0` because OCI tar archives
+are binary build output; the ordinary evidence artifact remains retained for
+30 days.
+
+This bundle is a promotion input, not a release. It has no registry reference,
+deployable reference, environment, or approval, and expiry does not alter the
+longer-lived evidence record.
+
 ## Deliberate Limits
 
 - No registry login, registry write permission, or image push exists.
 - No registry reference is written to the evidence manifest.
 - No deployment or environment promotion occurs.
 - No hosted-production declaration is generated.
-- No OCI archive is uploaded as a large workflow artifact.
+- No OCI archive is uploaded unless an operator explicitly enables the
+  short-lived exact-byte bundle for that manual run.
 - No legal conclusion is inferred from Trivy license risk classes; license
   enforcement requires an approved project policy and allowlist.
 - No image-security exception path exists yet; blocking findings must be fixed

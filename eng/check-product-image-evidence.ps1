@@ -96,6 +96,9 @@ $workflow = Read-TextFile `
 $requiredWorkflowTokens = @(
     'name: Product Image Evidence',
     'workflow_dispatch:',
+    'retain_candidate_bytes:',
+    'candidate_retention_days:',
+    'CANDIDATE_DIRECTORY: artifacts/image-candidate',
     'submodules: recursive',
     'persist-credentials: false',
     './eng/check-repository-release.ps1',
@@ -121,11 +124,17 @@ $requiredWorkflowTokens = @(
     'push: false',
     './eng/scan-oci-image.ps1',
     './eng/write-image-evidence.ps1',
+    './eng/package-image-candidate.ps1',
     'github/codeql-action/upload-sarif@7188fc363630916deb702c7fdcf4e481b751f97a',
     'actions/attest@f7c74d28b9d84cb8768d0b8ca14a4bac6ef463e6',
     'subject-checksums: artifacts/image-evidence/checksums.sha256',
+    'subject-checksums: artifacts/image-candidate/checksums.sha256',
     'actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a',
     'path: artifacts/image-evidence',
+    'name: product-image-candidate-${{ github.sha }}',
+    'path: artifacts/image-candidate',
+    'retention-days: ${{ inputs.candidate_retention_days }}',
+    'compression-level: 0',
     'retention-days: 30',
     'attestations: write',
     'id-token: write',
@@ -162,6 +171,30 @@ if ([regex]::Matches(
         [System.Text.RegularExpressions.RegexOptions]::IgnoreCase).Count -ne 1) {
     throw 'Product image evidence must create one closed evidence manifest.'
 }
+if ([regex]::Matches(
+        $workflow,
+        '\./eng/package-image-candidate\.ps1',
+        [System.Text.RegularExpressions.RegexOptions]::IgnoreCase).Count -ne 1) {
+    throw 'Product image evidence must package exact candidate bytes once.'
+}
+if ([regex]::Matches(
+        $workflow,
+        'actions/attest@f7c74d28b9d84cb8768d0b8ca14a4bac6ef463e6',
+        [System.Text.RegularExpressions.RegexOptions]::IgnoreCase).Count -ne 2) {
+    throw 'Product image evidence must attest evidence and exact candidate bytes separately.'
+}
+if ([regex]::Matches(
+        $workflow,
+        'actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a',
+        [System.Text.RegularExpressions.RegexOptions]::IgnoreCase).Count -ne 2) {
+    throw 'Product image evidence must retain separate evidence and candidate artifacts.'
+}
+if ($workflow -notmatch
+    '(?ms)retain_candidate_bytes:\s+description:.*?default:\s+false\s+type:\s+boolean' -or
+    $workflow -notmatch
+    '(?ms)candidate_retention_days:.*?options:\s+- ''1''\s+- ''3''\s+- ''7''\s+- ''14''\s+- ''30''') {
+    throw 'Exact candidate-byte retention must be default-off and short-lived.'
+}
 
 foreach ($forbiddenPattern in @(
         '(?im)^\s*push:\s*$',
@@ -183,7 +216,9 @@ foreach ($forbiddenPattern in @(
 
 foreach ($script in @(
         'eng/scan-oci-image.ps1',
-        'eng/write-image-evidence.ps1'
+        'eng/write-image-evidence.ps1',
+        'eng/package-image-candidate.ps1',
+        'eng/test-image-candidate-package.ps1'
     )) {
     Assert-PowerShellSyntax -RelativePath $script
 }
@@ -207,6 +242,30 @@ foreach ($token in @(
         throw "OCI image scanner is missing '$token'."
     }
 }
+
+$packager = Read-TextFile `
+    -RelativePath 'eng/package-image-candidate.ps1' `
+    -MaximumBytes 64KB
+foreach ($token in @(
+        '[Formats.Tar.TarReader]::new',
+        'Assert-BunkFySafeTarEntry',
+        'checksums.sha256',
+        'Image evidence is not a closed checksummed file set.',
+        'bunkfy-oci-promotion-candidate',
+        'registryPublished = $false',
+        'deployableReference = $false',
+        'manifest descriptor size',
+        '[IO.Directory]::Move($stagingDirectory, $resolvedOutputDirectory)'
+    )) {
+    if ($packager.IndexOf(
+            $token,
+            [System.StringComparison]::Ordinal) -lt 0) {
+        throw "OCI candidate packager is missing '$token'."
+    }
+}
+
+& (Join-Path $root 'eng/test-image-candidate-package.ps1') `
+    -RepositoryRoot $root
 
 Assert-DigestPinnedDockerfile `
     -RelativePath 'apps/backend/Dockerfile' `
@@ -251,7 +310,11 @@ foreach ($token in @(
         'No registry',
         'No deployment',
         'linux/amd64',
-        'HIGH and CRITICAL'
+        'HIGH and CRITICAL',
+        'opt-in',
+        'short-lived',
+        'already built and scanned',
+        'compression-level: 0'
     )) {
     if ($task.IndexOf(
             $token,
