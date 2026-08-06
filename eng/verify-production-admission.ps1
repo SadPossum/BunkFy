@@ -8,6 +8,9 @@ param(
     [Parameter(Mandatory = $true)]
     [ValidatePattern('^[0-9a-f]{40}$')]
     [string] $ExpectedSourceCommit,
+    [Parameter(Mandatory = $true)]
+    [ValidatePattern('^admission:[0-9a-f]{32}$')]
+    [string] $ExpectedAdmissionEvidenceReference,
     [switch] $AllowFixtureEvidence,
     [switch] $PassThru
 )
@@ -22,6 +25,7 @@ $admission = Get-BunkFyVerifiedProductionAdmission `
     -ExpectedPublicOrigin $ExpectedPublicOrigin `
     -ExpectedReleaseId $ExpectedReleaseId `
     -ExpectedSourceCommit $ExpectedSourceCommit `
+    -ExpectedAdmissionEvidenceReference $ExpectedAdmissionEvidenceReference `
     -AllowFixtureEvidence:$AllowFixtureEvidence
 if ($PassThru) {
     return $admission

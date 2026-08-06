@@ -8,6 +8,9 @@ param(
     [Parameter(Mandatory = $true)]
     [ValidatePattern('^[0-9a-f]{40}$')]
     [string] $CandidateSourceCommit,
+    [Parameter(Mandatory = $true)]
+    [ValidatePattern('^admission:[0-9a-f]{32}$')]
+    [string] $AdmissionEvidenceReference,
     [Parameter(Mandatory = $true)][string] $RollbackPromotionDirectory,
     [Parameter(Mandatory = $true)]
     [ValidatePattern('^[a-z0-9][a-z0-9._-]{2,127}$')]
@@ -50,6 +53,14 @@ if ($AllowFixtureEvidence -and -not (Test-BunkFyLoopbackHost -HostName $origin.H
 if ($CandidateReleaseId -ceq $RollbackReleaseId -or
     $CandidateSourceCommit -ceq $RollbackSourceCommit) {
     throw 'Candidate and rollback identities must be distinct.'
+}
+$admissionId = [Guid]::Empty
+if (-not [Guid]::TryParseExact(
+        $AdmissionEvidenceReference.Substring(10),
+        'N',
+        [ref]$admissionId) -or
+    $admissionId -eq [Guid]::Empty) {
+    throw 'AdmissionEvidenceReference must contain a non-empty admission identity.'
 }
 
 $candidatePromotion = Get-BunkFyVerifiedImagePromotion `
@@ -232,12 +243,11 @@ foreach ($entry in @(
             -ProofCount $entry.Value.CheckCount))
 }
 
-$admissionId = [Guid]::NewGuid()
 $record = [ordered]@{
     schemaVersion = 1
     evidenceKind = 'bunkfy-production-admission-bundle'
     admissionId = $admissionId.ToString('D')
-    admissionEvidenceReference = "admission:$($admissionId.ToString('N'))"
+    admissionEvidenceReference = $AdmissionEvidenceReference
     generatedAtUtc = [DateTimeOffset]::UtcNow.ToString('O')
     result = 'passed'
     decision = 'evidence-complete-awaiting-private-approval'
@@ -278,6 +288,7 @@ try {
             -ExpectedPublicOrigin $origin `
             -ExpectedReleaseId $CandidateReleaseId `
             -ExpectedSourceCommit $CandidateSourceCommit `
+            -ExpectedAdmissionEvidenceReference $AdmissionEvidenceReference `
             -AllowFixtureEvidence:$AllowFixtureEvidence)
     [IO.Directory]::CreateDirectory((Split-Path -Parent $resolvedOutputDirectory)) |
         Out-Null
@@ -294,6 +305,7 @@ $verified = Get-BunkFyVerifiedProductionAdmission `
     -ExpectedPublicOrigin $origin `
     -ExpectedReleaseId $CandidateReleaseId `
     -ExpectedSourceCommit $CandidateSourceCommit `
+    -ExpectedAdmissionEvidenceReference $AdmissionEvidenceReference `
     -AllowFixtureEvidence:$AllowFixtureEvidence
 if ($PassThru) {
     return $verified

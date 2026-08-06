@@ -1,10 +1,25 @@
 # Production Admission Evidence
 
-Use this final repository boundary after the exact candidate has passed image
+Preallocate one unique admission evidence identity before starting the exact
+candidate, then use this final repository boundary after it has passed image
 promotion, migration rehearsal, deployed rollback rehearsal, public/Admin edge
 verification, and the release-bound domain probes. It assembles one small,
-closed record for private release approval; it does not approve or deploy the
-candidate.
+closed record under that same identity for private release approval; it does
+not approve or deploy the candidate.
+
+## Preallocate
+
+Before candidate startup, create one fresh identity, retain it in the private
+release record, and set `BunkFy:Deployment:AdmissionEvidenceReference` to it on
+Public API, Admin API, and Worker:
+
+```powershell
+$admissionReference = "admission:$([Guid]::NewGuid().ToString('N'))"
+```
+
+Do not reuse an identity across admission attempts. The hosts validate and log
+the identity but cannot prove that its final bundle will later be closed or
+approved.
 
 ## Required Evidence
 
@@ -44,6 +59,7 @@ $admission = @{
   CandidatePromotionDirectory = '/evidence/promotions/candidate'
   CandidateReleaseId = 'release-20260806-02'
   CandidateSourceCommit = '<candidate-root-commit>'
+  AdmissionEvidenceReference = $admissionReference
   RollbackPromotionDirectory = '/evidence/promotions/rollback'
   RollbackReleaseId = 'release-20260801-01'
   RollbackSourceCommit = '<rollback-root-commit>'
@@ -70,7 +86,9 @@ $admission = @{
 The command validates every input before creating output. It writes
 `production-admission.json` plus `checksums.sha256` through a staging directory,
 self-verifies the closed set, and then moves it into place atomically. Existing
-output is never replaced.
+output is never replaced. The assembler rejects an empty admission identity and
+retains the caller-supplied identity exactly; it never substitutes a new one
+after the candidate has been probed.
 
 The admission record contains release and image identities, evidence kinds,
 timestamps, check counts, SHA-256 bindings, and the four private references. It
@@ -86,7 +104,8 @@ Verify the retained bundle again before private approval:
   -AdmissionDirectory /evidence/admission/release-20260806-02 `
   -ExpectedPublicOrigin https://candidate.example `
   -ExpectedReleaseId release-20260806-02 `
-  -ExpectedSourceCommit <candidate-root-commit>
+  -ExpectedSourceCommit <candidate-root-commit> `
+  -ExpectedAdmissionEvidenceReference $admissionReference
 ```
 
 A passing record deliberately says `evidence-complete-awaiting-private-approval`.

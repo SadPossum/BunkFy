@@ -62,7 +62,10 @@ preview deployment.
 Publish retained exact candidate bytes through the
 [image candidate promotion](image-candidate-promotion.md) boundary. Production
 hosts require the resulting release id and promotion evidence reference, plus a
-separately approved rollback or recovery evidence reference.
+separately approved rollback or recovery evidence reference. Before those hosts
+start, preallocate one unique admission-attempt identity as described by the
+[Production admission evidence boundary](production-admission-evidence.md) and
+configure the same identity on Public API, Admin API, and Worker.
 
 Before admission, run the
 [deployed release rollback rehearsal](deployed-release-rollback-rehearsal.md)

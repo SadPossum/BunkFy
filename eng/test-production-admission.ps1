@@ -310,6 +310,7 @@ try {
     $rollbackRelease = 'release-rollback-001'
     $candidateSource = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
     $rollbackSource = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
+    $admissionReference = "admission:$([Guid]::NewGuid().ToString('N'))"
     $candidatePromotionPath = Join-Path $temporaryRoot 'candidate-promotion'
     $rollbackPromotionPath = Join-Path $temporaryRoot 'rollback-promotion'
     New-TestPromotionEvidence -Directory $candidatePromotionPath -ReleaseId $candidateRelease -SourceCommit $candidateSource -DigestSeed '1'
@@ -349,6 +350,7 @@ try {
         CandidatePromotionDirectory = $candidatePromotionPath
         CandidateReleaseId = $candidateRelease
         CandidateSourceCommit = $candidateSource
+        AdmissionEvidenceReference = $admissionReference
         RollbackPromotionDirectory = $rollbackPromotionPath
         RollbackReleaseId = $rollbackRelease
         RollbackSourceCommit = $rollbackSource
@@ -371,16 +373,20 @@ try {
         PassThru = $true
     }
     $assembled = & $assembler @arguments
-    $verified = & $verifier `
-        -AdmissionDirectory $output `
-        -ExpectedPublicOrigin $origin `
-        -ExpectedReleaseId $candidateRelease `
-        -ExpectedSourceCommit $candidateSource `
-        -AllowFixtureEvidence `
-        -PassThru
+    $verificationArguments = @{
+        AdmissionDirectory = $output
+        ExpectedPublicOrigin = $origin
+        ExpectedReleaseId = $candidateRelease
+        ExpectedSourceCommit = $candidateSource
+        ExpectedAdmissionEvidenceReference = $admissionReference
+        AllowFixtureEvidence = $true
+        PassThru = $true
+    }
+    $verified = & $verifier @verificationArguments
     $closed = Get-BunkFyClosedChecksumSet -Directory $output -MaximumPayloadBytes 2MB -Context 'production admission fixture'
     if ($closed.Files.Count -ne 1 -or
         $assembled.AdmissionEvidenceReference -cne $verified.AdmissionEvidenceReference -or
+        $verified.AdmissionEvidenceReference -cne $admissionReference -or
         $verified.ReleaseId -cne $candidateRelease -or
         @($verified.Record.evidence).Count -ne 12 -or
         @($verified.Record.privateEvidence).Count -ne 4 -or
@@ -397,10 +403,10 @@ try {
     $tampered = Join-Path $temporaryRoot 'tampered-admission'
     Copy-Item -LiteralPath $output -Destination $tampered -Recurse
     [IO.File]::AppendAllText((Join-Path $tampered 'production-admission.json'), " ")
+    $tamperedVerificationArguments = $verificationArguments.Clone()
+    $tamperedVerificationArguments.AdmissionDirectory = $tampered
     Assert-TestFailure `
-        -Operation {
-            & $verifier -AdmissionDirectory $tampered -ExpectedPublicOrigin $origin -ExpectedReleaseId $candidateRelease -ExpectedSourceCommit $candidateSource -AllowFixtureEvidence
-        } `
+        -Operation { & $verifier @tamperedVerificationArguments } `
         -ExpectedMessage 'does not match checksums' `
         -Context 'tampered admission bundle'
 
@@ -417,10 +423,29 @@ try {
         throw 'Rejected cross-release evidence left an admission bundle.'
     }
 
+    $wrongAdmissionReference = "admission:$([Guid]::NewGuid().ToString('N'))"
+    $wrongAdmissionArguments = $verificationArguments.Clone()
+    $wrongAdmissionArguments.ExpectedAdmissionEvidenceReference =
+        $wrongAdmissionReference
     Assert-TestFailure `
-        -Operation {
-            & $verifier -AdmissionDirectory $output -ExpectedPublicOrigin $origin -ExpectedReleaseId $candidateRelease -ExpectedSourceCommit $candidateSource
-        } `
+        -Operation { & $verifier @wrongAdmissionArguments } `
+        -ExpectedMessage 'does not match the expected admission evidence reference' `
+        -Context 'different admission attempt identity'
+
+    $emptyAdmissionArguments = $arguments.Clone()
+    $emptyAdmissionArguments.AdmissionEvidenceReference =
+        'admission:00000000000000000000000000000000'
+    $emptyAdmissionArguments.OutputDirectory =
+        Join-Path $temporaryRoot 'empty-admission-identity'
+    Assert-TestFailure `
+        -Operation { & $assembler @emptyAdmissionArguments } `
+        -ExpectedMessage 'non-empty admission identity' `
+        -Context 'empty admission attempt identity'
+
+    $hostedVerificationArguments = $verificationArguments.Clone()
+    $hostedVerificationArguments.AllowFixtureEvidence = $false
+    Assert-TestFailure `
+        -Operation { & $verifier @hostedVerificationArguments } `
         -ExpectedMessage 'HTTPS' `
         -Context 'fixture evidence without explicit admission'
 }

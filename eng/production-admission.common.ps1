@@ -608,6 +608,9 @@ function Get-BunkFyVerifiedProductionAdmission {
         [Parameter(Mandatory = $true)][Uri] $ExpectedPublicOrigin,
         [Parameter(Mandatory = $true)][string] $ExpectedReleaseId,
         [Parameter(Mandatory = $true)][string] $ExpectedSourceCommit,
+        [Parameter(Mandatory = $true)]
+        [ValidatePattern('^admission:[0-9a-f]{32}$')]
+        [string] $ExpectedAdmissionEvidenceReference,
         [switch] $AllowFixtureEvidence
     )
 
@@ -640,6 +643,9 @@ function Get-BunkFyVerifiedProductionAdmission {
         $admissionId -eq [Guid]::Empty -or
         $record.admissionEvidenceReference -cne "admission:$($admissionId.ToString('N'))") {
         throw 'Production admission record has an invalid identity or result.'
+    }
+    if ($record.admissionEvidenceReference -cne $ExpectedAdmissionEvidenceReference) {
+        throw 'Production admission record does not match the expected admission evidence reference.'
     }
     [void](ConvertTo-BunkFyProductionAdmissionTimestamp -Value $record.generatedAtUtc -Context 'production admission generation time')
     Assert-BunkFyCandidateProperties -Value $record.candidate -ExpectedProperties @('releaseId', 'sourceCommit', 'promotionEvidenceReference', 'promotionChecksumsSha256', 'images') -Context 'admission candidate identity'

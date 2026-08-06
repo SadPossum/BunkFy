@@ -880,6 +880,7 @@ foreach ($requiredToken in @(
 }
 foreach ($requiredToken in @(
         'CandidatePromotionDirectory',
+        'AdmissionEvidenceReference',
         'RollbackPromotionDirectory',
         'RollbackRehearsalDirectory',
         'MigrationRehearsalPath',
@@ -900,6 +901,7 @@ foreach ($requiredToken in @(
         'ExpectedPublicOrigin',
         'ExpectedReleaseId',
         'ExpectedSourceCommit',
+        'ExpectedAdmissionEvidenceReference',
         'Get-BunkFyVerifiedProductionAdmission')) {
     if (-not $productionAdmissionVerifier.Contains($requiredToken, [StringComparison]::Ordinal)) {
         throw "Production admission verifier policy is missing '$requiredToken'."
