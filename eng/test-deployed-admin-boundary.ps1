@@ -85,16 +85,17 @@ function Start-BunkFyAdminBoundaryFixtureServer {
         $publicListener = [Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback, 0)
         $publicListener.Start()
         $adminListener = $null
+        $adminReservation = $null
         try {
             if ($Mode -ceq 'valid-denied-unreachable') {
-                $reservation = [Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback, 0)
-                $reservation.Start()
-                try {
-                    $adminPort = ([Net.IPEndPoint]$reservation.LocalEndpoint).Port
-                }
-                finally {
-                    $reservation.Stop()
-                }
+                $adminReservation = [Net.Sockets.Socket]::new(
+                    [Net.Sockets.AddressFamily]::InterNetwork,
+                    [Net.Sockets.SocketType]::Stream,
+                    [Net.Sockets.ProtocolType]::Tcp)
+                $adminReservation.ExclusiveAddressUse = $true
+                $adminReservation.Bind(
+                    [Net.IPEndPoint]::new([Net.IPAddress]::Loopback, 0))
+                $adminPort = ([Net.IPEndPoint]$adminReservation.LocalEndPoint).Port
             }
             else {
                 $adminListener = [Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback, 0)
@@ -213,7 +214,7 @@ function Start-BunkFyAdminBoundaryFixtureServer {
                             -ContentType $contentType `
                             -Body $body
                         $requestCount++
-                        $inactivityDeadline = [DateTimeOffset]::UtcNow.AddSeconds(2)
+                        $inactivityDeadline = [DateTimeOffset]::UtcNow.AddSeconds(10)
                         $handled = $true
                     }
                     finally {
@@ -231,6 +232,9 @@ function Start-BunkFyAdminBoundaryFixtureServer {
         finally {
             if ($null -ne $adminListener) {
                 $adminListener.Stop()
+            }
+            if ($null -ne $adminReservation) {
+                $adminReservation.Dispose()
             }
             $publicListener.Stop()
         }
