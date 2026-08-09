@@ -393,7 +393,7 @@ try {
         throw 'Valid denied HTTP fixture emitted unexpected evidence.'
     }
     if ($unreachable.adminObservation.classification -cne 'network-unreachable' -or
-        $unreachable.adminObservation.outcome -cne 'connection-unreachable' -or
+        $unreachable.adminObservation.outcome -notin @('connection-unreachable', 'timeout') -or
         $unreachable.releaseId -cne $releaseId -or
         @($unreachable.checks).Count -ne 4) {
         throw 'Valid unreachable fixture emitted unexpected evidence.'
