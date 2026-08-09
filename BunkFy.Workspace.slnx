@@ -91,6 +91,8 @@
     <File Path="apps/backend/docs/planning/guest-data-rights-restriction-task.md" />
     <File Path="apps/backend/docs/planning/guest-record-retention-task.md" />
     <File Path="apps/backend/docs/planning/guest-records-module-task.md" />
+    <File Path="apps/backend/docs/planning/guests-management-create-idempotency-task.md" />
+    <File Path="apps/backend/docs/planning/guests-management-update-archive-idempotency-task.md" />
     <File Path="apps/backend/docs/planning/guests-operational-surface-hardening-task.md" />
     <File Path="apps/backend/docs/planning/guests-read-surface-hardening-task.md" />
     <File Path="apps/backend/docs/planning/guests-tenant-termination-owner-task.md" />
@@ -112,10 +114,12 @@
     <File Path="apps/backend/docs/planning/international-market-gate-task.md" />
     <File Path="apps/backend/docs/planning/inventory-allocation-mutation-serialization-task.md" />
     <File Path="apps/backend/docs/planning/inventory-data-rights-owner-capability-task.md" />
+    <File Path="apps/backend/docs/planning/inventory-manual-block-idempotency-task.md" />
     <File Path="apps/backend/docs/planning/inventory-module-task.md" />
     <File Path="apps/backend/docs/planning/inventory-operational-surface-hardening-task.md" />
     <File Path="apps/backend/docs/planning/inventory-personal-data-catalogue-task.md" />
     <File Path="apps/backend/docs/planning/inventory-room-retirement-and-throughput-hardening-task.md" />
+    <File Path="apps/backend/docs/planning/inventory-room-sales-mode-idempotency-task.md" />
     <File Path="apps/backend/docs/planning/inventory-tenant-termination-owner-task.md" />
     <File Path="apps/backend/docs/planning/inventory-topology-change-safety-task.md" />
     <File Path="apps/backend/docs/planning/json-file-drop-adapter-task.md" />
@@ -134,16 +138,27 @@
     <File Path="apps/backend/docs/planning/product-domain-map.md" />
     <File Path="apps/backend/docs/planning/production-authentication-admission-task.md" />
     <File Path="apps/backend/docs/planning/production-file-surface-lockdown-task.md" />
+    <File Path="apps/backend/docs/planning/properties-bed-mutation-idempotency-task.md" />
+    <File Path="apps/backend/docs/planning/properties-details-update-idempotency-task.md" />
     <File Path="apps/backend/docs/planning/properties-follow-up-notes.md" />
+    <File Path="apps/backend/docs/planning/properties-lifecycle-idempotency-task.md" />
+    <File Path="apps/backend/docs/planning/properties-management-create-idempotency-task.md" />
     <File Path="apps/backend/docs/planning/properties-module-task.md" />
     <File Path="apps/backend/docs/planning/properties-mutation-serialization-task.md" />
     <File Path="apps/backend/docs/planning/properties-operational-surface-hardening-task.md" />
     <File Path="apps/backend/docs/planning/properties-personal-data-catalogue-task.md" />
+    <File Path="apps/backend/docs/planning/properties-room-mutation-idempotency-task.md" />
     <File Path="apps/backend/docs/planning/properties-tenant-termination-owner-task.md" />
     <File Path="apps/backend/docs/planning/properties-topology-lifecycle-task.md" />
     <File Path="apps/backend/docs/planning/remote-adapter-lease-task.md" />
+    <File Path="apps/backend/docs/planning/reservation-guest-record-convergence-task.md" />
     <File Path="apps/backend/docs/planning/reservation-record-retention-task.md" />
     <File Path="apps/backend/docs/planning/reservations-data-rights-workflow-task.md" />
+    <File Path="apps/backend/docs/planning/reservations-management-create-idempotency-task.md" />
+    <File Path="apps/backend/docs/planning/reservations-management-guest-details-idempotency-task.md" />
+    <File Path="apps/backend/docs/planning/reservations-management-guest-link-retry-task.md" />
+    <File Path="apps/backend/docs/planning/reservations-management-inventory-amendment-replay-task.md" />
+    <File Path="apps/backend/docs/planning/reservations-management-lifecycle-idempotency-task.md" />
     <File Path="apps/backend/docs/planning/reservations-module-task.md" />
     <File Path="apps/backend/docs/planning/reservations-mutation-serialization-task.md" />
     <File Path="apps/backend/docs/planning/reservations-operational-surface-hardening-task.md" />
@@ -155,13 +170,19 @@
     <File Path="apps/backend/docs/planning/retention-tenant-termination-owner-task.md" />
     <File Path="apps/backend/docs/planning/secure-staff-enrollment-task.md" />
     <File Path="apps/backend/docs/planning/security-signals-and-incident-correlation-task.md" />
+    <File Path="apps/backend/docs/planning/staff-auth-subject-idempotency-task.md" />
     <File Path="apps/backend/docs/planning/staff-data-rights-anonymisation-task.md" />
     <File Path="apps/backend/docs/planning/staff-data-rights-correction-task.md" />
     <File Path="apps/backend/docs/planning/staff-data-rights-owner-capability-task.md" />
     <File Path="apps/backend/docs/planning/staff-data-rights-restriction-task.md" />
+    <File Path="apps/backend/docs/planning/staff-employment-lifecycle-idempotency-task.md" />
+    <File Path="apps/backend/docs/planning/staff-management-create-idempotency-task.md" />
     <File Path="apps/backend/docs/planning/staff-operational-surface-hardening-task.md" />
+    <File Path="apps/backend/docs/planning/staff-profile-update-idempotency-task.md" />
     <File Path="apps/backend/docs/planning/staff-profiles-module-task.md" />
+    <File Path="apps/backend/docs/planning/staff-property-assignment-idempotency-task.md" />
     <File Path="apps/backend/docs/planning/staff-record-retention-task.md" />
+    <File Path="apps/backend/docs/planning/staff-retention-prerequisite-transaction-boundary-task.md" />
     <File Path="apps/backend/docs/planning/staff-tenant-termination-owner-task.md" />
     <File Path="apps/backend/docs/planning/standalone-adapter-host-task.md" />
     <File Path="apps/backend/docs/planning/support-admin-access-task.md" />
@@ -507,6 +528,7 @@
     <Project Path="apps/backend/src/Extensions/BunkFy.Extensions.DataRights.TaskRuntime/BunkFy.Extensions.DataRights.TaskRuntime.csproj" />
     <Project Path="apps/backend/src/Extensions/BunkFy.Extensions.DataRights.TenantTermination/BunkFy.Extensions.DataRights.TenantTermination.csproj" />
     <Project Path="apps/backend/src/Extensions/BunkFy.Extensions.Operations.Notifications/BunkFy.Extensions.Operations.Notifications.csproj" />
+    <Project Path="apps/backend/src/Extensions/BunkFy.Extensions.ReservationGuestRecords/BunkFy.Extensions.ReservationGuestRecords.csproj" />
     <Project Path="apps/backend/src/Extensions/BunkFy.Extensions.Workspaces/BunkFy.Extensions.Workspaces.csproj" />
   </Folder>
   <Folder Name="/apps/backend/src/Extensions/BunkFy.Extensions.DataRights.AccessControl/docs/">
@@ -535,6 +557,7 @@
     <Project Path="apps/backend/src/Extensions/tests/BunkFy.Extensions.DataRights.TaskRuntime.Tests/BunkFy.Extensions.DataRights.TaskRuntime.Tests.csproj" />
     <Project Path="apps/backend/src/Extensions/tests/BunkFy.Extensions.DataRights.TenantTermination.Tests/BunkFy.Extensions.DataRights.TenantTermination.Tests.csproj" />
     <Project Path="apps/backend/src/Extensions/tests/BunkFy.Extensions.Operations.Notifications.Tests/BunkFy.Extensions.Operations.Notifications.Tests.csproj" />
+    <Project Path="apps/backend/src/Extensions/tests/BunkFy.Extensions.ReservationGuestRecords.Tests/BunkFy.Extensions.ReservationGuestRecords.Tests.csproj" />
     <Project Path="apps/backend/src/Extensions/tests/BunkFy.Extensions.Workspaces.Tests/BunkFy.Extensions.Workspaces.Tests.csproj" />
   </Folder>
   <Folder Name="/apps/backend/src/Hosts/">
@@ -752,6 +775,7 @@
     <File Path="docs/operations/deployed-operations-notifications-verification.md" />
     <File Path="docs/operations/deployed-public-edge-verification.md" />
     <File Path="docs/operations/deployed-release-rollback-rehearsal.md" />
+    <File Path="docs/operations/deployed-reservations-inventory-verification.md" />
     <File Path="docs/operations/deployed-retention-verification.md" />
     <File Path="docs/operations/deployed-workspace-browser-rehearsal.md" />
     <File Path="docs/operations/deployed-workspace-enrollment-verification.md" />
@@ -760,6 +784,7 @@
     <File Path="docs/operations/preview-deployment.md" />
     <File Path="docs/operations/preview-recovery-rehearsal.md" />
     <File Path="docs/operations/product-image-evidence.md" />
+    <File Path="docs/operations/production-admission-evidence.md" />
     <File Path="docs/operations/production-migration-rehearsal.md" />
   </Folder>
   <Folder Name="/docs/planning/">
@@ -778,6 +803,7 @@
     <File Path="eng/new-preview-env.ps1" />
     <File Path="eng/package-image-candidate.ps1" />
     <File Path="eng/preview.ps1" />
+    <File Path="eng/production-admission.common.ps1" />
     <File Path="eng/run-aspire.ps1" />
     <File Path="eng/scan-oci-image.ps1" />
     <File Path="eng/submodule-status.ps1" />
@@ -788,20 +814,24 @@
     <File Path="eng/test-deployed-operations-notifications.ps1" />
     <File Path="eng/test-deployed-public-edge.ps1" />
     <File Path="eng/test-deployed-release-rollback.ps1" />
+    <File Path="eng/test-deployed-reservations-inventory.ps1" />
     <File Path="eng/test-deployed-retention.ps1" />
     <File Path="eng/test-deployed-workspace-enrollment.ps1" />
     <File Path="eng/test-deployed-workspace-invitation.ps1" />
     <File Path="eng/test-image-candidate-package.ps1" />
+    <File Path="eng/test-production-admission.ps1" />
     <File Path="eng/update-gma.ps1" />
     <File Path="eng/update-web-contracts.ps1" />
     <File Path="eng/verify-image-candidate.ps1" />
     <File Path="eng/verify-image-promotion.ps1" />
     <File Path="eng/verify-operations.ps1" />
+    <File Path="eng/verify-production-admission.ps1" />
     <File Path="eng/verify.ps1" />
     <File Path="eng/write-image-evidence.ps1" />
   </Folder>
   <Folder Name="/eng/operations/">
     <File Path="eng/operations/admin-api.common.ps1" />
+    <File Path="eng/operations/assemble-production-admission.ps1" />
     <File Path="eng/operations/backup-preview.ps1" />
     <File Path="eng/operations/deployed-authenticated-smoke.common.ps1" />
     <File Path="eng/operations/deployed-public-edge.common.ps1" />
@@ -817,6 +847,7 @@
     <File Path="eng/operations/verify-deployed-admin-boundary.ps1" />
     <File Path="eng/operations/verify-deployed-operations-notifications.ps1" />
     <File Path="eng/operations/verify-deployed-public-edge.ps1" />
+    <File Path="eng/operations/verify-deployed-reservations-inventory.ps1" />
     <File Path="eng/operations/verify-deployed-retention.ps1" />
     <File Path="eng/operations/verify-deployed-workspace-enrollment.ps1" />
     <File Path="eng/operations/verify-deployed-workspace-invitation.ps1" />
