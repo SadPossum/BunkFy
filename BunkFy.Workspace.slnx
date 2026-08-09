@@ -101,8 +101,10 @@
     <File Path="apps/backend/docs/planning/imap-reservation-mail-authentication-task.md" />
     <File Path="apps/backend/docs/planning/imap-reservation-mail-key-rotation-task.md" />
     <File Path="apps/backend/docs/planning/ingestion-adapter-ingress-task.md" />
+    <File Path="apps/backend/docs/planning/ingestion-connection-control-idempotency-task.md" />
     <File Path="apps/backend/docs/planning/ingestion-connection-create-idempotency-task.md" />
     <File Path="apps/backend/docs/planning/ingestion-connection-update-idempotency-task.md" />
+    <File Path="apps/backend/docs/planning/ingestion-credential-mutation-idempotency-task.md" />
     <File Path="apps/backend/docs/planning/ingestion-data-rights-workflow-task.md" />
     <File Path="apps/backend/docs/planning/ingestion-execution-mutation-serialization-task.md" />
     <File Path="apps/backend/docs/planning/ingestion-legal-holds-task.md" />
