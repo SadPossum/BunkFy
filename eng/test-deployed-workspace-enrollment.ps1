@@ -156,7 +156,7 @@ function Start-BunkFyWorkspaceEnrollmentFixtureServer {
             $source1Disabled = $false
             $requestNumber = 0
             $inactivityDeadline = [DateTimeOffset]::UtcNow.AddSeconds(10)
-            while ($requestNumber -lt 38 -and
+            while ($requestNumber -lt 40 -and
                 [DateTimeOffset]::UtcNow -lt $inactivityDeadline) {
                 if (-not $listener.Pending()) {
                     Start-Sleep -Milliseconds 25
@@ -393,9 +393,19 @@ function Start-BunkFyWorkspaceEnrollmentFixtureServer {
                         }
                         $secret = [string](($bodyText | ConvertFrom-Json).token)
                         if ($secret -ceq $Fixture.RejectedSecret) {
-                            $response = New-ClaimOutcome `
-                                -ApprovedFlow $false `
-                                -Status $(if ($rejected) { 'rejected' } else { 'pending' })
+                            if ($rejected) {
+                                $status = 409
+                                $reason = 'Conflict'
+                                $response = @{
+                                    title = 'Organizations.EnrollmentClaimUnavailable'
+                                    status = 409
+                                }
+                            }
+                            else {
+                                $response = New-ClaimOutcome `
+                                    -ApprovedFlow $false `
+                                    -Status 'pending'
+                            }
                         }
                         elseif ($secret -ceq $Fixture.ApprovedSecret) {
                             $response = New-ClaimOutcome `
@@ -538,8 +548,8 @@ function Start-BunkFyWorkspaceEnrollmentFixtureServer {
                     $client.Dispose()
                 }
             }
-            if ($Mode -eq 'Valid' -and $requestNumber -ne 38) {
-                throw "Valid fixture observed $requestNumber requests; expected 38."
+            if ($Mode -eq 'Valid' -and $requestNumber -ne 40) {
+                throw "Valid fixture observed $requestNumber requests; expected 40."
             }
         }
         finally {

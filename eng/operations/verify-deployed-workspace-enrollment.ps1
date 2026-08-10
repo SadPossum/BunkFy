@@ -500,19 +500,19 @@ try {
         -Flow $rejectedFlow `
         -ExpectedStatus 7
     Assert-SmokePendingAccessDenied
-    $replayedRejection = Read-SmokeJson `
-        -Response (Invoke-SmokeApi `
-            -Path '/api/organization-enrollment/claim' `
-            -Method POST `
-            -TenantId 'global' `
-            -Token $applicantToken `
-            -Body @{ token = $rejectedFlow.Source.Token }) `
-        -ExpectedStatus 200 `
-        -Operation 'Replay rejected enrollment claim'
-    if ([string]$replayedRejection.claim.status -cne 'rejected' -or
-        $null -ne $replayedRejection.membership) {
-        throw 'Rejected enrollment replay did not remain denied.'
+    $replayedRejection = Invoke-SmokeApi `
+        -Path '/api/organization-enrollment/claim' `
+        -Method POST `
+        -TenantId 'global' `
+        -Token $applicantToken `
+        -Body @{ token = $rejectedFlow.Source.Token }
+    $replayedRejectionCode = Get-BunkFyAuthenticatedProblemCode `
+        -Response $replayedRejection
+    if ($replayedRejection.StatusCode -ne 409 -or
+        $replayedRejectionCode -cne 'Organizations.EnrollmentClaimUnavailable') {
+        throw "Rejected enrollment replay returned HTTP $($replayedRejection.StatusCode) with problem '$replayedRejectionCode'; expected the terminal claim denial."
     }
+    Assert-SmokePendingAccessDenied
     $checks.Add([ordered]@{ name = 'owner-rejection-terminal'; status = 'passed' })
     Disable-SmokeEnrollmentSource -SourceId $rejectedFlow.Source.SourceId
     $checks.Add([ordered]@{ name = 'rejected-source-disabled'; status = 'passed' })
