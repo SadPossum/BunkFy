@@ -921,7 +921,8 @@ function Remove-RehearsalNonOwnerMembers {
         }
 
         $staff = $matchingStaff[0]
-        if ([string]$staff.status -cin @('active', 'suspended')) {
+        $staffStatus = [int]$staff.status
+        if ($staffStatus -in @(1, 2)) {
             $result = Read-RehearsalJson `
                 -Response (Invoke-RehearsalApi `
                     -Path "/api/staff/members/$([Guid]$staff.staffMemberId)/depart" `
@@ -939,13 +940,13 @@ function Remove-RehearsalNonOwnerMembers {
                 -ExpectedStatus 200 `
                 -Operation 'Depart a synthetic non-owner Staff member'
             if ([Guid]$result.staffMemberId -ne [Guid]$staff.staffMemberId -or
-                [string]$result.status -cne 'departed') {
+                [int]$result.status -ne 3) {
                 throw 'Synthetic Staff cleanup returned an invalid departure receipt.'
             }
             $removed++
         }
-        elseif ([string]$staff.status -cne 'departed') {
-            throw "Synthetic Staff cleanup found unsupported status '$($staff.status)'."
+        elseif ($staffStatus -ne 3) {
+            throw "Synthetic Staff cleanup found unsupported status '$staffStatus'."
         }
 
         Start-Sleep -Milliseconds $PollIntervalMilliseconds

@@ -178,7 +178,7 @@ function New-SmokeEnrollmentSource {
             sourceId = $sourceId
             lifetimeHours = 1
             maximumClaims = 1
-            approvalMode = 2
+            approvalMode = 'requires-approval'
             profileKey = $profileKey
             propertyIds = @($AllowedPropertyId)
         } `

@@ -316,7 +316,7 @@ function Start-BunkFyWorkspaceEnrollmentFixtureServer {
                         }
                         $body = $bodyText | ConvertFrom-Json -Depth 12
                         if ([int]$body.maximumClaims -ne 1 -or
-                            [int]$body.approvalMode -ne 2 -or
+                            [string]$body.approvalMode -cne 'requires-approval' -or
                             [string]$body.profileKey -cne 'front-desk' -or
                             @($body.propertyIds).Count -ne 1 -or
                             [string]$body.propertyIds[0] -cne $Fixture.AllowedPropertyId) {
