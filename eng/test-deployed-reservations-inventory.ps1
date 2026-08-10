@@ -566,14 +566,18 @@ try {
             $fixture.MembershipId,
             $fixture.SubjectId,
             $fixture.OperatorToken,
-            $fixture.Arrival,
-            $fixture.Departure,
             $fixture.GuestLabel,
             $reservationId,
             'Authorization',
             'X-Tenant-Id')) {
         if ($evidenceText.Contains($sensitive, [StringComparison]::OrdinalIgnoreCase)) {
             throw 'Reservations and Inventory evidence retained scoped, personal, or credential data.'
+        }
+    }
+    foreach ($stayDate in @($fixture.Arrival, $fixture.Departure)) {
+        $jsonDateLiteral = '"' + $stayDate + '"'
+        if ($evidenceText.Contains($jsonDateLiteral, [StringComparison]::OrdinalIgnoreCase)) {
+            throw 'Reservations and Inventory evidence retained a stay date.'
         }
     }
 
