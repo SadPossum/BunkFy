@@ -1,7 +1,7 @@
 # Deployed Public Edge Verification
 
-Status: implemented and locally verified
-Date: 2026-08-06
+Status: implemented, fixture verified, and VPS-preview verified
+Date: 2026-08-10
 
 ## Goal
 
@@ -29,6 +29,15 @@ The probe will fail closed unless one origin:
 Redirects are not followed. Response bodies are bounded before parsing, and
 the retained result contains statuses and check names rather than response
 bodies or raw headers.
+
+For HTTPS, the untrusted-Host boundary uses the system `curl` executable. The
+request keeps the origin URL as the TLS identity and changes only the HTTP
+`Host` header, so ordinary certificate validation still applies to the real
+origin. The probe does not use an insecure-certificate option, does not follow
+redirects, disables user-level `curl` configuration, bypasses HTTP proxies for
+this boundary check, and bounds the discarded response body. `curl` is
+therefore a runtime prerequisite for the host-boundary portion of a deployed
+HTTPS probe.
 
 ## Evidence Boundary
 

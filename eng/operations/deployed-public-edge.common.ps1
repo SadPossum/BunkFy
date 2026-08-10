@@ -393,6 +393,64 @@ function New-BunkFyPublicEdgeHttpClient {
     return $client
 }
 
+function Invoke-BunkFyUntrustedHttpsHostRequest {
+    param(
+        [Parameter(Mandatory = $true)][Uri] $Uri,
+        [Parameter(Mandatory = $true)][int] $TimeoutSeconds,
+        [Parameter(Mandatory = $true)][string] $HostHeader
+    )
+
+    if (-not $Uri.Scheme.Equals('https', [StringComparison]::OrdinalIgnoreCase)) {
+        throw 'The external untrusted-Host transport supports HTTPS only.'
+    }
+
+    $curl = Get-Command curl -CommandType Application -ErrorAction Stop |
+        Select-Object -First 1
+    $bodyPath = Join-Path ([IO.Path]::GetTempPath()) (
+        'bunkfy-public-edge-' + [Guid]::NewGuid().ToString('N') + '.body')
+    try {
+        $arguments = @(
+            '--disable',
+            '--silent',
+            '--show-error',
+            '--output', $bodyPath,
+            '--write-out', '%{http_code}',
+            '--max-time', $TimeoutSeconds.ToString(
+                [Globalization.CultureInfo]::InvariantCulture),
+            '--max-filesize', $script:BunkFyPublicEdgeMaximumBodyBytes.ToString(
+                [Globalization.CultureInfo]::InvariantCulture),
+            '--proto', '=https',
+            '--proxy', '',
+            '--header', "Host: $HostHeader",
+            $Uri.AbsoluteUri)
+        $statusOutput = @(& $curl.Source @arguments)
+        $exitCode = $LASTEXITCODE
+        if ($exitCode -ne 0) {
+            throw "The untrusted-Host request to '$Uri' failed with curl exit code $exitCode."
+        }
+
+        $statusText = ($statusOutput -join '').Trim()
+        if ($statusText -cnotmatch '^[0-9]{3}$') {
+            throw "The untrusted-Host request returned invalid HTTP status '$statusText'."
+        }
+
+        $body = Get-Item -LiteralPath $bodyPath -Force
+        if ($body.PSIsContainer -or
+            ($body.Attributes -band [IO.FileAttributes]::ReparsePoint) -or
+            $body.Length -gt $script:BunkFyPublicEdgeMaximumBodyBytes) {
+            throw 'The untrusted-Host response body is not a bounded regular file.'
+        }
+
+        return [int]::Parse(
+            $statusText,
+            [Globalization.NumberStyles]::None,
+            [Globalization.CultureInfo]::InvariantCulture)
+    }
+    finally {
+        Remove-Item -LiteralPath $bodyPath -Force -ErrorAction SilentlyContinue
+    }
+}
+
 function Invoke-BunkFyPublicEdgeRequest {
     param(
         [Parameter(Mandatory = $true)][Net.Http.HttpClient] $Client,

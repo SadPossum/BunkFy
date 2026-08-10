@@ -118,18 +118,29 @@ try {
         status = 404
     })
 
-    $hostResponse = Invoke-BunkFyPublicEdgeRequest `
-        -Client $client `
-        -Uri ([Uri]::new($origin, '/api/smoke')) `
-        -TimeoutSeconds $TimeoutSeconds `
-        -HostHeader $UntrustedHost
-    if ($hostResponse.StatusCode -lt 400 -or $hostResponse.StatusCode -gt 499) {
-        throw "The public edge accepted an untrusted Host value with HTTP $($hostResponse.StatusCode)."
+    $hostStatus = if ($origin.Scheme.Equals(
+            'https',
+            [StringComparison]::OrdinalIgnoreCase)) {
+        Invoke-BunkFyUntrustedHttpsHostRequest `
+            -Uri ([Uri]::new($origin, '/api/smoke')) `
+            -TimeoutSeconds $TimeoutSeconds `
+            -HostHeader $UntrustedHost
+    }
+    else {
+        $hostResponse = Invoke-BunkFyPublicEdgeRequest `
+            -Client $client `
+            -Uri ([Uri]::new($origin, '/api/smoke')) `
+            -TimeoutSeconds $TimeoutSeconds `
+            -HostHeader $UntrustedHost
+        $hostResponse.StatusCode
+    }
+    if ($hostStatus -lt 400 -or $hostStatus -gt 499) {
+        throw "The public edge accepted an untrusted Host value with HTTP $hostStatus."
     }
     $checks.Add([ordered]@{
         name = 'untrusted-host-rejected'
         path = '/api/smoke'
-        status = $hostResponse.StatusCode
+        status = $hostStatus
     })
 }
 finally {

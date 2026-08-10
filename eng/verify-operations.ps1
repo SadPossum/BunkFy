@@ -574,12 +574,18 @@ foreach ($requiredToken in @(
         'Assert-BunkFySmokeResponse',
         'Assert-BunkFyPublicApiReleaseIdentity',
         'New-BunkFyPublicEdgeHttpClient',
+        'Invoke-BunkFyUntrustedHttpsHostRequest',
         'Get-BunkFyObservedComposedReleaseId',
         'ExpectedReleaseId',
         'releaseId',
         '$handler.AllowAutoRedirect = $false',
         'HttpCompletionOption]::ResponseHeadersRead',
         'CancellationTokenSource',
+        'Select-Object -First 1',
+        "'--disable'",
+        "'--proto', '=https'",
+        "'--proxy', ''",
+        "'--max-filesize'",
         'Content-Security-Policy',
         'Strict-Transport-Security')) {
     if (-not $deployedEdgeCommon.Contains($requiredToken, [StringComparison]::Ordinal)) {
@@ -594,6 +600,7 @@ foreach ($requiredToken in @(
         '/api/smoke',
         '/api/admin/audit/',
         'ExpectedReleaseId',
+        'Invoke-BunkFyUntrustedHttpsHostRequest',
         '-HostHeader $UntrustedHost',
         'schemaVersion = 3',
         "evidenceKind = 'bunkfy-deployed-public-edge-probe'",
@@ -605,15 +612,19 @@ foreach ($requiredToken in @(
         throw "Deployed public edge probe policy is missing '$requiredToken'."
     }
 }
+$deployedEdgeTransportSources = $deployedEdgeCommon + "`n" + $deployedEdgeProbe
 foreach ($forbiddenToken in @(
         'DangerousAcceptAnyServerCertificateValidator',
         'ServerCertificateCustomValidationCallback',
         '-SkipCertificateCheck',
+        '--insecure',
         'Authorization',
         'sourceCommit',
         'imageDigest',
         '$handler.AllowAutoRedirect = $true')) {
-    if ($deployedEdgeProbe.Contains($forbiddenToken, [StringComparison]::OrdinalIgnoreCase)) {
+    if ($deployedEdgeTransportSources.Contains(
+            $forbiddenToken,
+            [StringComparison]::OrdinalIgnoreCase)) {
         throw "Deployed public edge probe contains forbidden token '$forbiddenToken'."
     }
 }
