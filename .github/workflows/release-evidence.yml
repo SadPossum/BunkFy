@@ -54,7 +54,7 @@ jobs:
 
       - name: Create source release evidence
         id: release-evidence
-        uses: SadPossum/GMA-Skeleton/.github/actions/source-release-evidence@4a1a6a857eff7524bc25821a89fe8b0260cb95a0
+        uses: SadPossum/GMA-Skeleton/.github/actions/source-release-evidence@f34a1b842023fcc2279dca2ffd52adaa1aa58827
         with:
           release-version: ${{ steps.identity.outputs.version }}
           source-ref: ${{ github.ref }}
