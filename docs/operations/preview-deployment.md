@@ -235,6 +235,11 @@ exclusion, individual read state, and the durable SSE feed, use the
 [deployed Operations Notifications verifier](deployed-operations-notifications-verification.md).
 It creates and releases one inventory block and retains the released block plus
 two notification-history records as smoke evidence.
+For a self-contained Preview run, add `-IncludeOperationsNotifications` to the
+Preview onboarding rehearsal. That opt-in contributor reuses the synthetic
+owner and property-scoped Staff applicant, provisions one temporary room-level
+unit, writes a separate admission-compatible notification child proof, and
+retires the room before the onboarding cleanup continues.
 
 Use the mutation-bearing
 [deployed Reservations and Inventory verifier](deployed-reservations-inventory-verification.md)

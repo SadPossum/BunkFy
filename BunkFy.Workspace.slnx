@@ -830,6 +830,7 @@
     <File Path="eng/test-deployed-workspace-invitation.ps1" />
     <File Path="eng/test-image-candidate-package.ps1" />
     <File Path="eng/test-preview-mail-capture.ps1" />
+    <File Path="eng/test-preview-operations-notifications-fixture.ps1" />
     <File Path="eng/test-production-admission.ps1" />
     <File Path="eng/update-gma.ps1" />
     <File Path="eng/update-web-contracts.ps1" />
@@ -848,6 +849,7 @@
     <File Path="eng/operations/deployed-public-edge.common.ps1" />
     <File Path="eng/operations/offboard-staff-access.ps1" />
     <File Path="eng/operations/preview-mail-capture.common.ps1" />
+    <File Path="eng/operations/preview-operations-notifications-fixture.common.ps1" />
     <File Path="eng/operations/preview-state.common.ps1" />
     <File Path="eng/operations/promote-image-candidate.ps1" />
     <File Path="eng/operations/provision-staff-access.ps1" />

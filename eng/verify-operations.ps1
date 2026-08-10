@@ -19,6 +19,7 @@ $scripts = @(
     (Join-Path $PSScriptRoot 'operations\deployed-public-edge.common.ps1'),
     (Join-Path $PSScriptRoot 'operations\deployed-authenticated-smoke.common.ps1'),
     (Join-Path $PSScriptRoot 'operations\preview-mail-capture.common.ps1'),
+    (Join-Path $PSScriptRoot 'operations\preview-operations-notifications-fixture.common.ps1'),
     (Join-Path $PSScriptRoot 'operations\rehearse-preview-onboarding.ps1'),
     (Join-Path $PSScriptRoot 'operations\verify-deployed-adapter-host.ps1'),
     (Join-Path $PSScriptRoot 'operations\verify-deployed-admin-boundary.ps1'),
@@ -38,6 +39,7 @@ $scripts = @(
     (Join-Path $PSScriptRoot 'test-deployed-workspace-enrollment.ps1'),
     (Join-Path $PSScriptRoot 'test-deployed-workspace-invitation.ps1'),
     (Join-Path $PSScriptRoot 'test-preview-mail-capture.ps1'),
+    (Join-Path $PSScriptRoot 'test-preview-operations-notifications-fixture.ps1'),
     (Join-Path $PSScriptRoot 'test-deployed-retention.ps1'),
     (Join-Path $PSScriptRoot 'test-production-admission.ps1'),
     (Join-Path $PSScriptRoot 'new-preview-env.ps1'),
@@ -939,6 +941,11 @@ foreach ($requiredToken in @(
         '/api/v1/message/',
         'verify-deployed-workspace-invitation.ps1',
         'verify-deployed-workspace-enrollment.ps1',
+        'preview-operations-notifications-fixture.common.ps1',
+        'IncludeOperationsNotifications',
+        'verify-deployed-operations-notifications.ps1',
+        'operations-notifications-child-proof-passed',
+        "`$cleanup['operationsNotificationsFixture'] = 'room-retired'",
         '/api/staff/members',
         '/depart',
         '/retire',
@@ -989,6 +996,41 @@ foreach ($forbiddenToken in @(
 
 & (Join-Path $PSScriptRoot 'test-preview-mail-capture.ps1')
 Write-Host 'BunkFy Preview onboarding rehearsal policy is valid.'
+
+$previewOperationsNotificationsFixture = Get-Content -LiteralPath (
+    Join-Path $PSScriptRoot 'operations\preview-operations-notifications-fixture.common.ps1') -Raw
+foreach ($requiredToken in @(
+        'New-BunkFyPreviewOperationsNotificationsFixture',
+        'Remove-BunkFyPreviewOperationsNotificationsFixture',
+        '/api/properties/',
+        '/api/inventory/properties/',
+        '/sales-mode',
+        '/retirement',
+        'room-retirements',
+        "-Name 'roomLevel'",
+        "-Name 'completed'")) {
+    if (-not $previewOperationsNotificationsFixture.Contains(
+            $requiredToken,
+            [StringComparison]::Ordinal)) {
+        throw "Preview Operations Notifications fixture policy is missing '$requiredToken'."
+    }
+}
+foreach ($forbiddenToken in @(
+        '/api/admin/',
+        'Invoke-Sqlcmd',
+        'NpgsqlConnection',
+        'psql ',
+        'DangerousAcceptAnyServerCertificateValidator',
+        'ServerCertificateCustomValidationCallback')) {
+    if ($previewOperationsNotificationsFixture.Contains(
+            $forbiddenToken,
+            [StringComparison]::OrdinalIgnoreCase)) {
+        throw "Preview Operations Notifications fixture contains forbidden token '$forbiddenToken'."
+    }
+}
+
+& (Join-Path $PSScriptRoot 'test-preview-operations-notifications-fixture.ps1')
+Write-Host 'BunkFy Preview Operations Notifications fixture policy is valid.'
 
 $operationsNotificationsProbe = Get-Content -LiteralPath (
     Join-Path $PSScriptRoot 'operations\verify-deployed-operations-notifications.ps1') -Raw

@@ -12,6 +12,7 @@ param(
     [ValidateRange(500, 5000)][int] $PollIntervalMilliseconds = 1000,
     [string] $OutputPath,
     [switch] $AllowLoopbackHttp,
+    [switch] $IncludeOperationsNotifications,
     [switch] $Force
 )
 
@@ -22,6 +23,7 @@ $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'deployed-public-edge.common.ps1')
 . (Join-Path $PSScriptRoot 'preview-state.common.ps1')
 . (Join-Path $PSScriptRoot 'preview-mail-capture.common.ps1')
+. (Join-Path $PSScriptRoot 'preview-operations-notifications-fixture.common.ps1')
 
 $root = Get-BunkFyRepositoryRoot
 $origin = Assert-BunkFyPublicEdgeOrigin `
@@ -57,6 +59,9 @@ $outputDirectory = Split-Path -Parent $OutputPath
 $outputBaseName = [IO.Path]::GetFileNameWithoutExtension($OutputPath)
 $invitationEvidencePath = Join-Path $outputDirectory "$outputBaseName.invitation.json"
 $enrollmentEvidencePath = Join-Path $outputDirectory "$outputBaseName.enrollment.json"
+$operationsNotificationsEvidencePath = Join-Path `
+    $outputDirectory `
+    "$outputBaseName.operations-notifications.json"
 
 function Assert-RehearsalOutputAvailable {
     param([Parameter(Mandatory = $true)][string] $Path)
@@ -74,7 +79,11 @@ function Assert-RehearsalOutputAvailable {
     }
 }
 
-foreach ($path in @($OutputPath, $invitationEvidencePath, $enrollmentEvidencePath)) {
+$evidencePaths = @($OutputPath, $invitationEvidencePath, $enrollmentEvidencePath)
+if ($IncludeOperationsNotifications) {
+    $evidencePaths += $operationsNotificationsEvidencePath
+}
+foreach ($path in $evidencePaths) {
     Assert-RehearsalOutputAvailable -Path $path
 }
 
@@ -165,6 +174,12 @@ $cleanup = [ordered]@{
     ownerSessions = 'not-created'
     invitationApplicantSessions = 'not-created'
     enrollmentApplicantSessions = 'not-created'
+    operationsNotificationsFixture = if ($IncludeOperationsNotifications) {
+        'not-created'
+    }
+    else {
+        'not-requested'
+    }
     capturedMail = 'not-opened'
     globalIdentities = 'not-created'
 }
@@ -178,6 +193,7 @@ $invitationApplicant = $null
 $enrollmentApplicant = $null
 $invitationEvidence = $null
 $enrollmentEvidence = $null
+$operationsNotificationsFixture = $null
 $proofError = $null
 $proofStage = 'not-started'
 $releaseIdBefore = $null
@@ -1089,9 +1105,15 @@ if (-not [bool]$capabilities.emailVerificationEnabled) {
 }
 $checks.Add([ordered]@{ name = 'runtime-email-capability-enabled'; status = 'passed' })
 
+$rehearsalAction = 'create three verified synthetic identities, exercise invitation and QR enrollment'
+if ($IncludeOperationsNotifications) {
+    $rehearsalAction += ', exercise Operations Notifications'
+}
+$rehearsalAction += ', then archive and revoke the rehearsal state'
+
 if (-not $PSCmdlet.ShouldProcess(
         $origin.GetLeftPart([UriPartial]::Authority),
-        'create three verified synthetic identities, exercise invitation and QR enrollment, then archive and revoke the rehearsal state')) {
+        $rehearsalAction)) {
     $mailpitClient.Dispose()
     $client.Dispose()
     return
@@ -1228,6 +1250,24 @@ try {
         -String ([string]$enrollmentApplicant.AccessToken) `
         -AsPlainText `
         -Force
+    $invokeNotificationFixtureApi = {
+        param(
+            [Parameter(Mandatory = $true)][string] $Path,
+            [Parameter(Mandatory = $true)][string] $Method,
+            [AllowNull()][object] $Body,
+            [Parameter(Mandatory = $true)][string] $Operation
+        )
+
+        return Read-RehearsalJson `
+            -Response (Invoke-RehearsalApi `
+                -Path $Path `
+                -Method $Method `
+                -TenantId $workspaceId.ToString('D') `
+                -Token ([string]$owner.AccessToken) `
+                -Body $Body) `
+            -ExpectedStatus 200 `
+            -Operation $Operation
+    }
     try {
         $proofStage = 'invitation-proof'
         & (Join-Path $PSScriptRoot 'verify-deployed-workspace-invitation.ps1') `
@@ -1274,6 +1314,77 @@ try {
             -Path $enrollmentEvidencePath `
             -ExpectedKind 'bunkfy-deployed-workspace-enrollment-probe'
         $checks.Add([ordered]@{ name = 'qr-enrollment-child-proof-passed'; status = 'passed' })
+
+        if ($IncludeOperationsNotifications) {
+            $operationsProofError = $null
+            try {
+                $proofStage = 'operations-notifications-fixture'
+                $operationsNotificationsFixture = `
+                    New-BunkFyPreviewOperationsNotificationsFixture `
+                        -InvokeApi $invokeNotificationFixtureApi `
+                        -PropertyId $allowedPropertyId `
+                        -RoomName "Preview notification room $batchId" `
+                        -State ([ref]$operationsNotificationsFixture) `
+                        -ConvergenceTimeoutSeconds $ConvergenceTimeoutSeconds `
+                        -PollIntervalMilliseconds $PollIntervalMilliseconds
+                $cleanup['operationsNotificationsFixture'] = 'active-room'
+
+                $proofStage = 'operations-notifications-proof'
+                $arrival = [DateTime]::UtcNow.Date.AddDays(30)
+                $departure = $arrival.AddDays(2)
+                & (Join-Path $PSScriptRoot 'verify-deployed-operations-notifications.ps1') `
+                    -PublicOrigin $origin `
+                    -ExpectedReleaseId $ExpectedReleaseId `
+                    -WorkspaceId $workspaceId `
+                    -PropertyId $allowedPropertyId `
+                    -InventoryUnitId ([Guid]$operationsNotificationsFixture.InventoryUnitId) `
+                    -Arrival $arrival `
+                    -Departure $departure `
+                    -ActorAccessToken $ownerToken `
+                    -ObserverAccessToken $invitationToken `
+                    -RequestTimeoutSeconds $RequestTimeoutSeconds `
+                    -ConvergenceTimeoutSeconds ([Math]::Min($ConvergenceTimeoutSeconds, 300)) `
+                    -PollIntervalMilliseconds $PollIntervalMilliseconds `
+                    -OutputPath $operationsNotificationsEvidencePath `
+                    -AllowLoopbackHttp:$AllowLoopbackHttp `
+                    -Force `
+                    -Confirm:$false
+                [void](Read-RehearsalChildEvidence `
+                        -Path $operationsNotificationsEvidencePath `
+                        -ExpectedKind 'bunkfy-deployed-operations-notifications-probe')
+                $checks.Add([ordered]@{
+                        name = 'operations-notifications-child-proof-passed'
+                        status = 'passed'
+                    })
+            }
+            catch {
+                $operationsProofError = $_.Exception
+            }
+            finally {
+                if ($null -ne $operationsNotificationsFixture) {
+                    try {
+                        [void](Remove-BunkFyPreviewOperationsNotificationsFixture `
+                                -InvokeApi $invokeNotificationFixtureApi `
+                                -Fixture $operationsNotificationsFixture `
+                                -ConvergenceTimeoutSeconds $ConvergenceTimeoutSeconds `
+                                -PollIntervalMilliseconds $PollIntervalMilliseconds)
+                        $cleanup['operationsNotificationsFixture'] = 'room-retired'
+                    }
+                    catch {
+                        $cleanup['operationsNotificationsFixture'] = 'failed'
+                        Add-RehearsalCleanupFailure `
+                            -Name 'operations-notifications-fixture' `
+                            -Message 'The synthetic Operations Notifications room could not be retired.'
+                        if ($null -eq $operationsProofError) {
+                            $operationsProofError = $_.Exception
+                        }
+                    }
+                }
+            }
+            if ($null -ne $operationsProofError) {
+                throw $operationsProofError
+            }
+        }
     }
     finally {
         $ownerToken.Dispose()
@@ -1442,9 +1553,16 @@ foreach ($identityRecord in @(
         })
 }
 $childEvidence = [ordered]@{}
-foreach ($childRecord in @(
-        [pscustomobject]@{ Name = 'invitation'; Path = $invitationEvidencePath },
-        [pscustomobject]@{ Name = 'enrollment'; Path = $enrollmentEvidencePath })) {
+$childRecords = @(
+    [pscustomobject]@{ Name = 'invitation'; Path = $invitationEvidencePath },
+    [pscustomobject]@{ Name = 'enrollment'; Path = $enrollmentEvidencePath })
+if ($IncludeOperationsNotifications) {
+    $childRecords += [pscustomobject]@{
+        Name = 'operationsNotifications'
+        Path = $operationsNotificationsEvidencePath
+    }
+}
+foreach ($childRecord in $childRecords) {
     if (-not (Test-Path -LiteralPath $childRecord.Path -PathType Leaf)) {
         continue
     }

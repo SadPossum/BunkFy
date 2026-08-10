@@ -46,6 +46,34 @@ Do not put tokens on the command line. The operation requires confirmation
 unless the caller deliberately supplies `-Confirm:$false` in controlled
 automation.
 
+### Self-contained preview rehearsal
+
+The Preview onboarding rehearsal can contribute the dedicated actor, observer,
+property, and room-level inventory fixture when no reusable smoke fixture
+exists:
+
+```powershell
+./eng/operations/rehearse-preview-onboarding.ps1 `
+  -PublicOrigin http://127.0.0.1:18080 `
+  -ExpectedReleaseId <candidate-release-id> `
+  -EnvironmentPath /secure/path/preview.env `
+  -AllowLoopbackHttp `
+  -IncludeOperationsNotifications `
+  -Confirm:$false
+```
+
+This opt-in path runs the invitation proof first, uses its property-scoped
+Staff member as the observer, creates one temporary whole-room inventory unit,
+and delegates the notification assertions to this verifier. It then retires
+the room through Inventory's coordinated topology workflow before the parent
+rehearsal retires the properties, removes non-owner memberships, archives the
+workspace, and revokes all synthetic sessions.
+
+The standalone Operations Notifications child file is written beside the
+onboarding umbrella as `*.operations-notifications.json` and is suitable for
+the corresponding production-admission evidence input. The umbrella binds the
+child by SHA-256 without copying tokens or notification content.
+
 ## Checks
 
 The probe verifies:
@@ -90,4 +118,7 @@ external delivery adapters. Those remain candidate-specific checks.
 a deterministic loopback fixture. It proves the valid path, release mismatch
 rejection, evidence redaction, identical-token rejection, and rejection when
 the actor receives its own notification. It does not contact a deployed
-environment.
+environment. `eng/test-preview-operations-notifications-fixture.ps1` separately
+proves bounded room provisioning, delayed projection convergence, whole-room
+sales configuration, partial-state cleanup ownership, and coordinated room
+retirement for the self-contained Preview contributor.

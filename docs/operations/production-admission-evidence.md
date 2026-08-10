@@ -40,6 +40,10 @@ Provide the exact retained files or directories for:
 Every deployed proof must report the candidate release and public origin. The
 migration rehearsal source commit and backend digest must match the promoted
 candidate. The rollback rehearsal must bind both supplied promotion records.
+The Preview onboarding rehearsal's opt-in
+`*.operations-notifications.json` child is a standalone Operations
+Notifications proof and may be supplied directly; use the child file, not the
+onboarding umbrella, for `OperationsNotificationsEvidencePath`.
 
 Also provide four non-secret references from the private release system:
 
