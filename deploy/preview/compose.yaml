@@ -8,6 +8,7 @@ x-runtime-environment: &runtime-environment
   DOTNET_ENVIRONMENT: Preview
   BunkFy__Deployment__Profile: Preview
   BunkFy__Deployment__ReleaseId: "${BUNKFY_RELEASE_ID:-preview-local}"
+  AllowedHosts: "${BUNKFY_ALLOWED_HOSTS:-localhost;127.0.0.1}"
   <<: *database-environment
   ConnectionStrings__nats: "nats://${BUNKFY_NATS_USER:?set BUNKFY_NATS_USER}:${BUNKFY_NATS_PASSWORD:?set BUNKFY_NATS_PASSWORD}@nats:4222"
   ConnectionStrings__redis: "redis:6379,password=${BUNKFY_REDIS_PASSWORD:?set BUNKFY_REDIS_PASSWORD},abortConnect=false"
@@ -141,7 +142,7 @@ services:
       DataProtection__RequirePersistentKeys: "true"
       DataProtection__KeyRingPath: /var/lib/bunkfy/data-protection
       DataProtection__ApplicationName: bunkfy
-      Http__AllowAnyHost: "true"
+      Http__AllowAnyHost: "false"
       Http__HttpsRedirectionEnabled: "false"
       Http__HstsEnabled: "false"
       Http__Cors__Enabled: "false"
@@ -277,7 +278,7 @@ services:
       Notifications__Delivery__Enabled: "false"
       Notifications__Retention__Enabled: "false"
       Administration__Api__AllowGeneratedPasswordResponses: "${BUNKFY_ALLOW_GENERATED_ADMIN_PASSWORDS:-false}"
-      Http__AllowAnyHost: "true"
+      Http__AllowAnyHost: "false"
       Http__HttpsRedirectionEnabled: "false"
       Http__HstsEnabled: "false"
       Http__PrivateNetwork__Enabled: "false"

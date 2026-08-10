@@ -11,16 +11,27 @@ param(
         'close-operations')]
     [string] $Action = 'up',
     [switch] $Operations,
-    [switch] $Tools
+    [switch] $Tools,
+    [string] $EnvironmentPath,
+    [switch] $NoBuild
 )
 
 . (Join-Path $PSScriptRoot 'common.ps1')
 
 $root = Get-BunkFyRepositoryRoot
 $composeFile = Join-BunkFyPath 'deploy\preview\compose.yaml'
-$environmentFile = Join-BunkFyPath 'deploy\preview\.env'
+$environmentFile = if ([string]::IsNullOrWhiteSpace($EnvironmentPath)) {
+    Join-BunkFyPath 'deploy\preview\.env'
+}
+else {
+    [IO.Path]::GetFullPath($EnvironmentPath)
+}
 
-if ($Action -in @('build', 'up')) {
+if ($NoBuild -and $Action -ne 'up') {
+    throw '-NoBuild is supported only with the up action.'
+}
+
+if ($Action -eq 'build' -or ($Action -eq 'up' -and -not $NoBuild)) {
     $backendBootstrap = Join-BunkFyPath 'apps\backend\eng\gma-bootstrap.ps1'
     if (-not (Test-Path -LiteralPath $backendBootstrap -PathType Leaf)) {
         throw "Backend source composition bootstrap is missing: '$backendBootstrap'. Initialize submodules before building the preview stack."
@@ -107,6 +118,29 @@ if ($publicUrl.Scheme -ne 'https' -and -not $isLoopbackHttp) {
     throw 'BUNKFY_PUBLIC_URL must use HTTPS unless it targets loopback.'
 }
 
+$allowedHosts = @(
+    ([string]$settings['BUNKFY_ALLOWED_HOSTS']).Split(';') |
+        ForEach-Object { $_.Trim() } |
+        Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+if ($allowedHosts.Count -eq 0 -or
+    @($allowedHosts | Where-Object { $_.Contains('*') }).Count -gt 0) {
+    throw 'BUNKFY_ALLOWED_HOSTS must contain explicit semicolon-separated hosts without wildcards.'
+}
+foreach ($allowedHost in $allowedHosts) {
+    if ($allowedHost.Length -gt 253 -or
+        $allowedHost.Contains('/') -or
+        $allowedHost.Contains(',')) {
+        throw "BUNKFY_ALLOWED_HOSTS contains invalid host '$allowedHost'."
+    }
+}
+$publicHostAllowed = @(
+    $allowedHosts | Where-Object {
+        $_ -ieq $publicUrl.Host -or $_ -ieq $publicUrl.DnsSafeHost
+    }).Count -gt 0
+if (-not $publicHostAllowed) {
+    throw 'BUNKFY_ALLOWED_HOSTS must include the host from BUNKFY_PUBLIC_URL.'
+}
+
 foreach ($provider in @('GOOGLE', 'MICROSOFT')) {
     if ([string]$settings["BUNKFY_${provider}_OIDC_ENABLED"] -ieq 'true' -and
         ([string]::IsNullOrWhiteSpace([string]$settings["BUNKFY_${provider}_OIDC_CLIENT_ID"]) -or
@@ -133,7 +167,16 @@ if ($Tools) {
 switch ($Action) {
     'config' { $arguments += @('config', '--quiet') }
     'build' { $arguments += @('build') }
-    'up' { $arguments += @('up', '--detach', '--build', '--wait') }
+    'up' {
+        $arguments += @('up', '--detach')
+        if ($NoBuild) {
+            $arguments += @('--no-build')
+        }
+        else {
+            $arguments += @('--build')
+        }
+        $arguments += @('--wait')
+    }
     'down' { $arguments += @('down') }
     'logs' { $arguments += @('logs', '--follow', '--tail', '200') }
     'status' { $arguments += @('ps') }

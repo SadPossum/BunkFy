@@ -17,7 +17,11 @@ submodules.
 .\eng\new-preview-env.ps1
 ```
 
-Review `deploy/preview/.env`, set `BUNKFY_PUBLIC_URL` to the externally visible HTTPS origin, and register this callback with each enabled OIDC provider:
+Review `deploy/preview/.env`, set `BUNKFY_PUBLIC_URL` to the externally visible
+HTTPS origin, and set `BUNKFY_ALLOWED_HOSTS` to an explicit semicolon-separated
+list containing that origin's host plus any loopback host used by local health
+or management probes. Wildcards are rejected. Register this callback with each
+enabled OIDC provider:
 
 ```text
 https://your-bunkfy-host/auth/complete
@@ -29,9 +33,11 @@ must match it. `preview-local` is only the local default.
 
 The generated file is ignored by Git. Keep it in the server secret store or protected deployment workspace. PostgreSQL and NATS credentials must remain URL/connection-string safe.
 
-`preview.ps1 build` and `preview.ps1 up` refresh the backend's ignored GMA
-source-root maps before invoking Docker, so a clean recursive checkout packages
-the same source composition validated by CI.
+`preview.ps1 build` and the default `preview.ps1 up` refresh the backend's
+ignored GMA source-root maps before invoking Docker, so a clean recursive
+checkout packages the same source composition validated by CI. A deployment
+that has already loaded reviewed image bytes can use `-NoBuild` with `up`; that
+mode never bootstraps or rebuilds source.
 
 ## Start And Verify
 
@@ -40,6 +46,19 @@ the same source composition validated by CI.
 .\eng\preview.ps1 up
 .\eng\preview.ps1 status
 ```
+
+Keep the tracked `deploy/preview/compose.yaml` as the only service-topology
+contract. A protected environment file may live outside the checkout:
+
+```powershell
+.\eng\preview.ps1 up `
+  -EnvironmentPath /protected/bunkfy-preview/.env `
+  -NoBuild
+```
+
+Pass the same environment path to backup, restore, recovery-rehearsal, and
+isolation commands. Do not maintain a private Compose fork; otherwise a recovery
+or backup restart can apply different runtime settings from the original stack.
 
 The browser app is available on loopback at `http://127.0.0.1:8080` by default. The API is reachable only through the same-origin Nginx route. PostgreSQL, Redis, NATS, and MinIO have no host ports.
 

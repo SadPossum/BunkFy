@@ -227,6 +227,44 @@ if ($apiEnvironment.DOTNET_ENVIRONMENT -ne 'Preview' -or
     $apiEnvironment.BunkFy__Deployment__ReleaseId -ne 'preview-local') {
     throw 'The preview API must retain its host environment, deployment profile, and release identity.'
 }
+if ($apiEnvironment.AllowedHosts -cne 'localhost;127.0.0.1' -or
+    $apiEnvironment.Http__AllowAnyHost -cne 'false') {
+    throw 'The preview API must use explicit local host filtering by default.'
+}
+
+$remoteEnvironmentFile = Join-Path (
+    [IO.Path]::GetTempPath()) "bunkfy-preview-remote-$([Guid]::NewGuid().ToString('N')).env"
+try {
+    $remoteEnvironment = Get-Content -LiteralPath $environmentFile -Raw
+    $remoteEnvironment = $remoteEnvironment.Replace(
+        'BUNKFY_PUBLIC_URL=http://localhost:8080',
+        'BUNKFY_PUBLIC_URL=https://preview.example.test')
+    $remoteEnvironment = $remoteEnvironment.Replace(
+        'BUNKFY_ALLOWED_HOSTS=localhost;127.0.0.1',
+        'BUNKFY_ALLOWED_HOSTS=preview.example.test;localhost;127.0.0.1')
+    [IO.File]::WriteAllText(
+        $remoteEnvironmentFile,
+        $remoteEnvironment,
+        [Text.UTF8Encoding]::new($false))
+    $remoteComposeJson = & docker compose `
+        --env-file $remoteEnvironmentFile `
+        -f $composeFile `
+        config `
+        --format json
+    if ($LASTEXITCODE -ne 0) {
+        throw 'Remote preview Compose configuration is invalid.'
+    }
+    $remoteCompose = $remoteComposeJson | ConvertFrom-Json
+    $remoteApiEnvironment = $remoteCompose.services.api.environment
+    if ($remoteApiEnvironment.AllowedHosts -cne
+            'preview.example.test;localhost;127.0.0.1' -or
+        $remoteApiEnvironment.Http__AllowAnyHost -cne 'false') {
+        throw 'Remote preview host filtering did not retain its explicit environment value.'
+    }
+}
+finally {
+    Remove-Item -LiteralPath $remoteEnvironmentFile -Force -ErrorAction SilentlyContinue
+}
 
 $workerEnvironment = $resolvedCompose.services.worker.environment
 if ($workerEnvironment.BunkFy__Deployment__ReleaseId -ne
@@ -329,6 +367,11 @@ if (@($adminApi.profiles).Count -ne 1 -or $adminApi.profiles[0] -ne 'operations'
 if ($adminApi.restart -ne 'no') {
     throw 'The preview Admin API must not restart outside an explicit operations window.'
 }
+$adminEnvironment = $adminApi.environment
+if ($adminEnvironment.AllowedHosts -cne 'localhost;127.0.0.1' -or
+    $adminEnvironment.Http__AllowAnyHost -cne 'false') {
+    throw 'The preview Admin API must use explicit local host filtering by default.'
+}
 
 foreach ($serviceName in @('web', 'admin-api')) {
     $service = $resolvedOperationsCompose.services.PSObject.Properties[$serviceName].Value
@@ -368,8 +411,14 @@ $previewScript = Get-Content -LiteralPath (
     Join-Path $PSScriptRoot 'preview.ps1') -Raw
 foreach ($requiredToken in @(
         'gma-bootstrap.ps1',
-        "@('build', 'up')",
+        "(`$Action -eq 'up' -and -not `$NoBuild)",
         '-Force',
+        'EnvironmentPath',
+        '-NoBuild is supported only with the up action.',
+        'BUNKFY_ALLOWED_HOSTS',
+        'without wildcards',
+        'must include the host from BUNKFY_PUBLIC_URL',
+        "@('--no-build')",
         'open-operations',
         'close-operations',
         'BUNKFY_RELEASE_ID',
