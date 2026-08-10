@@ -18,6 +18,8 @@ $scripts = @(
     (Join-Path $PSScriptRoot 'verify-production-admission.ps1'),
     (Join-Path $PSScriptRoot 'operations\deployed-public-edge.common.ps1'),
     (Join-Path $PSScriptRoot 'operations\deployed-authenticated-smoke.common.ps1'),
+    (Join-Path $PSScriptRoot 'operations\preview-mail-capture.common.ps1'),
+    (Join-Path $PSScriptRoot 'operations\rehearse-preview-onboarding.ps1'),
     (Join-Path $PSScriptRoot 'operations\verify-deployed-adapter-host.ps1'),
     (Join-Path $PSScriptRoot 'operations\verify-deployed-admin-boundary.ps1'),
     (Join-Path $PSScriptRoot 'operations\verify-deployed-public-edge.ps1'),
@@ -35,6 +37,7 @@ $scripts = @(
     (Join-Path $PSScriptRoot 'test-deployed-reservations-inventory.ps1'),
     (Join-Path $PSScriptRoot 'test-deployed-workspace-enrollment.ps1'),
     (Join-Path $PSScriptRoot 'test-deployed-workspace-invitation.ps1'),
+    (Join-Path $PSScriptRoot 'test-preview-mail-capture.ps1'),
     (Join-Path $PSScriptRoot 'test-deployed-retention.ps1'),
     (Join-Path $PSScriptRoot 'test-production-admission.ps1'),
     (Join-Path $PSScriptRoot 'new-preview-env.ps1'),
@@ -231,6 +234,13 @@ if ($apiEnvironment.AllowedHosts -cne 'localhost;127.0.0.1' -or
     $apiEnvironment.Http__AllowAnyHost -cne 'false') {
     throw 'The preview API must use explicit local host filtering by default.'
 }
+if ($apiEnvironment.Email__Smtp__Enabled -ne 'true' -or
+    $apiEnvironment.Email__Smtp__Host -cne 'mailpit' -or
+    $apiEnvironment.Email__Smtp__Port -ne '1025' -or
+    $apiEnvironment.Email__Smtp__SecurityMode -cne 'None' -or
+    $apiEnvironment.Notifications__Adapters__Email__Enabled -ne 'true') {
+    throw 'The generated Preview environment must compose API email verification through private Mailpit capture.'
+}
 
 $remoteEnvironmentFile = Join-Path (
     [IO.Path]::GetTempPath()) "bunkfy-preview-remote-$([Guid]::NewGuid().ToString('N')).env"
@@ -270,6 +280,24 @@ $workerEnvironment = $resolvedCompose.services.worker.environment
 if ($workerEnvironment.BunkFy__Deployment__ReleaseId -ne
     $apiEnvironment.BunkFy__Deployment__ReleaseId) {
     throw 'Preview API and Worker must share one release identity.'
+}
+foreach ($setting in @(
+        'Email__Smtp__Enabled',
+        'Email__Smtp__Host',
+        'Email__Smtp__Port',
+        'Email__Smtp__SecurityMode',
+        'Email__Smtp__DefaultSenderAddress',
+        'Email__Smtp__DefaultSenderName',
+        'Email__Smtp__AllowSenderOverride',
+        'Email__Smtp__TimeoutSeconds',
+        'Notifications__Adapters__Email__Enabled')) {
+    if ($workerEnvironment.PSObject.Properties[$setting].Value -cne
+        $apiEnvironment.PSObject.Properties[$setting].Value) {
+        throw "Preview API and Worker email setting '$setting' must be identical."
+    }
+}
+if ($workerEnvironment.Notifications__Delivery__Enabled -ne 'true') {
+    throw 'The generated Preview environment must enable durable notification delivery for captured email.'
 }
 $webEnvironment = $resolvedCompose.services.web.environment
 if ($webEnvironment.BUNKFY_RELEASE_ID -ne
@@ -345,6 +373,7 @@ foreach ($serviceName in @(
         'redis',
         'nats',
         'minio',
+        'mailpit',
         'migrations',
         'worker',
         'admin-cli')) {
@@ -390,6 +419,7 @@ foreach ($serviceName in @(
         'redis',
         'nats',
         'minio',
+        'mailpit',
         'migrations',
         'admin-cli')) {
     $service = $resolvedOperationsCompose.services.PSObject.Properties[$serviceName].Value
@@ -399,10 +429,46 @@ foreach ($serviceName in @(
     }
 }
 
+$mailpit = $resolvedOperationsCompose.services.mailpit
+if ($mailpit.image -cne
+    'axllent/mailpit:v1.30.7@sha256:d5ecbb067db3705fa953d79e1b7f81ef84038df67aba6c52825d8c02a1ea748a' -or
+    $mailpit.restart -cne 'unless-stopped' -or
+    $mailpit.environment.MP_MAX_MESSAGES -ne '500' -or
+    $mailpit.environment.MP_DISABLE_VERSION_CHECK -ne 'true') {
+    throw 'Preview Mailpit must retain its pinned, bounded capture configuration.'
+}
+if (@($mailpit.tmpfs).Count -ne 1 -or
+    $mailpit.tmpfs[0] -cne '/data:size=67108864,mode=0700') {
+    throw 'Preview Mailpit capture must remain ephemeral and size-bounded on tmpfs.'
+}
+
+$mailpitOperatorCompose = Join-Path $PSScriptRoot `
+    '..\deploy\preview\compose.mailpit-operator.yaml'
+$resolvedMailpitOperatorJson = & docker compose `
+    --env-file $environmentFile `
+    -f $composeFile `
+    -f $mailpitOperatorCompose `
+    config `
+    --format json
+if ($LASTEXITCODE -ne 0) {
+    throw 'Preview Mailpit operator Compose overlay is invalid.'
+}
+$resolvedMailpitOperator = $resolvedMailpitOperatorJson | ConvertFrom-Json
+$mailpitOperatorPorts = @($resolvedMailpitOperator.services.mailpit.ports)
+if ($mailpitOperatorPorts.Count -ne 1 -or
+    $mailpitOperatorPorts[0].host_ip -cne '127.0.0.1' -or
+    [int]$mailpitOperatorPorts[0].target -ne 8025) {
+    throw 'The Mailpit operator overlay must publish only its UI on loopback.'
+}
+
 $nginxConfiguration = Get-Content -LiteralPath (
     Join-Path $PSScriptRoot '..\apps\web\nginx.conf') -Raw
-if ($nginxConfiguration.Contains('admin-api', [StringComparison]::OrdinalIgnoreCase)) {
-    throw 'The public edge must not contain an Admin API upstream or route.'
+foreach ($privateService in @('admin-api', 'mailpit')) {
+    if ($nginxConfiguration.Contains(
+            $privateService,
+            [StringComparison]::OrdinalIgnoreCase)) {
+        throw "The public edge must not contain a $privateService upstream or route."
+    }
 }
 
 Write-Host 'BunkFy preview Compose configuration is valid.'
@@ -808,6 +874,69 @@ foreach ($forbiddenToken in @(
 
 & (Join-Path $PSScriptRoot 'test-deployed-workspace-enrollment.ps1')
 Write-Host 'BunkFy deployed workspace enrollment probe policy is valid.'
+
+$previewMailCaptureCommon = Get-Content -LiteralPath (
+    Join-Path $PSScriptRoot 'operations\preview-mail-capture.common.ps1') -Raw
+foreach ($requiredToken in @(
+        'Get-BunkFyMailpitMessagesForRecipient',
+        'Get-BunkFyMailpitVerificationCode',
+        'Use this one-time verification code:',
+        'FromBase64String',
+        '[Array]::Clear')) {
+    if (-not $previewMailCaptureCommon.Contains($requiredToken, [StringComparison]::Ordinal)) {
+        throw "Preview mail-capture parser policy is missing '$requiredToken'."
+    }
+}
+
+$previewOnboardingRehearsal = Get-Content -LiteralPath (
+    Join-Path $PSScriptRoot 'operations\rehearse-preview-onboarding.ps1') -Raw
+foreach ($requiredToken in @(
+        "SupportsShouldProcess = `$true",
+        '$handler.AllowAutoRedirect = $false',
+        '$mailpitHandler.AllowAutoRedirect = $false',
+        'ExpectedReleaseId',
+        'release-identity-continuous',
+        '/api/product-capabilities',
+        '/api/auth/browser/register',
+        'RegistrationOutcome',
+        '-State ([ref]$owner)',
+        '/api/auth/email-verification',
+        '/api/auth/email-verification/confirm',
+        '/api/v1/messages?limit=100',
+        '/api/v1/message/',
+        'verify-deployed-workspace-invitation.ps1',
+        'verify-deployed-workspace-enrollment.ps1',
+        '/members/remove',
+        '/archive',
+        '/api/auth/sign-out-all',
+        'purged-and-loopback-closed',
+        "evidenceKind = 'bunkfy-preview-onboarding-rehearsal'",
+        'fingerprintSha256',
+        "'mailpit-capture-is-not-real-provider-delivery-or-inbox-placement-proof'",
+        "'synthetic-global-identities-retained-signed-out-no-public-delete-contract'")) {
+    if (-not $previewOnboardingRehearsal.Contains($requiredToken, [StringComparison]::Ordinal)) {
+        throw "Preview onboarding rehearsal policy is missing '$requiredToken'."
+    }
+}
+foreach ($forbiddenToken in @(
+        'DangerousAcceptAnyServerCertificateValidator',
+        'ServerCertificateCustomValidationCallback',
+        '-SkipCertificateCheck',
+        '$handler.AllowAutoRedirect = $true',
+        '$mailpitHandler.AllowAutoRedirect = $true',
+        '/api/admin/',
+        'Invoke-Sqlcmd',
+        'NpgsqlConnection',
+        'psql ')) {
+    if ($previewOnboardingRehearsal.Contains(
+            $forbiddenToken,
+            [StringComparison]::OrdinalIgnoreCase)) {
+        throw "Preview onboarding rehearsal contains forbidden token '$forbiddenToken'."
+    }
+}
+
+& (Join-Path $PSScriptRoot 'test-preview-mail-capture.ps1')
+Write-Host 'BunkFy Preview onboarding rehearsal policy is valid.'
 
 $operationsNotificationsProbe = Get-Content -LiteralPath (
     Join-Path $PSScriptRoot 'operations\verify-deployed-operations-notifications.ps1') -Raw

@@ -60,9 +60,50 @@ Pass the same environment path to backup, restore, recovery-rehearsal, and
 isolation commands. Do not maintain a private Compose fork; otherwise a recovery
 or backup restart can apply different runtime settings from the original stack.
 
-The browser app is available on loopback at `http://127.0.0.1:8080` by default. The API is reachable only through the same-origin Nginx route. PostgreSQL, Redis, NATS, and MinIO have no host ports.
+The browser app is available on loopback at `http://127.0.0.1:8080` by default. The API is reachable only through the same-origin Nginx route. PostgreSQL, Redis, NATS, MinIO, and Mailpit have no host ports in the default topology.
 
 The Compose host intentionally does not terminate TLS. A remote deployment must place an HTTPS reverse proxy or ingress in front of the loopback web port and preserve forwarded headers. Do not expose the API, Admin API, databases, broker, or object storage directly.
+
+## Preview Email Capture
+
+New Preview environment files enable the BunkFy SMTP adapter and GMA's durable
+notification email sink against the private Mailpit service. The browser reads
+`/api/product-capabilities` at startup, so email-verification controls describe
+the running composition rather than the web image's build arguments.
+
+Mailpit is preview evidence only. It does not prove delivery by a real provider,
+sender-domain authentication, suppression handling, or inbox placement. Its
+mailbox is capped at 500 messages and stored on a 64 MiB tmpfs; container
+recreation clears it and backups intentionally exclude it.
+
+The UI has no host port by default. Open a short-lived loopback-only operator
+window when visual inspection is required:
+
+```powershell
+$compose = @(
+  'compose', '--env-file', 'deploy/preview/.env',
+  '-f', 'deploy/preview/compose.yaml'
+)
+
+docker @($compose + @(
+  '-f', 'deploy/preview/compose.mailpit-operator.yaml',
+  'up', '--detach', '--no-build', '--force-recreate', 'mailpit'
+))
+# Browse http://127.0.0.1:8025, or the configured loopback port.
+
+docker @($compose + @(
+  'up', '--detach', '--no-build', '--force-recreate', '--wait', 'mailpit'
+))
+```
+
+The closing command both removes the temporary port and purges captured message
+content. Never add Mailpit to Nginx or bind its UI to a non-loopback address.
+
+After deploying one exact candidate, use the
+[Preview onboarding rehearsal](preview-onboarding-rehearsal.md) to create three
+fresh verified identities through captured delivery, prove both invitation and
+QR enrollment with the existing child verifiers, retain minimized evidence,
+and perform explicit workspace, membership, session, and mailbox cleanup.
 
 `migrations` is a one-shot gate. It applies every module's PostgreSQL migrations before API or Worker startup and can be rerun safely:
 
@@ -316,4 +357,9 @@ data-rights, object-store, broker, and database credentials with the state.
 
 ## Capability Gates
 
-Email verification remains hidden and email delivery disabled until a real `IEmailSender` adapter and sender configuration are deployed. OIDC providers remain absent from the UI until their adapters are enabled and valid credentials are mounted. This keeps optional infrastructure honest: disabled capabilities do not pretend to work.
+Email verification is shown only when the running API has both the BunkFy SMTP
+adapter and GMA notification email sink enabled. Preview may satisfy that gate
+with private Mailpit capture; Production still requires an approved real
+provider and deployment evidence. OIDC providers remain absent from the UI
+until their adapters are enabled and valid credentials are mounted. Disabled
+capabilities do not pretend to work.

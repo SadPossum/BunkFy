@@ -108,6 +108,22 @@ services:
       retries: 20
     networks: [backend]
 
+  mailpit:
+    image: axllent/mailpit:v1.30.7@sha256:d5ecbb067db3705fa953d79e1b7f81ef84038df67aba6c52825d8c02a1ea748a
+    restart: unless-stopped
+    environment:
+      MP_DATABASE: /data/mailpit.db
+      MP_MAX_MESSAGES: "500"
+      MP_DISABLE_VERSION_CHECK: "true"
+    tmpfs:
+      - /data:size=67108864,mode=0700
+    healthcheck:
+      test: ["CMD", "/mailpit", "readyz"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks: [backend]
+
   migrations:
     image: bunkfy/backend:preview
     build:
@@ -159,7 +175,15 @@ services:
       Auth__OpenIdConnect__Providers__microsoft__Enabled: "${BUNKFY_MICROSOFT_OIDC_ENABLED:-false}"
       Auth__OpenIdConnect__Providers__microsoft__ClientId: "${BUNKFY_MICROSOFT_OIDC_CLIENT_ID:-}"
       Auth__OpenIdConnect__Providers__microsoft__ClientSecret: "${BUNKFY_MICROSOFT_OIDC_CLIENT_SECRET:-}"
-      Notifications__Adapters__Email__Enabled: "false"
+      Email__Smtp__Enabled: "${BUNKFY_EMAIL_CAPTURE_ENABLED:-false}"
+      Email__Smtp__Host: mailpit
+      Email__Smtp__Port: "1025"
+      Email__Smtp__SecurityMode: None
+      Email__Smtp__DefaultSenderAddress: "${BUNKFY_EMAIL_SENDER_ADDRESS:-preview@bunkfy.invalid}"
+      Email__Smtp__DefaultSenderName: "${BUNKFY_EMAIL_SENDER_NAME:-BunkFy Preview}"
+      Email__Smtp__AllowSenderOverride: "false"
+      Email__Smtp__TimeoutSeconds: "15"
+      Notifications__Adapters__Email__Enabled: "${BUNKFY_EMAIL_CAPTURE_ENABLED:-false}"
     volumes:
       - data-protection:/var/lib/bunkfy/data-protection
       - data-rights-ledger-delta:/var/lib/bunkfy/data-rights-ledger-delta
@@ -171,6 +195,8 @@ services:
       nats:
         condition: service_healthy
       minio:
+        condition: service_healthy
+      mailpit:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/health"]
@@ -210,7 +236,7 @@ services:
       Auth__Retention__Enabled: "true"
       Auth__Retention__ExpiredExchangeHistoryHours: "24"
       Auth__Retention__SessionHistoryDays: "365"
-      Notifications__Delivery__Enabled: "false"
+      Notifications__Delivery__Enabled: "${BUNKFY_EMAIL_CAPTURE_ENABLED:-false}"
       Notifications__Retention__Enabled: "true"
       Notifications__Retention__ReadHistoryDays: "90"
       Notifications__Retention__UnreadHistoryDays: "365"
@@ -225,6 +251,15 @@ services:
       TaskRuntimeRetention__ExpiredControlRetention: "30.00:00:00"
       Adapters__JsonFileDrop__RootPath: /var/lib/bunkfy/file-drop
       Adapters__JsonFileDrop__RetentionEnabled: "true"
+      Email__Smtp__Enabled: "${BUNKFY_EMAIL_CAPTURE_ENABLED:-false}"
+      Email__Smtp__Host: mailpit
+      Email__Smtp__Port: "1025"
+      Email__Smtp__SecurityMode: None
+      Email__Smtp__DefaultSenderAddress: "${BUNKFY_EMAIL_SENDER_ADDRESS:-preview@bunkfy.invalid}"
+      Email__Smtp__DefaultSenderName: "${BUNKFY_EMAIL_SENDER_NAME:-BunkFy Preview}"
+      Email__Smtp__AllowSenderOverride: "false"
+      Email__Smtp__TimeoutSeconds: "15"
+      Notifications__Adapters__Email__Enabled: "${BUNKFY_EMAIL_CAPTURE_ENABLED:-false}"
     volumes:
       - adapter-file-drop:/var/lib/bunkfy/file-drop
       - data-rights-ledger-delta:/var/lib/bunkfy/data-rights-ledger-delta
@@ -237,6 +272,8 @@ services:
         condition: service_healthy
       minio:
         condition: service_healthy
+      mailpit:
+        condition: service_healthy
     networks: [backend]
 
   web:
@@ -247,7 +284,6 @@ services:
       target: web
       args:
         VITE_BUNKFY_API_BASE_URL: /
-        VITE_BUNKFY_EMAIL_VERIFICATION_ENABLED: "${BUNKFY_EMAIL_VERIFICATION_ENABLED:-false}"
     restart: unless-stopped
     environment:
       BUNKFY_RELEASE_ID: "${BUNKFY_RELEASE_ID:-preview-local}"

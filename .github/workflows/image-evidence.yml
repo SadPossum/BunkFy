@@ -104,7 +104,6 @@ jobs:
           platforms: ${{ env.IMAGE_PLATFORM }}
           build-args: |
             VITE_BUNKFY_API_BASE_URL=/
-            VITE_BUNKFY_EMAIL_VERIFICATION_ENABLED=false
           tags: bunkfy/web:candidate-${{ github.sha }}
           push: false
           pull: true

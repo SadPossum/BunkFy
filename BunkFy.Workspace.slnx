@@ -175,6 +175,7 @@
     <File Path="apps/backend/docs/planning/retention-tenant-termination-owner-task.md" />
     <File Path="apps/backend/docs/planning/secure-staff-enrollment-task.md" />
     <File Path="apps/backend/docs/planning/security-signals-and-incident-correlation-task.md" />
+    <File Path="apps/backend/docs/planning/smtp-email-and-preview-onboarding-proof-task.md" />
     <File Path="apps/backend/docs/planning/staff-auth-subject-idempotency-task.md" />
     <File Path="apps/backend/docs/planning/staff-data-rights-anonymisation-task.md" />
     <File Path="apps/backend/docs/planning/staff-data-rights-correction-task.md" />
@@ -519,6 +520,7 @@
     <Project Path="apps/backend/src/Adapters/BunkFy.Adapters.Http/BunkFy.Adapters.Http.csproj" />
     <Project Path="apps/backend/src/Adapters/BunkFy.Adapters.ImapReservationMail/BunkFy.Adapters.ImapReservationMail.csproj" />
     <Project Path="apps/backend/src/Adapters/BunkFy.Adapters.JsonFileDrop/BunkFy.Adapters.JsonFileDrop.csproj" />
+    <Project Path="apps/backend/src/Adapters/BunkFy.Adapters.SmtpEmail/BunkFy.Adapters.SmtpEmail.csproj" />
     <Project Path="apps/backend/src/Adapters/BunkFy.Parsers.ReservationMail/BunkFy.Parsers.ReservationMail.csproj" />
   </Folder>
   <Folder Name="/apps/backend/src/Adapters/docs/">
@@ -787,6 +789,7 @@
     <File Path="docs/operations/deployed-workspace-invitation-verification.md" />
     <File Path="docs/operations/image-candidate-promotion.md" />
     <File Path="docs/operations/preview-deployment.md" />
+    <File Path="docs/operations/preview-onboarding-rehearsal.md" />
     <File Path="docs/operations/preview-recovery-rehearsal.md" />
     <File Path="docs/operations/product-image-evidence.md" />
     <File Path="docs/operations/production-admission-evidence.md" />
@@ -825,6 +828,7 @@
     <File Path="eng/test-deployed-workspace-enrollment.ps1" />
     <File Path="eng/test-deployed-workspace-invitation.ps1" />
     <File Path="eng/test-image-candidate-package.ps1" />
+    <File Path="eng/test-preview-mail-capture.ps1" />
     <File Path="eng/test-production-admission.ps1" />
     <File Path="eng/update-gma.ps1" />
     <File Path="eng/update-web-contracts.ps1" />
@@ -842,10 +846,12 @@
     <File Path="eng/operations/deployed-authenticated-smoke.common.ps1" />
     <File Path="eng/operations/deployed-public-edge.common.ps1" />
     <File Path="eng/operations/offboard-staff-access.ps1" />
+    <File Path="eng/operations/preview-mail-capture.common.ps1" />
     <File Path="eng/operations/preview-state.common.ps1" />
     <File Path="eng/operations/promote-image-candidate.ps1" />
     <File Path="eng/operations/provision-staff-access.ps1" />
     <File Path="eng/operations/rehearse-deployed-release-rollback.ps1" />
+    <File Path="eng/operations/rehearse-preview-onboarding.ps1" />
     <File Path="eng/operations/rehearse-preview-recovery.ps1" />
     <File Path="eng/operations/rehearse-production-migrations.ps1" />
     <File Path="eng/operations/restore-preview.ps1" />

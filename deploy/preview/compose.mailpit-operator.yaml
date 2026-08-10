@@ -1,0 +1,4 @@
+services:
+  mailpit:
+    ports:
+      - "127.0.0.1:${BUNKFY_MAILPIT_OPERATOR_PORT:-8025}:8025"
