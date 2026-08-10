@@ -854,11 +854,50 @@ function Get-RehearsalWorkspaceMembers {
     return @($members)
 }
 
+function Get-RehearsalStaffProfiles {
+    param([Parameter(Mandatory = $true)][string] $Token)
+
+    $profiles = [Collections.Generic.List[object]]::new()
+    $page = 1
+    do {
+        $response = Read-RehearsalJson `
+            -Response (Invoke-RehearsalApi `
+                -Path "/api/staff/members?page=$page&pageSize=100" `
+                -Method GET `
+                -TenantId $workspaceId.ToString('D') `
+                -Token $Token `
+                -Body $null) `
+            -ExpectedStatus 200 `
+            -Operation 'List synthetic Staff records for cleanup'
+        foreach ($item in @($response.items)) {
+            $profile = Read-RehearsalJson `
+                -Response (Invoke-RehearsalApi `
+                    -Path "/api/staff/members/$([Guid]$item.staffMemberId)/profile" `
+                    -Method GET `
+                    -TenantId $workspaceId.ToString('D') `
+                    -Token $Token `
+                    -Body $null) `
+                -ExpectedStatus 200 `
+                -Operation 'Read a synthetic Staff profile for cleanup'
+            if ([Guid]$profile.staffMemberId -ne [Guid]$item.staffMemberId) {
+                throw 'Synthetic Staff cleanup returned a mismatched profile.'
+            }
+            $profiles.Add($profile)
+        }
+        $page++
+        if ($page -gt 100) {
+            throw 'Workspace Staff cleanup exceeded 100 pages.'
+        }
+    } while ([bool]$response.hasMore)
+    return @($profiles)
+}
+
 function Remove-RehearsalNonOwnerMembers {
     param([Parameter(Mandatory = $true)][string] $Token)
 
     $removed = 0
-    for ($iteration = 0; $iteration -lt 20; $iteration++) {
+    $deadline = [DateTimeOffset]::UtcNow.AddSeconds($ConvergenceTimeoutSeconds)
+    do {
         $members = @(Get-RehearsalWorkspaceMembers -Token $Token)
         $target = @($members | Where-Object {
                 [string]$_.role -cne 'owner' -and
@@ -867,28 +906,51 @@ function Remove-RehearsalNonOwnerMembers {
         if ($null -eq $target) {
             return $removed
         }
-        $workspace = Get-RehearsalWorkspaceSummary -Token $Token
-        $result = Read-RehearsalJson `
-            -Response (Invoke-RehearsalApi `
-                -Path "/api/organizations/$($workspaceId.ToString('D'))/members/remove" `
-                -Method POST `
-                -TenantId $workspaceId.ToString('D') `
-                -Token $Token `
-                -Body @{
-                    operationId = [Guid]::NewGuid()
-                    targetSubjectId = [string]$target.subjectId
-                    expectedOrganizationVersion = [long]$workspace.organization.version
-                    expectedMembershipVersion = [long]$target.version
-                }) `
-            -ExpectedStatus 200 `
-            -Operation 'Remove a synthetic non-owner membership'
-        if ([Guid]$result.membershipId -ne [Guid]$target.membershipId -or
-            [string]$result.status -cne 'removed') {
-            throw 'Synthetic membership cleanup returned an invalid result.'
+
+        # BunkFy owns Staff offboarding; its lifecycle policy closes GMA membership
+        # and access atomically before the Staff departure is committed.
+        $matchingStaff = @(Get-RehearsalStaffProfiles -Token $Token | Where-Object {
+                [string]$_.authSubjectId -ceq [string]$target.subjectId
+            })
+        if ($matchingStaff.Count -eq 0) {
+            Start-Sleep -Milliseconds $PollIntervalMilliseconds
+            continue
         }
-        $removed++
-    }
-    throw 'Synthetic membership cleanup exceeded 20 removals.'
+        if ($matchingStaff.Count -ne 1) {
+            throw 'A synthetic membership matched more than one Staff profile.'
+        }
+
+        $staff = $matchingStaff[0]
+        if ([string]$staff.status -cin @('active', 'suspended')) {
+            $result = Read-RehearsalJson `
+                -Response (Invoke-RehearsalApi `
+                    -Path "/api/staff/members/$([Guid]$staff.staffMemberId)/depart" `
+                    -Method POST `
+                    -TenantId $workspaceId.ToString('D') `
+                    -Token $Token `
+                    -Body @{
+                        operationId = [Guid]::NewGuid()
+                        effectiveOn = [DateTimeOffset]::UtcNow.ToString(
+                            'yyyy-MM-dd',
+                            [Globalization.CultureInfo]::InvariantCulture)
+                        reason = 'Preview onboarding rehearsal cleanup.'
+                        expectedVersion = [long]$staff.version
+                    }) `
+                -ExpectedStatus 200 `
+                -Operation 'Depart a synthetic non-owner Staff member'
+            if ([Guid]$result.staffMemberId -ne [Guid]$staff.staffMemberId -or
+                [string]$result.status -cne 'departed') {
+                throw 'Synthetic Staff cleanup returned an invalid departure receipt.'
+            }
+            $removed++
+        }
+        elseif ([string]$staff.status -cne 'departed') {
+            throw "Synthetic Staff cleanup found unsupported status '$($staff.status)'."
+        }
+
+        Start-Sleep -Milliseconds $PollIntervalMilliseconds
+    } while ([DateTimeOffset]::UtcNow -lt $deadline)
+    throw 'Synthetic Staff and membership cleanup did not converge before the timeout.'
 }
 
 function Archive-RehearsalWorkspace {

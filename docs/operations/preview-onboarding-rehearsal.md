@@ -42,7 +42,8 @@ tokens, verification codes, invitation or QR secrets, and captured bodies.
 
 After proof, the rehearsal:
 
-1. removes every non-owner membership from its dedicated workspace;
+1. departs every synthetic non-owner Staff record through BunkFy's lifecycle
+   policy, which removes the corresponding membership and access;
 2. retires both empty synthetic properties;
 3. suspends and then archives the workspace through its public lifecycle;
 4. signs out every synthetic identity and confirms the old tokens are denied;
