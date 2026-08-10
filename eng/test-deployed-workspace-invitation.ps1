@@ -80,9 +80,10 @@ function Start-BunkFyWorkspaceInvitationFixtureServer {
             [IO.File]::WriteAllText($ReadyPath, [string]$port)
 
             $sourceId = $null
+            $issuanceAttempts = 0
             $requestNumber = 0
             $inactivityDeadline = [DateTimeOffset]::UtcNow.AddSeconds(10)
-            while ($requestNumber -lt 19 -and
+            while ($requestNumber -lt 20 -and
                 [DateTimeOffset]::UtcNow -lt $inactivityDeadline) {
                 if (-not $listener.Pending()) {
                     Start-Sleep -Milliseconds 25
@@ -230,19 +231,36 @@ function Start-BunkFyWorkspaceInvitationFixtureServer {
                             [string]$body.propertyIds[0] -cne $AllowedPropertyId) {
                             throw 'Invitation issuance body did not preserve the requested plan.'
                         }
-                        $sourceId = [string]$body.sourceId
-                        $response = @{
-                            plan = @{
-                                sourceId = $sourceId
-                                sourceKind = 1
-                                profileId = $ProfileId
-                                profileKey = 'front-desk'
-                                propertyIds = @($AllowedPropertyId)
-                                status = 2
-                                version = 1
+                        $requestedSourceId = [string]$body.sourceId
+                        if ($null -eq $sourceId) {
+                            $sourceId = $requestedSourceId
+                        }
+                        elseif ($requestedSourceId -cne $sourceId) {
+                            throw 'Invitation convergence retry changed the source id.'
+                        }
+                        $issuanceAttempts++
+                        if ($Mode -eq 'Valid' -and $issuanceAttempts -eq 1) {
+                            $status = 409
+                            $reason = 'Conflict'
+                            $response = @{
+                                title = 'Workspaces.StaffAccessPropertyUnavailable'
+                                status = 409
                             }
-                            token = $InvitationToken
-                            alreadyIssued = $false
+                        }
+                        else {
+                            $response = @{
+                                plan = @{
+                                    sourceId = $sourceId
+                                    sourceKind = 1
+                                    profileId = $ProfileId
+                                    profileKey = 'front-desk'
+                                    propertyIds = @($AllowedPropertyId)
+                                    status = 2
+                                    version = 1
+                                }
+                                token = $InvitationToken
+                                alreadyIssued = $false
+                            }
                         }
                     }
                     elseif ($method -eq 'POST' -and
@@ -381,8 +399,8 @@ function Start-BunkFyWorkspaceInvitationFixtureServer {
                     $client.Dispose()
                 }
             }
-            if ($Mode -eq 'Valid' -and $requestNumber -ne 19) {
-                throw "Valid fixture observed $requestNumber requests; expected 19."
+            if ($Mode -eq 'Valid' -and $requestNumber -ne 20) {
+                throw "Valid fixture observed $requestNumber requests; expected 20."
             }
         }
         finally {

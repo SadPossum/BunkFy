@@ -96,8 +96,10 @@ docker @($compose + @(
 ))
 ```
 
-The closing command both removes the temporary port and purges captured message
-content. Never add Mailpit to Nginx or bind its UI to a non-loopback address.
+The operator overlay adds one temporary non-internal bridge because Docker does
+not publish ports from the private `internal` backend network. The closing
+command removes that bridge and port while purging captured message content.
+Never add Mailpit to Nginx or bind its UI to a non-loopback address.
 
 After deploying one exact candidate, use the
 [Preview onboarding rehearsal](preview-onboarding-rehearsal.md) to create three

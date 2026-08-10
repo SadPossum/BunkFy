@@ -121,6 +121,27 @@ function Invoke-BunkFyAuthenticatedJsonRequest {
     }
 }
 
+function Get-BunkFyAuthenticatedProblemCode {
+    param([Parameter(Mandatory = $true)][object] $Response)
+
+    if ($Response.Body.Length -eq 0) {
+        return $null
+    }
+
+    try {
+        $json = [Text.UTF8Encoding]::new($false, $true).GetString($Response.Body)
+        $problem = $json | ConvertFrom-Json -Depth 8
+        $title = [string]$problem.title
+        if ($title -cmatch '^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$') {
+            return $title
+        }
+        return $null
+    }
+    catch {
+        return $null
+    }
+}
+
 function ConvertFrom-BunkFyAuthenticatedJsonResponse {
     param(
         [Parameter(Mandatory = $true)][object] $Response,
@@ -129,7 +150,14 @@ function ConvertFrom-BunkFyAuthenticatedJsonResponse {
     )
 
     if ($Response.StatusCode -ne $ExpectedStatus) {
-        throw "$Operation returned HTTP $($Response.StatusCode); expected HTTP $ExpectedStatus."
+        $problemCode = Get-BunkFyAuthenticatedProblemCode -Response $Response
+        $problemSuffix = if ([string]::IsNullOrWhiteSpace($problemCode)) {
+            ''
+        }
+        else {
+            " with problem '$problemCode'"
+        }
+        throw "$Operation returned HTTP $($Response.StatusCode)$problemSuffix; expected HTTP $ExpectedStatus."
     }
     if ($Response.Body.Length -eq 0) {
         return $null
@@ -142,6 +170,59 @@ function ConvertFrom-BunkFyAuthenticatedJsonResponse {
     catch {
         throw "$Operation returned an invalid JSON response."
     }
+}
+
+function Invoke-BunkFyAuthenticatedJsonRequestWithConvergence {
+    param(
+        [Parameter(Mandatory = $true)][Net.Http.HttpClient] $Client,
+        [Parameter(Mandatory = $true)][Uri] $Origin,
+        [Parameter(Mandatory = $true)][ValidatePattern('^/api/')][string] $Path,
+        [Parameter(Mandatory = $true)][ValidateSet('POST', 'PUT')][string] $Method,
+        [Parameter(Mandatory = $true)][string] $TenantId,
+        [Parameter(Mandatory = $true)][string] $AccessToken,
+        [Parameter(Mandatory = $true)][int] $TimeoutSeconds,
+        [Parameter(Mandatory = $true)][object] $Body,
+        [Parameter(Mandatory = $true)][int] $ExpectedStatus,
+        [Parameter(Mandatory = $true)][string] $Operation,
+        [Parameter(Mandatory = $true)][ValidateRange(1, 600)][int] $ConvergenceTimeoutSeconds,
+        [Parameter(Mandatory = $true)][ValidateRange(100, 5000)][int] $PollIntervalMilliseconds,
+        [Parameter(Mandatory = $true)][ValidateNotNullOrEmpty()][string[]] $RetryableProblemCodes
+    )
+
+    $deadline = [DateTimeOffset]::UtcNow.AddSeconds($ConvergenceTimeoutSeconds)
+    $lastProblemCode = $null
+    do {
+        $response = Invoke-BunkFyAuthenticatedJsonRequest `
+            -Client $Client `
+            -Origin $Origin `
+            -Path $Path `
+            -Method $Method `
+            -TenantId $TenantId `
+            -AccessToken $AccessToken `
+            -TimeoutSeconds $TimeoutSeconds `
+            -Body $Body
+        if ($response.StatusCode -eq $ExpectedStatus) {
+            return ConvertFrom-BunkFyAuthenticatedJsonResponse `
+                -Response $response `
+                -ExpectedStatus $ExpectedStatus `
+                -Operation $Operation
+        }
+
+        $problemCode = Get-BunkFyAuthenticatedProblemCode -Response $response
+        if ($response.StatusCode -ne 409 -or
+            [string]::IsNullOrWhiteSpace($problemCode) -or
+            $problemCode -cnotin $RetryableProblemCodes) {
+            return ConvertFrom-BunkFyAuthenticatedJsonResponse `
+                -Response $response `
+                -ExpectedStatus $ExpectedStatus `
+                -Operation $Operation
+        }
+
+        $lastProblemCode = $problemCode
+        Start-Sleep -Milliseconds $PollIntervalMilliseconds
+    } while ([DateTimeOffset]::UtcNow -lt $deadline)
+
+    throw "$Operation did not converge before the timeout; last problem was '$lastProblemCode'."
 }
 
 function Assert-BunkFyAuthenticatedStatus {

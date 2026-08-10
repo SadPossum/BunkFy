@@ -460,6 +460,30 @@ if ($mailpitOperatorPorts.Count -ne 1 -or
     [int]$mailpitOperatorPorts[0].target -ne 8025) {
     throw 'The Mailpit operator overlay must publish only its UI on loopback.'
 }
+$mailpitOperatorNetworks = @(
+    $resolvedMailpitOperator.services.mailpit.networks.PSObject.Properties.Name |
+        Sort-Object)
+$mailpitOperatorNetwork = $resolvedMailpitOperator.networks.PSObject.Properties[
+    'mailpit-operator']
+$mailpitOperatorInternal = if ($null -eq $mailpitOperatorNetwork -or
+    $null -eq $mailpitOperatorNetwork.Value.PSObject.Properties['internal']) {
+    $false
+}
+else {
+    [bool]$mailpitOperatorNetwork.Value.internal
+}
+if (($mailpitOperatorNetworks -join "`n") -cne "backend`nmailpit-operator" -or
+    $mailpitOperatorInternal) {
+    throw 'The Mailpit operator overlay must use the private backend and one temporary non-internal operator network.'
+}
+foreach ($service in $resolvedMailpitOperator.services.PSObject.Properties) {
+    if ($service.Name -ceq 'mailpit') {
+        continue
+    }
+    if ($null -ne $service.Value.networks.PSObject.Properties['mailpit-operator']) {
+        throw "Preview service '$($service.Name)' must not join the Mailpit operator network."
+    }
+}
 
 $nginxConfiguration = Get-Content -LiteralPath (
     Join-Path $PSScriptRoot '..\apps\web\nginx.conf') -Raw
@@ -792,7 +816,10 @@ foreach ($requiredToken in @(
         'AuthenticationHeaderValue',
         'X-Tenant-Id',
         'HttpCompletionOption]::ResponseHeadersRead',
-        'CancellationTokenSource')) {
+        'CancellationTokenSource',
+        'Invoke-BunkFyAuthenticatedJsonRequestWithConvergence',
+        'Get-BunkFyAuthenticatedProblemCode',
+        '$response.StatusCode -ne 409')) {
     if (-not $authenticatedSmokeCommon.Contains($requiredToken, [StringComparison]::Ordinal)) {
         throw "Deployed authenticated smoke common policy is missing '$requiredToken'."
     }
@@ -809,6 +836,8 @@ foreach ($requiredToken in @(
         'BUNKFY_SMOKE_OWNER_TOKEN',
         'BUNKFY_SMOKE_APPLICANT_TOKEN',
         '/api/workspace-staff-enrollment/sources/invitations',
+        'Workspaces.StaffAccessProfileUnavailable',
+        'Workspaces.StaffAccessPropertyUnavailable',
         '/api/organization-invitations/preview',
         '/api/organization-invitations/accept',
         '/api/access/permissions/evaluate',
@@ -847,6 +876,8 @@ foreach ($requiredToken in @(
         'BUNKFY_SMOKE_OWNER_TOKEN',
         'BUNKFY_SMOKE_APPLICANT_TOKEN',
         '/api/workspace-staff-enrollment/sources/enrollment-links',
+        'Workspaces.StaffAccessProfileUnavailable',
+        'Workspaces.StaffAccessPropertyUnavailable',
         '/api/organization-enrollment/preview',
         '/api/organization-enrollment/claim',
         '/join-requests/',
@@ -900,6 +931,8 @@ foreach ($requiredToken in @(
         '/api/auth/browser/register',
         'RegistrationOutcome',
         '-State ([ref]$owner)',
+        '-State ([ref]$allowedPropertyId)',
+        '-State ([ref]$deniedPropertyId)',
         '/api/auth/email-verification',
         '/api/auth/email-verification/confirm',
         '/api/v1/messages?limit=100',
@@ -907,9 +940,12 @@ foreach ($requiredToken in @(
         'verify-deployed-workspace-invitation.ps1',
         'verify-deployed-workspace-enrollment.ps1',
         '/members/remove',
+        '/retire',
+        '/suspend',
         '/archive',
         '/api/auth/sign-out-all',
         'purged-and-loopback-closed',
+        "'label=com.docker.compose.network=mailpit-operator'",
         "evidenceKind = 'bunkfy-preview-onboarding-rehearsal'",
         'fingerprintSha256',
         "'mailpit-capture-is-not-real-provider-delivery-or-inbox-placement-proof'",

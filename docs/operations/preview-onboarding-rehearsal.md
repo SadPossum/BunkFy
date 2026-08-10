@@ -43,10 +43,15 @@ tokens, verification codes, invitation or QR secrets, and captured bodies.
 After proof, the rehearsal:
 
 1. removes every non-owner membership from its dedicated workspace;
-2. archives the workspace;
-3. signs out every synthetic identity and confirms the old tokens are denied;
-4. recreates Mailpit from the base topology, clearing its tmpfs mailbox and
+2. retires both empty synthetic properties;
+3. suspends and then archives the workspace through its public lifecycle;
+4. signs out every synthetic identity and confirms the old tokens are denied;
+5. recreates Mailpit from the base topology, clearing its tmpfs mailbox and
    removing the loopback port.
+
+Join-source issuance retries only the explicit access-profile and property
+projection readiness conflicts, preserving the same source id. Any other
+conflict fails immediately instead of being hidden as convergence delay.
 
 Auth currently has no public self-service identity deletion contract. The
 random synthetic global identities therefore remain signed out, and that

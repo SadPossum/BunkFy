@@ -86,6 +86,10 @@ $mailpitService = $composeDefinition.services.PSObject.Properties['mailpit']
 if ($null -eq $mailpitService) {
     throw 'Preview Compose does not define the private Mailpit service.'
 }
+$composeProjectName = [string]$composeDefinition.name
+if ([string]::IsNullOrWhiteSpace($composeProjectName)) {
+    throw 'Preview Compose does not resolve a project name.'
+}
 $ports = $mailpitService.Value.PSObject.Properties['ports']
 if ($null -ne $ports -and $null -ne $ports.Value -and @($ports.Value).Count -gt 0) {
     throw 'Base Preview Compose publishes a Mailpit host port.'
@@ -156,6 +160,7 @@ $checks = [Collections.Generic.List[object]]::new()
 $cleanupFailures = [Collections.Generic.List[string]]::new()
 $cleanup = [ordered]@{
     nonOwnerMemberships = 'not-created'
+    properties = 'not-created'
     workspace = 'not-created'
     ownerSessions = 'not-created'
     invitationApplicantSessions = 'not-created'
@@ -352,10 +357,18 @@ function Open-RehearsalMailpitWindow {
             -OperatorWindow)
     Wait-RehearsalMailpitReady -OperatorWindow
 
-    $published = @(Invoke-RehearsalCompose `
-            -Arguments @('port', 'mailpit', '8025') `
-            -Operation 'Resolve the loopback Mailpit operator port' `
+    $containerIds = @(Invoke-RehearsalCompose `
+            -Arguments @('ps', '--quiet', 'mailpit') `
+            -Operation 'Resolve the operator Mailpit container' `
             -OperatorWindow)
+    $containerIds = @($containerIds | Where-Object { $_ -match '^[0-9a-f]{12,64}$' })
+    if ($containerIds.Count -ne 1) {
+        throw 'Unable to resolve exactly one operator Mailpit container.'
+    }
+    $published = @(& docker port $containerIds[0] '8025/tcp' 2>&1)
+    if ($LASTEXITCODE -ne 0) {
+        throw 'Unable to resolve the loopback Mailpit operator port.'
+    }
     $bindings = @($published | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
     if ($bindings.Count -ne 1 -or
         $bindings[0] -notmatch '^127\.0\.0\.1:(?<port>[0-9]{1,5})$') {
@@ -387,6 +400,36 @@ function Close-RehearsalMailpitWindow {
                 -not [string]::IsNullOrWhiteSpace([string]$_)
             }).Count -ne 0) {
         throw 'Mailpit still has a published host port after operator-window cleanup.'
+    }
+
+    $operatorNetworkIds = @(& docker network ls `
+            --quiet `
+            --filter "label=com.docker.compose.project=$composeProjectName" `
+            --filter 'label=com.docker.compose.network=mailpit-operator' 2>&1)
+    if ($LASTEXITCODE -ne 0) {
+        throw 'Unable to resolve the temporary Mailpit operator network.'
+    }
+    $operatorNetworkIds = @($operatorNetworkIds | Where-Object {
+            $_ -match '^[0-9a-f]{12,64}$'
+        })
+    if ($operatorNetworkIds.Count -gt 1) {
+        throw 'More than one temporary Mailpit operator network exists.'
+    }
+    if ($operatorNetworkIds.Count -eq 1) {
+        $attachedContainers = @(& docker network inspect `
+                $operatorNetworkIds[0] `
+                --format '{{json .Containers}}' 2>&1)
+        if ($LASTEXITCODE -ne 0 -or $attachedContainers.Count -ne 1) {
+            throw 'Unable to inspect the temporary Mailpit operator network.'
+        }
+        $attachments = $attachedContainers[0] | ConvertFrom-Json
+        if (@($attachments.PSObject.Properties).Count -ne 0) {
+            throw 'The temporary Mailpit operator network still has attached containers.'
+        }
+        [void](& docker network rm $operatorNetworkIds[0] 2>&1)
+        if ($LASTEXITCODE -ne 0) {
+            throw 'Unable to remove the temporary Mailpit operator network.'
+        }
     }
 }
 
@@ -659,7 +702,8 @@ function New-RehearsalProperty {
     param(
         [Parameter(Mandatory = $true)][string] $Token,
         [Parameter(Mandatory = $true)][string] $Name,
-        [Parameter(Mandatory = $true)][string] $Code
+        [Parameter(Mandatory = $true)][string] $Code,
+        [Parameter(Mandatory = $true)][ref] $State
     )
 
     $receipt = Read-RehearsalJson `
@@ -680,6 +724,7 @@ function New-RehearsalProperty {
     if ($propertyId -eq [Guid]::Empty) {
         throw "Synthetic property $Code returned an empty identifier."
     }
+    $State.Value = $propertyId
 
     $deadline = [DateTimeOffset]::UtcNow.AddSeconds($ConvergenceTimeoutSeconds)
     do {
@@ -708,6 +753,53 @@ function New-RehearsalProperty {
         Start-Sleep -Milliseconds $PollIntervalMilliseconds
     } while ([DateTimeOffset]::UtcNow -lt $deadline)
     throw "Synthetic property $Code did not become active before the timeout."
+}
+
+function Retire-RehearsalProperties {
+    param([Parameter(Mandatory = $true)][string] $Token)
+
+    $propertyIds = @($allowedPropertyId, $deniedPropertyId) |
+        Where-Object { $_ -ne [Guid]::Empty }
+    $retiredCount = 0
+    foreach ($propertyId in $propertyIds) {
+        $property = Read-RehearsalJson `
+            -Response (Invoke-RehearsalApi `
+                -Path "/api/properties/$($propertyId.ToString('D'))" `
+                -Method GET `
+                -TenantId $workspaceId.ToString('D') `
+                -Token $Token `
+                -Body $null) `
+            -ExpectedStatus 200 `
+            -Operation "Read synthetic property '$propertyId' for cleanup"
+        if ([string]$property.status -ceq 'retired') {
+            $retiredCount++
+            continue
+        }
+        if ([string]$property.status -cne 'active') {
+            throw "Synthetic property '$propertyId' has unsupported cleanup status '$($property.status)'."
+        }
+
+        $receipt = Read-RehearsalJson `
+            -Response (Invoke-RehearsalApi `
+                -Path "/api/properties/$($propertyId.ToString('D'))/retire" `
+                -Method POST `
+                -TenantId $workspaceId.ToString('D') `
+                -Token $Token `
+                -Body @{
+                    operationId = [Guid]::NewGuid()
+                    confirmed = $true
+                    expectedVersion = [long]$property.version
+                }) `
+            -ExpectedStatus 200 `
+            -Operation "Retire synthetic property '$propertyId'"
+        if ([Guid]$receipt.propertyId -ne $propertyId -or
+            [string]$receipt.status -cne 'retired') {
+            throw "Synthetic property '$propertyId' cleanup returned an invalid receipt."
+        }
+        $retiredCount++
+    }
+
+    return $retiredCount
 }
 
 function Read-RehearsalChildEvidence {
@@ -805,6 +897,29 @@ function Archive-RehearsalWorkspace {
     if ([string]$workspace.organization.status -ceq 'archived') {
         return
     }
+    $organization = $workspace.organization
+    if ([string]$organization.status -ceq 'active') {
+        $organization = Read-RehearsalJson `
+            -Response (Invoke-RehearsalApi `
+                -Path "/api/organizations/$($workspaceId.ToString('D'))/suspend" `
+                -Method POST `
+                -TenantId $workspaceId.ToString('D') `
+                -Token $Token `
+                -Body @{
+                    operationId = [Guid]::NewGuid()
+                    expectedVersion = [long]$organization.version
+                }) `
+            -ExpectedStatus 200 `
+            -Operation 'Suspend the synthetic workspace before archive'
+        if ([Guid]$organization.organizationId -ne $workspaceId -or
+            [string]$organization.status -cne 'suspended') {
+            throw 'Synthetic workspace cleanup returned an invalid suspension result.'
+        }
+    }
+    if ([string]$organization.status -cne 'suspended') {
+        throw "Synthetic workspace has unsupported cleanup status '$($organization.status)'."
+    }
+
     $archived = Read-RehearsalJson `
         -Response (Invoke-RehearsalApi `
             -Path "/api/organizations/$($workspaceId.ToString('D'))/archive" `
@@ -813,7 +928,7 @@ function Archive-RehearsalWorkspace {
             -Token $Token `
             -Body @{
                 operationId = [Guid]::NewGuid()
-                expectedVersion = [long]$workspace.organization.version
+                expectedVersion = [long]$organization.version
             }) `
         -ExpectedStatus 200 `
         -Operation 'Archive the synthetic workspace'
@@ -1004,14 +1119,17 @@ try {
     $allowedPropertyId = New-RehearsalProperty `
         -Token ([string]$owner.AccessToken) `
         -Name 'Preview onboarding allowed' `
-        -Code "smoke-a-$batchId"
+        -Code "smoke-a-$batchId" `
+        -State ([ref]$allowedPropertyId)
     $deniedPropertyId = New-RehearsalProperty `
         -Token ([string]$owner.AccessToken) `
         -Name 'Preview onboarding denied' `
-        -Code "smoke-b-$batchId"
+        -Code "smoke-b-$batchId" `
+        -State ([ref]$deniedPropertyId)
     if ($allowedPropertyId -eq $deniedPropertyId) {
         throw 'Synthetic property identifiers are not distinct.'
     }
+    $cleanup['properties'] = 'active-2'
     $checks.Add([ordered]@{ name = 'two-active-properties-created'; status = 'passed' })
 
     if (-not (Test-Path -LiteralPath $outputDirectory -PathType Container)) {
@@ -1105,6 +1223,17 @@ finally {
             Add-RehearsalCleanupFailure `
                 -Name 'non-owner-memberships' `
                 -Message 'Synthetic non-owner memberships could not all be removed.'
+        }
+        try {
+            $retiredCount = Retire-RehearsalProperties `
+                -Token ([string]$owner.AccessToken)
+            $cleanup['properties'] = "retired-$retiredCount"
+        }
+        catch {
+            $cleanup['properties'] = 'failed'
+            Add-RehearsalCleanupFailure `
+                -Name 'properties' `
+                -Message 'Synthetic properties could not all be retired.'
         }
         try {
             Archive-RehearsalWorkspace -Token ([string]$owner.AccessToken)

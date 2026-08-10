@@ -166,22 +166,29 @@ function Assert-SmokeApplicantHasNoMembership {
 
 function New-SmokeEnrollmentSource {
     $sourceId = [Guid]::NewGuid()
-    $issuance = Read-SmokeJson `
-        -Response (Invoke-SmokeApi `
-            -Path '/api/workspace-staff-enrollment/sources/enrollment-links' `
-            -Method POST `
-            -TenantId $WorkspaceId.ToString('D') `
-            -Token $ownerToken `
-            -Body @{
-                sourceId = $sourceId
-                lifetimeHours = 1
-                maximumClaims = 1
-                approvalMode = 2
-                profileKey = $profileKey
-                propertyIds = @($AllowedPropertyId)
-            }) `
+    $issuance = Invoke-BunkFyAuthenticatedJsonRequestWithConvergence `
+        -Client $client `
+        -Origin $origin `
+        -Path '/api/workspace-staff-enrollment/sources/enrollment-links' `
+        -Method POST `
+        -TenantId $WorkspaceId.ToString('D') `
+        -AccessToken $ownerToken `
+        -TimeoutSeconds $RequestTimeoutSeconds `
+        -Body @{
+            sourceId = $sourceId
+            lifetimeHours = 1
+            maximumClaims = 1
+            approvalMode = 2
+            profileKey = $profileKey
+            propertyIds = @($AllowedPropertyId)
+        } `
         -ExpectedStatus 200 `
-        -Operation 'Issue approval-required enrollment link'
+        -Operation 'Issue approval-required enrollment link' `
+        -ConvergenceTimeoutSeconds $ConvergenceTimeoutSeconds `
+        -PollIntervalMilliseconds $PollIntervalMilliseconds `
+        -RetryableProblemCodes @(
+            'Workspaces.StaffAccessProfileUnavailable',
+            'Workspaces.StaffAccessPropertyUnavailable')
     $secret = [string]$issuance.token
     if (-not [bool]$issuance.alreadyIssued -and
         [Guid]$issuance.plan.sourceId -eq $sourceId) {
