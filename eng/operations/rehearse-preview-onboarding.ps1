@@ -179,6 +179,7 @@ $enrollmentApplicant = $null
 $invitationEvidence = $null
 $enrollmentEvidence = $null
 $proofError = $null
+$proofStage = 'not-started'
 $releaseIdBefore = $null
 $observedReleaseId = $null
 
@@ -993,6 +994,19 @@ function Add-RehearsalCleanupFailure {
     Write-Warning $Message
 }
 
+function Get-RehearsalFailureCode {
+    param([Parameter(Mandatory = $true)][Exception] $Exception)
+
+    $match = [Text.RegularExpressions.Regex]::Match(
+        $Exception.Message,
+        "(?:problem|code) '([A-Za-z0-9][A-Za-z0-9._-]{0,127})'",
+        [Text.RegularExpressions.RegexOptions]::CultureInvariant)
+    if ($match.Success) {
+        return $match.Groups[1].Value
+    }
+    return 'Rehearsal.ProofFailed'
+}
+
 $releaseIdBefore = Assert-BunkFyPublicApiReleaseIdentity `
     -Client $client `
     -Origin $origin `
@@ -1021,11 +1035,13 @@ if (-not $PSCmdlet.ShouldProcess(
 }
 
 try {
+    $proofStage = 'mail-capture-open'
     $mailpitWindowOpened = $true
     $mailpitOrigin = Open-RehearsalMailpitWindow
     $cleanup['capturedMail'] = 'open-loopback-only'
     $checks.Add([ordered]@{ name = 'private-mail-capture-opened'; status = 'passed' })
 
+    $proofStage = 'identity-verification'
     $batchId = [Guid]::NewGuid().ToString('N').Substring(0, 8)
     $owner = New-RehearsalIdentity `
         -Role 'owner' `
@@ -1052,6 +1068,7 @@ try {
     }
     $checks.Add([ordered]@{ name = 'three-captured-email-identities-verified'; status = 'passed' })
 
+    $proofStage = 'workspace-provisioning'
     $workspaceReceipt = Read-RehearsalJson `
         -Response (Invoke-RehearsalApi `
             -Path '/api/organizations' `
@@ -1116,6 +1133,7 @@ try {
     }
     $checks.Add([ordered]@{ name = 'workspace-owner-staff-projected'; status = 'passed' })
 
+    $proofStage = 'property-provisioning'
     $allowedPropertyId = New-RehearsalProperty `
         -Token ([string]$owner.AccessToken) `
         -Name 'Preview onboarding allowed' `
@@ -1148,6 +1166,7 @@ try {
         -AsPlainText `
         -Force
     try {
+        $proofStage = 'invitation-proof'
         & (Join-Path $PSScriptRoot 'verify-deployed-workspace-invitation.ps1') `
             -PublicOrigin $origin `
             -ExpectedReleaseId $ExpectedReleaseId `
@@ -1170,6 +1189,7 @@ try {
             -ExpectedKind 'bunkfy-deployed-workspace-invitation-probe'
         $checks.Add([ordered]@{ name = 'invitation-child-proof-passed'; status = 'passed' })
 
+        $proofStage = 'enrollment-proof'
         & (Join-Path $PSScriptRoot 'verify-deployed-workspace-enrollment.ps1') `
             -PublicOrigin $origin `
             -ExpectedReleaseId $ExpectedReleaseId `
@@ -1198,6 +1218,7 @@ try {
         $enrollmentToken.Dispose()
     }
 
+    $proofStage = 'release-continuity'
     $observedReleaseId = Assert-BunkFyPublicApiReleaseIdentity `
         -Client $client `
         -Origin $origin `
@@ -1207,6 +1228,7 @@ try {
         throw 'The public API release identity changed during the onboarding rehearsal.'
     }
     $checks.Add([ordered]@{ name = 'release-identity-continuous'; status = 'passed' })
+    $proofStage = 'proof-complete'
 }
 catch {
     $proofError = $_.Exception
@@ -1326,65 +1348,96 @@ finally {
     $client.Dispose()
 }
 
-if ($null -ne $proofError) {
-    throw $proofError
-}
-
 $checks.Add([ordered]@{
         name = 'explicit-cleanup-complete'
         status = if ($cleanupFailures.Count -eq 0) { 'passed' } else { 'failed' }
     })
-$invitationHash = (Get-FileHash `
-        -LiteralPath $invitationEvidencePath `
-        -Algorithm SHA256).Hash.ToLowerInvariant()
-$enrollmentHash = (Get-FileHash `
-        -LiteralPath $enrollmentEvidencePath `
-        -Algorithm SHA256).Hash.ToLowerInvariant()
+$identityEvidence = [Collections.Generic.List[object]]::new()
+foreach ($identityRecord in @(
+        [pscustomobject]@{ Role = 'owner'; Identity = $owner },
+        [pscustomobject]@{ Role = 'invitation-applicant'; Identity = $invitationApplicant },
+        [pscustomobject]@{ Role = 'enrollment-applicant'; Identity = $enrollmentApplicant })) {
+    if ($null -eq $identityRecord.Identity) {
+        continue
+    }
+    $fingerprintProperty = $identityRecord.Identity.PSObject.Properties['Fingerprint']
+    $messageCountProperty = $identityRecord.Identity.PSObject.Properties['CapturedMessageCount']
+    $identityEvidence.Add([ordered]@{
+            role = $identityRecord.Role
+            fingerprintSha256 = if ($null -eq $fingerprintProperty) {
+                $null
+            }
+            else {
+                [string]$fingerprintProperty.Value
+            }
+            capturedMessageCount = if ($null -eq $messageCountProperty) {
+                0
+            }
+            else {
+                [int]$messageCountProperty.Value
+            }
+        })
+}
+$childEvidence = [ordered]@{}
+foreach ($childRecord in @(
+        [pscustomobject]@{ Name = 'invitation'; Path = $invitationEvidencePath },
+        [pscustomobject]@{ Name = 'enrollment'; Path = $enrollmentEvidencePath })) {
+    if (-not (Test-Path -LiteralPath $childRecord.Path -PathType Leaf)) {
+        continue
+    }
+    $childEvidence[$childRecord.Name] = [ordered]@{
+        path = [IO.Path]::GetRelativePath(
+            $outputDirectory,
+            $childRecord.Path).Replace('\', '/')
+        sha256 = (Get-FileHash `
+                -LiteralPath $childRecord.Path `
+                -Algorithm SHA256).Hash.ToLowerInvariant()
+    }
+}
+$evidenceReleaseId = if (-not [string]::IsNullOrWhiteSpace($observedReleaseId)) {
+    $observedReleaseId
+}
+elseif (-not [string]::IsNullOrWhiteSpace($releaseIdBefore)) {
+    $releaseIdBefore
+}
+else {
+    $ExpectedReleaseId
+}
+$result = if ($null -ne $proofError) {
+    'proof-failed'
+}
+elseif ($cleanupFailures.Count -gt 0) {
+    'proof-passed-cleanup-partial'
+}
+else {
+    'passed'
+}
 
 $evidence = [ordered]@{
     schemaVersion = 1
     evidenceKind = 'bunkfy-preview-onboarding-rehearsal'
     generatedAtUtc = [DateTimeOffset]::UtcNow.ToString('O')
     origin = $origin.GetLeftPart([UriPartial]::Authority)
-    releaseId = $observedReleaseId
+    releaseId = $evidenceReleaseId
     transport = if ($origin.Scheme -eq 'https') { 'trusted-https' } else { 'loopback-http-preview' }
-    result = if ($cleanupFailures.Count -eq 0) {
-        'passed'
+    result = $result
+    failure = if ($null -eq $proofError) {
+        $null
     }
     else {
-        'proof-passed-cleanup-partial'
-    }
-    workspaceId = $workspaceId.ToString('D')
-    propertyIds = @(
-        $allowedPropertyId.ToString('D'),
-        $deniedPropertyId.ToString('D'))
-    identities = @(
         [ordered]@{
-            role = 'owner'
-            fingerprintSha256 = [string]$owner.Fingerprint
-            capturedMessageCount = [int]$owner.CapturedMessageCount
-        },
-        [ordered]@{
-            role = 'invitation-applicant'
-            fingerprintSha256 = [string]$invitationApplicant.Fingerprint
-            capturedMessageCount = [int]$invitationApplicant.CapturedMessageCount
-        },
-        [ordered]@{
-            role = 'enrollment-applicant'
-            fingerprintSha256 = [string]$enrollmentApplicant.Fingerprint
-            capturedMessageCount = [int]$enrollmentApplicant.CapturedMessageCount
-        })
-    childEvidence = [ordered]@{
-        invitation = [ordered]@{
-            path = [IO.Path]::GetRelativePath($outputDirectory, $invitationEvidencePath).Replace('\', '/')
-            sha256 = $invitationHash
-        }
-        enrollment = [ordered]@{
-            path = [IO.Path]::GetRelativePath($outputDirectory, $enrollmentEvidencePath).Replace('\', '/')
-            sha256 = $enrollmentHash
+            stage = $proofStage
+            code = Get-RehearsalFailureCode -Exception $proofError
         }
     }
+    workspaceId = if ($workspaceId -eq [Guid]::Empty) { $null } else { $workspaceId.ToString('D') }
+    propertyIds = @($allowedPropertyId, $deniedPropertyId) |
+        Where-Object { $_ -ne [Guid]::Empty } |
+        ForEach-Object { $_.ToString('D') }
+    identities = @($identityEvidence)
+    childEvidence = $childEvidence
     cleanup = $cleanup
+    cleanupFailures = @($cleanupFailures)
     checks = @($checks)
     limitations = @(
         'mailpit-capture-is-not-real-provider-delivery-or-inbox-placement-proof',
@@ -1410,6 +1463,10 @@ finally {
     if (Test-Path -LiteralPath $temporaryPath) {
         Remove-Item -LiteralPath $temporaryPath -Force
     }
+}
+
+if ($null -ne $proofError) {
+    throw $proofError
 }
 
 if ($cleanupFailures.Count -gt 0) {

@@ -57,3 +57,8 @@ Auth currently has no public self-service identity deletion contract. The
 random synthetic global identities therefore remain signed out, and that
 limitation is explicit in evidence. A partial cleanup writes a non-passing
 cleanup result and makes the command fail for operator follow-up.
+
+A proof failure after mutation also writes the scrubbed umbrella record before
+the command rethrows. It records only the bounded stage and stable problem code,
+completed checks, created identifiers, child-evidence hashes that exist, and the
+cleanup result; it never copies the exception message into evidence.

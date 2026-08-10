@@ -947,12 +947,26 @@ foreach ($requiredToken in @(
         'purged-and-loopback-closed',
         "'label=com.docker.compose.network=mailpit-operator'",
         "evidenceKind = 'bunkfy-preview-onboarding-rehearsal'",
+        "'proof-failed'",
+        'Get-RehearsalFailureCode',
+        'cleanupFailures = @($cleanupFailures)',
         'fingerprintSha256',
         "'mailpit-capture-is-not-real-provider-delivery-or-inbox-placement-proof'",
         "'synthetic-global-identities-retained-signed-out-no-public-delete-contract'")) {
     if (-not $previewOnboardingRehearsal.Contains($requiredToken, [StringComparison]::Ordinal)) {
         throw "Preview onboarding rehearsal policy is missing '$requiredToken'."
     }
+}
+$failureEvidenceIndex = $previewOnboardingRehearsal.IndexOf(
+    "'proof-failed'",
+    [StringComparison]::Ordinal)
+$proofRethrowIndex = $previewOnboardingRehearsal.LastIndexOf(
+    'if ($null -ne $proofError)',
+    [StringComparison]::Ordinal)
+if ($failureEvidenceIndex -lt 0 -or
+    $proofRethrowIndex -lt 0 -or
+    $failureEvidenceIndex -gt $proofRethrowIndex) {
+    throw 'Preview onboarding rehearsal must assemble minimized failure evidence before rethrowing a proof failure.'
 }
 foreach ($forbiddenToken in @(
         'DangerousAcceptAnyServerCertificateValidator',
