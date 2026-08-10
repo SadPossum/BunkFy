@@ -794,6 +794,7 @@
   </Folder>
   <Folder Name="/docs/planning/">
     <File Path="docs/planning/bunkfy-repository-stack-and-workflow-plan.md" />
+    <File Path="docs/planning/preview-deployment-composition-safety-task.md" />
   </Folder>
   <Folder Name="/eng/">
     <File Path="eng/bootstrap.ps1" />
