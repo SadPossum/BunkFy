@@ -13,6 +13,11 @@ already scanned bytes; it never rebuilds an image.
 - choose one non-secret release id that is safe as an OCI tag; and
 - retain an approved rollback or recovery proof for Production admission.
 
+Hosted promotion rejects `localhost`, loopback addresses, and the reserved
+`registry.fixture.invalid` authority. Those destinations belong only to the
+explicit fixture path and cannot produce hosted promotion evidence, even when
+the source candidate itself has valid attestations.
+
 Do not place registry credentials in command arguments, destination references,
 or evidence paths. The script has no username, password, token, insecure TLS,
 or certificate-bypass parameter.
@@ -76,4 +81,5 @@ private approvals, or rollback execution. Those facts remain separate evidence.
 
 `-AllowUnattested` and `-FixtureRegistryDirectory` exist only together for the
 deterministic local test under `registry.fixture.invalid`. They cannot enable an
-unattested real registry promotion.
+unattested real registry promotion, and fixture promotion records are rejected
+by non-fixture rollback and Production admission verification.

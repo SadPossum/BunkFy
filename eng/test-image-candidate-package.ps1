@@ -456,6 +456,19 @@ try {
             BundleDirectory = $bundleDirectory
             ExpectedSourceCommit = $sourceCommit
             ReleaseId = $releaseId
+            BackendDestination = "localhost:5000/bunkfy/backend:$releaseId"
+            WebDestination = "registry.fixture.invalid:5000/bunkfy/web:$releaseId"
+            OutputDirectory = (Join-Path $temporaryRoot 'rejected-loopback')
+            Confirm = $false
+        } `
+        -MessagePattern 'fixture or loopback registry' `
+        -Context 'hosted candidate promoter loopback destination'
+    Invoke-TestExpectedFailure `
+        -ScriptPath $promoter `
+        -Arguments @{
+            BundleDirectory = $bundleDirectory
+            ExpectedSourceCommit = $sourceCommit
+            ReleaseId = $releaseId
             BackendDestination = "registry.fixture.invalid/bunkfy/backend:$releaseId"
             WebDestination = "registry.fixture.invalid/bunkfy/web:$releaseId"
             OutputDirectory = (Join-Path $bundleDirectory 'promotion-evidence')
@@ -472,8 +485,52 @@ try {
             ExpectedReleaseId = $releaseId
             ExpectedSourceCommit = $sourceCommit
         } `
-        -MessagePattern 'requires attested candidate bytes' `
+        -MessagePattern 'fixture or loopback registry' `
         -Context 'image promotion verifier'
+
+    $attestedFixtureDirectory = Join-Path $temporaryRoot 'attested-fixture-promotion'
+    Copy-Item -LiteralPath $promotionDirectory `
+        -Destination $attestedFixtureDirectory `
+        -Recurse
+    $attestedFixturePath = Join-Path $attestedFixtureDirectory 'promotion.json'
+    $attestedFixture = [IO.File]::ReadAllText($attestedFixturePath) |
+        ConvertFrom-Json -DateKind String
+    $attestedFixture.candidate.attestationsVerified = $true
+    Write-TestJson -Path $attestedFixturePath -Value $attestedFixture
+    Write-TestChecksums -Directory $attestedFixtureDirectory
+    Invoke-TestExpectedFailure `
+        -ScriptPath $promotionVerifier `
+        -Arguments @{
+            PromotionDirectory = $attestedFixtureDirectory
+            ExpectedReleaseId = $releaseId
+            ExpectedSourceCommit = $sourceCommit
+        } `
+        -MessagePattern 'fixture or loopback registry' `
+        -Context 'attested fixture promotion verifier'
+
+    $attestedLoopbackDirectory = Join-Path $temporaryRoot 'attested-loopback-promotion'
+    Copy-Item -LiteralPath $attestedFixtureDirectory `
+        -Destination $attestedLoopbackDirectory `
+        -Recurse
+    $attestedLoopbackPath = Join-Path $attestedLoopbackDirectory 'promotion.json'
+    $attestedLoopback = [IO.File]::ReadAllText($attestedLoopbackPath) |
+        ConvertFrom-Json -DateKind String
+    foreach ($image in @($attestedLoopback.images)) {
+        $repository = "127.0.0.1:5000/bunkfy/$($image.name)"
+        $image.tagReference = "$repository`:$releaseId"
+        $image.digestReference = "$repository@$($image.sourceManifestDigest)"
+    }
+    Write-TestJson -Path $attestedLoopbackPath -Value $attestedLoopback
+    Write-TestChecksums -Directory $attestedLoopbackDirectory
+    Invoke-TestExpectedFailure `
+        -ScriptPath $promotionVerifier `
+        -Arguments @{
+            PromotionDirectory = $attestedLoopbackDirectory
+            ExpectedReleaseId = $releaseId
+            ExpectedSourceCommit = $sourceCommit
+        } `
+        -MessagePattern 'fixture or loopback registry' `
+        -Context 'attested loopback promotion verifier'
     Invoke-TestExpectedFailure `
         -ScriptPath $promotionVerifier `
         -Arguments @{

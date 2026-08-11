@@ -33,6 +33,37 @@ function Resolve-BunkFyPromotionDestination {
     }
 }
 
+function Test-BunkFyLocalOrFixturePromotionRepository {
+    param([Parameter(Mandatory = $true)][string] $Repository)
+
+    $separator = $Repository.IndexOf('/')
+    if ($separator -le 0) {
+        throw 'Promotion repository must include a registry authority.'
+    }
+
+    $registryAuthority = $Repository.Substring(0, $separator)
+    $portSeparator = $registryAuthority.LastIndexOf(':')
+    $registryHost = if ($portSeparator -gt 0) {
+        $registryAuthority.Substring(0, $portSeparator)
+    }
+    else {
+        $registryAuthority
+    }
+
+    [Net.IPAddress] $registryAddress = $null
+    $isLocalAddress = [Net.IPAddress]::TryParse(
+        $registryHost,
+        [ref]$registryAddress) -and (
+        [Net.IPAddress]::IsLoopback($registryAddress) -or
+        $registryAddress.Equals([Net.IPAddress]::Any) -or
+        $registryAddress.Equals([Net.IPAddress]::IPv6Any))
+    $isLocalName = $registryHost -ceq 'localhost' -or
+        $registryHost.EndsWith('.localhost', [StringComparison]::Ordinal)
+    $isFixtureRegistry = $registryHost -ceq 'registry.fixture.invalid'
+
+    return $isLocalAddress -or $isLocalName -or $isFixtureRegistry
+}
+
 function Assert-BunkFyDisjointPromotionPaths {
     param(
         [Parameter(Mandatory = $true)][string] $LeftPath,
@@ -204,6 +235,15 @@ function Get-BunkFyVerifiedImagePromotion {
     }
     if ($verifiedImages[0].Repository -ceq $verifiedImages[1].Repository) {
         throw 'Image promotion backend and web repositories must be distinct.'
+    }
+
+    $localOrFixtureReferences = @($verifiedImages | Where-Object {
+            Test-BunkFyLocalOrFixturePromotionRepository `
+                -Repository $_.Repository
+        })
+    if (-not $AllowFixtureEvidence -and
+        $localOrFixtureReferences.Count -ne 0) {
+        throw 'Hosted image promotion evidence cannot target a fixture or loopback registry.'
     }
 
     $attestationsVerified = [bool]$record.candidate.attestationsVerified

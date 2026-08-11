@@ -359,6 +359,8 @@ foreach ($token in @(
         'Assert-BunkFyCandidateProperties',
         'promotionEvidenceReference',
         'Resolve-BunkFyPromotionDestination',
+        'Test-BunkFyLocalOrFixturePromotionRepository',
+        'cannot target a fixture or loopback registry',
         'requires attested candidate bytes',
         'registry.fixture.invalid/',
         'ChecksumsSha256')) {

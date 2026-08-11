@@ -210,6 +210,12 @@ if ($fixtureMode) {
     }
 }
 else {
+    foreach ($destination in @($backendTarget, $webTarget)) {
+        if (Test-BunkFyLocalOrFixturePromotionRepository `
+                -Repository $destination.Repository) {
+            throw 'Hosted image promotion cannot target a fixture or loopback registry.'
+        }
+    }
     $script:Skopeo = Get-Command $SkopeoPath -CommandType Application `
         -ErrorAction Stop | Select-Object -First 1
 }

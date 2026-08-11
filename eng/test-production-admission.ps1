@@ -402,6 +402,21 @@ try {
         @($verified.Record.checks).Count -ne 7) {
         throw 'Production admission fixture emitted invalid closed evidence.'
     }
+
+    $hostedFixtureArguments = $arguments.Clone()
+    $hostedFixtureArguments.PublicOrigin = [Uri]'https://candidate.example/'
+    $hostedFixtureArguments.OutputDirectory =
+        Join-Path $temporaryRoot 'hosted-fixture-promotion-admission'
+    $hostedFixtureArguments.Remove('AllowFixtureEvidence')
+    Assert-TestFailure `
+        -Operation { & $assembler @hostedFixtureArguments } `
+        -ExpectedMessage 'fixture or loopback registry' `
+        -Context 'hosted admission with fixture promotion evidence'
+    if ([IO.Directory]::Exists(
+            [string]$hostedFixtureArguments.OutputDirectory)) {
+        throw 'Rejected hosted fixture promotion left an admission bundle.'
+    }
+
     $serialized = [IO.File]::ReadAllText((Join-Path $output 'production-admission.json'))
     foreach ($forbidden in @('workspaceId', 'propertyId', 'inventoryUnitId', 'token', 'password', 'responseBody', 'rawHeaders')) {
         if ($serialized.Contains($forbidden, [StringComparison]::OrdinalIgnoreCase)) {
