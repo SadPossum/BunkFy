@@ -241,6 +241,23 @@ if ($LASTEXITCODE -ne 0) {
     throw 'Preview Compose source configuration is invalid.'
 }
 $sourceCompose = $sourceComposeJson | ConvertFrom-Json
+$expectedInfrastructureImages = [ordered]@{
+    postgres = 'postgres:17.5-alpine@sha256:6567bca8d7bc8c82c5922425a0baee57be8402df92bae5eacad5f01ae9544daa'
+    redis = 'redis:8.0-alpine@sha256:5f61955be8ab2ccee9372b84ae4d4da2e2b156f87281e3f218544055e7ee04d4'
+    nats = 'nats:2.11-alpine@sha256:e4bf19f15fd3218814a4e3c9e0064e1334bd8aa20d5984b9f1a0afd084f8cc00'
+    minio = 'minio/minio:RELEASE.2025-04-22T22-12-26Z@sha256:a1ea29fa28355559ef137d71fc570e508a214ec84ff8083e39bc5428980b015e'
+    mailpit = 'axllent/mailpit:v1.30.7@sha256:d5ecbb067db3705fa953d79e1b7f81ef84038df67aba6c52825d8c02a1ea748a'
+}
+foreach ($entry in $expectedInfrastructureImages.GetEnumerator()) {
+    $actual = [string]$resolvedCompose.services.PSObject.Properties[$entry.Key].Value.image
+    if ($actual -cne $entry.Value) {
+        throw "Preview infrastructure image '$($entry.Key)' is not pinned to the reviewed digest."
+    }
+}
+$expectedArchiveUtilityImage = 'alpine:3.21@sha256:48b0309ca019d89d40f670aa1bc06e426dc0931948452e8491e3d65087abc07d'
+if ($script:BunkFyPreviewArchiveUtilityImage -cne $expectedArchiveUtilityImage) {
+    throw 'Preview backup and recovery utility image is not pinned to the reviewed digest.'
+}
 $expectedVolumeNames = [ordered]@{
     'postgres-data' = 'bunkfy-preview-postgres-data'
     'redis-data' = 'bunkfy-preview-redis-data'
@@ -624,6 +641,7 @@ foreach ($requiredToken in @(
         'backupId =',
         'stateContract =',
         'protectedLedgerSnapshot =',
+        '$script:BunkFyPreviewArchiveUtilityImage',
         "restorePolicy = 'explicit-current-snapshot-required'",
         '$script:BunkFyPreviewManifestDigestFileName',
         'pg_restore --list',
@@ -646,6 +664,7 @@ foreach ($requiredToken in @(
         'Get-BunkFyDockerImageId',
         'ProtectedLedgerSnapshotPath',
         'ProtectedLedgerSnapshotSha256',
+        '$script:BunkFyPreviewArchiveUtilityImage',
         'AllowBackupPointProtectedLedger',
         'explicitly allow the backup-point snapshot only for a disposable rehearsal',
         'Assert-BunkFyVolumeArchiveReadable',
@@ -677,6 +696,7 @@ foreach ($requiredToken in @(
         'verify-deployed-public-edge.ps1',
         'verify-deployed-admin-boundary.ps1',
         'Get-BunkFyStateTreeFingerprint',
+        '$script:BunkFyPreviewArchiveUtilityImage',
         "evidenceKind = 'bunkfy-preview-recovery-rehearsal'",
         "'protected-authenticator-decryption-not-exercised'",
         "'hosted-rpo-and-rto-not-established'")) {
@@ -705,6 +725,7 @@ $migrationRehearsalScript = Get-Content -LiteralPath (
     Join-Path $PSScriptRoot 'operations\rehearse-production-migrations.ps1') -Raw
 foreach ($requiredToken in @(
         "DOTNET_ENVIRONMENT = 'Production'",
+        'postgres:17.5-alpine@sha256:6567bca8d7bc8c82c5922425a0baee57be8402df92bae5eacad5f01ae9544daa',
         'cat-file -e',
         "Migrations__Mode = `$Mode",
         'Migrations__ProductionAdmission__ContainerImageDigest',

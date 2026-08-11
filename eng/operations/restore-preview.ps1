@@ -249,7 +249,7 @@ function Assert-BunkFyVolumeArchiveReadable {
     $archiveName = Split-Path -Leaf $Path
     & docker run --rm `
         --mount "type=bind,src=$archiveDirectory,dst=/backup,readonly" `
-        'alpine:3.21' `
+        $script:BunkFyPreviewArchiveUtilityImage `
         'tar' '-tzf' "/backup/$archiveName" 1>$null
     if ($LASTEXITCODE -ne 0) {
         throw "Backup archive '$archiveName' failed structural validation."
@@ -326,7 +326,7 @@ function Restore-BunkFyVolume {
         'run', '--rm',
         '--mount', "type=volume,src=$Volume,dst=/target",
         '--mount', "type=bind,src=$archiveDirectory,dst=/backup,readonly",
-        'alpine:3.21',
+        $script:BunkFyPreviewArchiveUtilityImage,
         'tar', '-xzf', "/backup/$archiveName", '-C', '/target'
     ) -WorkingDirectory $root
 }

@@ -3,6 +3,7 @@ $ErrorActionPreference = 'Stop'
 
 $script:BunkFyPreviewStateContractName = 'bunkfy-preview-state'
 $script:BunkFyPreviewStateContractVersion = 1
+$script:BunkFyPreviewArchiveUtilityImage = 'alpine:3.21@sha256:48b0309ca019d89d40f670aa1bc06e426dc0931948452e8491e3d65087abc07d'
 $script:BunkFyPreviewManifestDigestFileName = 'manifest.sha256'
 $script:BunkFyPreviewProtectedLedgerLogicalName = 'data-rights-ledger-delta'
 $script:BunkFyPreviewStateArchives = [ordered]@{

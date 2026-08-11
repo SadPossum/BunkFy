@@ -58,7 +58,7 @@ x-preview-country-policy-volume: &preview-country-policy-volume
 
 services:
   postgres:
-    image: postgres:17.5-alpine
+    image: postgres:17.5-alpine@sha256:6567bca8d7bc8c82c5922425a0baee57be8402df92bae5eacad5f01ae9544daa
     restart: unless-stopped
     environment:
       POSTGRES_DB: bunkfy
@@ -74,7 +74,7 @@ services:
     networks: [backend]
 
   redis:
-    image: redis:8.0-alpine
+    image: redis:8.0-alpine@sha256:5f61955be8ab2ccee9372b84ae4d4da2e2b156f87281e3f218544055e7ee04d4
     restart: unless-stopped
     command: ["redis-server", "--appendonly", "yes", "--requirepass", "${BUNKFY_REDIS_PASSWORD:?set BUNKFY_REDIS_PASSWORD}"]
     environment:
@@ -89,7 +89,7 @@ services:
     networks: [backend]
 
   nats:
-    image: nats:2.11-alpine
+    image: nats:2.11-alpine@sha256:e4bf19f15fd3218814a4e3c9e0064e1334bd8aa20d5984b9f1a0afd084f8cc00
     restart: unless-stopped
     command:
       - --jetstream
@@ -107,7 +107,7 @@ services:
     networks: [backend]
 
   minio:
-    image: minio/minio:RELEASE.2025-04-22T22-12-26Z
+    image: minio/minio:RELEASE.2025-04-22T22-12-26Z@sha256:a1ea29fa28355559ef137d71fc570e508a214ec84ff8083e39bc5428980b015e
     restart: unless-stopped
     command: ["server", "/data", "--console-address", ":9001"]
     environment:

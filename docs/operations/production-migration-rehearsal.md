@@ -14,6 +14,12 @@ immutable repository digest; the rehearsal resolves each tag once and runs the
 resulting local image ids so a tag cannot move between phases. The declared
 source commit must exist in the local product repository.
 
+The default PostgreSQL reference is the same tag-and-digest pin used by the
+Preview stack. An intentional database-image upgrade must update both defaults,
+pass the repository operations guard, and complete a fresh recovery and
+migration rehearsal. A caller may supply another local image explicitly, but
+the retained evidence records the immutable bytes that actually ran.
+
 ```powershell
 .\eng\operations\rehearse-production-migrations.ps1 `
   -BackendImage bunkfy/backend:preview `

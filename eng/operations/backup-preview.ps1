@@ -81,13 +81,13 @@ function Backup-BunkFyVolume {
         'run', '--rm',
         '--mount', "type=volume,src=$Volume,dst=/source,readonly",
         '--mount', "type=bind,src=$OutputPath,dst=/backup",
-        'alpine:3.21',
+        $script:BunkFyPreviewArchiveUtilityImage,
         'tar', '-czf', "/backup/$Archive", '-C', '/source', '.'
     ) -WorkingDirectory $root
 
     & docker run --rm `
         --mount "type=bind,src=$OutputPath,dst=/backup,readonly" `
-        'alpine:3.21' `
+        $script:BunkFyPreviewArchiveUtilityImage `
         'tar' '-tzf' "/backup/$Archive" 1>$null
     if ($LASTEXITCODE -ne 0) {
         throw "Backup archive '$Archive' failed structural validation."

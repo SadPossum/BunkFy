@@ -70,6 +70,22 @@ The browser app is available on loopback at `http://127.0.0.1:8080` by default. 
 
 The Compose host intentionally does not terminate TLS. A remote deployment must place an HTTPS reverse proxy or ingress in front of the loopback web port and preserve forwarded headers. Do not expose the API, Admin API, databases, broker, or object storage directly.
 
+## Runtime Image Pins
+
+The tracked Compose contract pins PostgreSQL, Redis, NATS, MinIO, and Mailpit
+to reviewed multi-platform manifest digests. Preview backup, restore, and
+recovery commands also use one centrally declared digest-pinned Alpine utility
+image. The Production migration rehearsal defaults to the same pinned
+PostgreSQL image. This prevents a registry tag from silently changing the
+runtime or recovery tooling between an operation and its replay.
+
+Treat image upgrades as a reviewed deployment slice. Resolve the intended tag
+from its registry, record its current manifest-list digest, update the tag and
+digest together everywhere it is used, review upstream release and security
+notes, run `./eng/verify-operations.ps1`, and finish with one Preview recovery
+rehearsal before promoting the new dependency set. Never refresh only the
+digest behind an unchanged review record.
+
 ## Preview Email Capture
 
 New Preview environment files enable the BunkFy SMTP adapter and GMA's durable

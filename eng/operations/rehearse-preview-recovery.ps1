@@ -238,7 +238,7 @@ try {
         'run', '--rm',
         '--mount', "type=bind,src=$archiveDirectory,dst=/backup,readonly",
         '--mount', "type=bind,src=$archiveKeyTreePath,dst=/target",
-        'alpine:3.21',
+        $script:BunkFyPreviewArchiveUtilityImage,
         'sh', '-euc',
         'tar -xzf "/backup/$1" -C /target && chmod -R a+rX /target',
         '--', $archiveName
@@ -247,7 +247,7 @@ try {
         'run', '--rm',
         '--mount', "type=volume,src=$dataProtectionVolume,dst=/source,readonly",
         '--mount', "type=bind,src=$restoredKeyTreePath,dst=/target",
-        'alpine:3.21',
+        $script:BunkFyPreviewArchiveUtilityImage,
         'sh', '-euc',
         'cp -a /source/. /target/ && chmod -R a+rX /target'
     ) -WorkingDirectory $root

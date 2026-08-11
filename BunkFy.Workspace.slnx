@@ -80,6 +80,7 @@
     <File Path="apps/backend/docs/planning/data-rights-operational-surface-hardening-task.md" />
     <File Path="apps/backend/docs/planning/data-rights-protected-export-artifacts-task.md" />
     <File Path="apps/backend/docs/planning/data-rights-restriction-execution-task.md" />
+    <File Path="apps/backend/docs/planning/data-rights-task-timeout-alignment-task.md" />
     <File Path="apps/backend/docs/planning/development-guidelines.md" />
     <File Path="apps/backend/docs/planning/durable-runtime-production-admission-task.md" />
     <File Path="apps/backend/docs/planning/ef-enum-default-sentinel-hardening-task.md" />
@@ -96,6 +97,7 @@
     <File Path="apps/backend/docs/planning/guests-management-update-archive-idempotency-task.md" />
     <File Path="apps/backend/docs/planning/guests-operational-surface-hardening-task.md" />
     <File Path="apps/backend/docs/planning/guests-read-surface-hardening-task.md" />
+    <File Path="apps/backend/docs/planning/guests-sensitive-mutation-assurance-task.md" />
     <File Path="apps/backend/docs/planning/guests-tenant-termination-owner-task.md" />
     <File Path="apps/backend/docs/planning/hosted-production-foundation-task.md" />
     <File Path="apps/backend/docs/planning/imap-reservation-mail-adapter-task.md" />
@@ -112,6 +114,7 @@
     <File Path="apps/backend/docs/planning/ingestion-module-task.md" />
     <File Path="apps/backend/docs/planning/ingestion-operational-surface-hardening-task.md" />
     <File Path="apps/backend/docs/planning/ingestion-pii-minimization-task.md" />
+    <File Path="apps/backend/docs/planning/ingestion-sensitive-control-assurance-task.md" />
     <File Path="apps/backend/docs/planning/ingestion-sensitive-history-retention-task.md" />
     <File Path="apps/backend/docs/planning/ingestion-source-graph-mutation-serialization-task.md" />
     <File Path="apps/backend/docs/planning/ingestion-source-reprocessing-task.md" />
@@ -123,12 +126,14 @@
     <File Path="apps/backend/docs/planning/inventory-module-task.md" />
     <File Path="apps/backend/docs/planning/inventory-operational-surface-hardening-task.md" />
     <File Path="apps/backend/docs/planning/inventory-personal-data-catalogue-task.md" />
+    <File Path="apps/backend/docs/planning/inventory-retirement-cancellation-recovery-task.md" />
     <File Path="apps/backend/docs/planning/inventory-retirement-idempotency-task.md" />
     <File Path="apps/backend/docs/planning/inventory-retirement-outcome-convergence-task.md" />
     <File Path="apps/backend/docs/planning/inventory-room-retirement-and-throughput-hardening-task.md" />
     <File Path="apps/backend/docs/planning/inventory-room-sales-mode-idempotency-task.md" />
     <File Path="apps/backend/docs/planning/inventory-tenant-termination-owner-task.md" />
     <File Path="apps/backend/docs/planning/inventory-topology-change-safety-task.md" />
+    <File Path="apps/backend/docs/planning/inventory-topology-retirement-control-assurance-task.md" />
     <File Path="apps/backend/docs/planning/json-file-drop-adapter-task.md" />
     <File Path="apps/backend/docs/planning/json-file-drop-local-retention-task.md" />
     <File Path="apps/backend/docs/planning/json-file-drop-quarantine-task.md" />
@@ -136,6 +141,7 @@
     <File Path="apps/backend/docs/planning/operations-notifications-data-rights-deadline-alerts-task.md" />
     <File Path="apps/backend/docs/planning/operations-notifications-data-rights-owner-capability-task.md" />
     <File Path="apps/backend/docs/planning/operations-notifications-ingestion-data-rights-task.md" />
+    <File Path="apps/backend/docs/planning/operations-notifications-least-privilege-audience-task.md" />
     <File Path="apps/backend/docs/planning/operations-notifications-personal-data-catalogue-task.md" />
     <File Path="apps/backend/docs/planning/operations-notifications-production-admission-task.md" />
     <File Path="apps/backend/docs/planning/operations-notifications-staff-data-rights-task.md" />
@@ -155,12 +161,15 @@
     <File Path="apps/backend/docs/planning/properties-operational-surface-hardening-task.md" />
     <File Path="apps/backend/docs/planning/properties-personal-data-catalogue-task.md" />
     <File Path="apps/backend/docs/planning/properties-room-mutation-idempotency-task.md" />
+    <File Path="apps/backend/docs/planning/properties-sensitive-control-assurance-task.md" />
     <File Path="apps/backend/docs/planning/properties-tenant-termination-owner-task.md" />
     <File Path="apps/backend/docs/planning/properties-topology-lifecycle-task.md" />
     <File Path="apps/backend/docs/planning/remote-adapter-lease-task.md" />
     <File Path="apps/backend/docs/planning/reservation-guest-record-convergence-task.md" />
+    <File Path="apps/backend/docs/planning/reservation-guest-record-resume-attribution-task.md" />
     <File Path="apps/backend/docs/planning/reservation-record-retention-task.md" />
     <File Path="apps/backend/docs/planning/reservations-aggregate-query-shape-task.md" />
+    <File Path="apps/backend/docs/planning/reservations-correction-assurance-task.md" />
     <File Path="apps/backend/docs/planning/reservations-data-rights-workflow-task.md" />
     <File Path="apps/backend/docs/planning/reservations-management-create-idempotency-task.md" />
     <File Path="apps/backend/docs/planning/reservations-management-guest-details-idempotency-task.md" />
@@ -175,18 +184,23 @@
     <File Path="apps/backend/docs/planning/reservations-tenant-termination-owner-task.md" />
     <File Path="apps/backend/docs/planning/retention-mutation-serialization-task.md" />
     <File Path="apps/backend/docs/planning/retention-operational-surface-hardening-task.md" />
+    <File Path="apps/backend/docs/planning/retention-task-timeout-alignment-task.md" />
     <File Path="apps/backend/docs/planning/retention-tenant-termination-owner-task.md" />
     <File Path="apps/backend/docs/planning/secure-staff-enrollment-task.md" />
     <File Path="apps/backend/docs/planning/security-signals-and-incident-correlation-task.md" />
     <File Path="apps/backend/docs/planning/smtp-email-and-preview-onboarding-proof-task.md" />
+    <File Path="apps/backend/docs/planning/staff-account-link-authorization-task.md" />
     <File Path="apps/backend/docs/planning/staff-auth-subject-idempotency-task.md" />
+    <File Path="apps/backend/docs/planning/staff-auth-subject-transition-safety-task.md" />
     <File Path="apps/backend/docs/planning/staff-data-rights-anonymisation-task.md" />
     <File Path="apps/backend/docs/planning/staff-data-rights-correction-task.md" />
     <File Path="apps/backend/docs/planning/staff-data-rights-owner-capability-task.md" />
     <File Path="apps/backend/docs/planning/staff-data-rights-restriction-task.md" />
     <File Path="apps/backend/docs/planning/staff-employment-lifecycle-idempotency-task.md" />
+    <File Path="apps/backend/docs/planning/staff-identity-bootstrap-replay-envelope-task.md" />
     <File Path="apps/backend/docs/planning/staff-immediate-effective-date-integrity-task.md" />
     <File Path="apps/backend/docs/planning/staff-management-create-idempotency-task.md" />
+    <File Path="apps/backend/docs/planning/staff-manual-create-account-link-authority-task.md" />
     <File Path="apps/backend/docs/planning/staff-onboarding-employment-lifecycle-boundary-task.md" />
     <File Path="apps/backend/docs/planning/staff-onboarding-provisioning-idempotency-task.md" />
     <File Path="apps/backend/docs/planning/staff-operational-surface-hardening-task.md" />
@@ -197,6 +211,7 @@
     <File Path="apps/backend/docs/planning/staff-record-retention-task.md" />
     <File Path="apps/backend/docs/planning/staff-retention-prerequisite-transaction-boundary-task.md" />
     <File Path="apps/backend/docs/planning/staff-retired-property-operational-visibility-task.md" />
+    <File Path="apps/backend/docs/planning/staff-self-service-profile-ownership-task.md" />
     <File Path="apps/backend/docs/planning/staff-tenant-termination-owner-task.md" />
     <File Path="apps/backend/docs/planning/standalone-adapter-host-task.md" />
     <File Path="apps/backend/docs/planning/support-admin-access-task.md" />
@@ -216,6 +231,7 @@
     <File Path="apps/backend/docs/planning/workspace-operational-admission-integration-task.md" />
     <File Path="apps/backend/docs/planning/workspace-staff-access-lifecycle-task.md" />
     <File Path="apps/backend/docs/planning/workspace-staff-access-mutation-serialization-task.md" />
+    <File Path="apps/backend/docs/planning/workspace-staff-onboarding-authorization-task.md" />
     <File Path="apps/backend/docs/planning/workspace-staff-onboarding-source-mutation-serialization-task.md" />
     <File Path="apps/backend/docs/planning/workspace-staff-onboarding-staging-retention-task.md" />
     <File Path="apps/backend/docs/planning/workspace-staff-retention-correlation-scrub-task.md" />
@@ -807,6 +823,7 @@
     <File Path="docs/planning/bunkfy-repository-stack-and-workflow-plan.md" />
     <File Path="docs/planning/preview-deployment-composition-safety-task.md" />
     <File Path="docs/planning/preview-reservations-inventory-rehearsal-task.md" />
+    <File Path="docs/planning/preview-runtime-image-pinning-task.md" />
   </Folder>
   <Folder Name="/eng/">
     <File Path="eng/bootstrap.ps1" />
