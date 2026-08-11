@@ -186,6 +186,7 @@
     <File Path="apps/backend/docs/planning/staff-data-rights-restriction-task.md" />
     <File Path="apps/backend/docs/planning/staff-employment-lifecycle-idempotency-task.md" />
     <File Path="apps/backend/docs/planning/staff-management-create-idempotency-task.md" />
+    <File Path="apps/backend/docs/planning/staff-onboarding-employment-lifecycle-boundary-task.md" />
     <File Path="apps/backend/docs/planning/staff-onboarding-provisioning-idempotency-task.md" />
     <File Path="apps/backend/docs/planning/staff-operational-surface-hardening-task.md" />
     <File Path="apps/backend/docs/planning/staff-owner-identity-bootstrap-hardening-task.md" />
