@@ -124,6 +124,7 @@
     <File Path="apps/backend/docs/planning/inventory-operational-surface-hardening-task.md" />
     <File Path="apps/backend/docs/planning/inventory-personal-data-catalogue-task.md" />
     <File Path="apps/backend/docs/planning/inventory-retirement-idempotency-task.md" />
+    <File Path="apps/backend/docs/planning/inventory-retirement-outcome-convergence-task.md" />
     <File Path="apps/backend/docs/planning/inventory-room-retirement-and-throughput-hardening-task.md" />
     <File Path="apps/backend/docs/planning/inventory-room-sales-mode-idempotency-task.md" />
     <File Path="apps/backend/docs/planning/inventory-tenant-termination-owner-task.md" />
