@@ -391,6 +391,19 @@ foreach ($forbiddenToken in @(
 Assert-DigestPinnedDockerfile `
     -RelativePath 'apps/backend/Dockerfile' `
     -ExpectedExternalBaseImageCount 2
+$backendDockerfile = Read-TextFile `
+    -RelativePath 'apps/backend/Dockerfile' `
+    -MaximumBytes 64KB
+foreach ($token in @(
+        'dotnet publish src/BunkFy.AdapterHost/BunkFy.AdapterHost.csproj',
+        '-o /out/adapter-host',
+        'COPY --from=publish --chown=app:app /out /opt/bunkfy')) {
+    if ($backendDockerfile.IndexOf(
+            $token,
+            [System.StringComparison]::Ordinal) -lt 0) {
+        throw "Backend candidate image is missing AdapterHost artifact contract '$token'."
+    }
+}
 Assert-DigestPinnedDockerfile `
     -RelativePath 'apps/web/Dockerfile' `
     -ExpectedExternalBaseImageCount 2

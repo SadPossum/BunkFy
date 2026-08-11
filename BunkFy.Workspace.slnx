@@ -66,6 +66,7 @@
   </Folder>
   <Folder Name="/apps/backend/docs/planning/">
     <File Path="apps/backend/docs/planning/access-control-tenant-termination-owner-task.md" />
+    <File Path="apps/backend/docs/planning/adapter-host-container-artifact-task.md" />
     <File Path="apps/backend/docs/planning/adapter-host-production-admission-task.md" />
     <File Path="apps/backend/docs/planning/adapter-http-client-task.md" />
     <File Path="apps/backend/docs/planning/adapter-ingress-trust-boundary-task.md" />

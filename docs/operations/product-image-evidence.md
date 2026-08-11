@@ -32,9 +32,10 @@ channel.
 8. attests and retains the evidence, then normally discards the local OCI
    archives.
 
-The backend image contains API, Worker, Admin API, Admin CLI, and migrations
-outputs. Those processes therefore share one exact backend digest. The web has
-its own exact digest.
+The backend image contains API, Worker, Admin API, Admin CLI, AdapterHost, and
+migrations outputs. Those processes therefore share one exact backend digest.
+Each AdapterHost deployment remains connection-scoped even though it consumes
+the shared artifact. The web has its own exact digest.
 
 Build caches may reduce repeated work, but a candidate is never rebuilt between
 its scans and evidence creation. Docker integration tests are manual or weekly,
