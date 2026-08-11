@@ -1,6 +1,6 @@
 # Preview Runtime Container Hardening Task
 
-Status: in progress
+Status: local proof complete; publication pending
 Date: 2026-08-11
 
 ## Goal
@@ -80,10 +80,28 @@ backup/restore.
   and a backward-compatible backup contract.
 - [x] Make replay-volume ownership deterministic for current and historical
   backend images through a least-privilege one-shot initializer.
-- [ ] Prove a fresh isolated restore can start under the restrictions.
-- [ ] Apply the exact configuration to the live Preview and verify health.
-- [ ] Run one consolidated end-of-slice repository gate.
+- [x] Prove fresh schema-4 and schema-5 isolated restores can start under the
+  restrictions.
+- [x] Apply the exact configuration to the live Preview and verify health.
+- [x] Run one consolidated end-of-slice repository gate.
 - [ ] Commit and push the root slice.
+
+## Local Proof
+
+- Historical schema-4/state-contract-1 rehearsal
+  `1019545b-2d19-4196-842d-2d04fc8b9895` passed all five checks while creating
+  the newly introduced replay volume empty.
+- Backup `1325a92a-4050-4f27-80f3-fc4fc2e649d8` emitted schema 5/state contract
+  2 with `tenant-termination-replay.tar.gz`; rehearsal
+  `506704a3-7561-4cc2-b5bc-c0f5a36d96d5` passed all five checks.
+- Live release `preview-runtime-hardening-20260811` passed the six-check public
+  edge probe. Runtime inspection confirmed the declared users, read-only roots,
+  capability sets, PID limits, and bounded `local` logs; the initializer exited
+  successfully before consumers started.
+- `eng/verify.ps1 -SkipRestore` passed the operations fixtures, zero-warning
+  builds, migration drift, all selected .NET tests, 102 architecture tests, 60
+  integration tests, and 52 web files / 267 tests plus lint, typecheck, OpenAPI,
+  and production build.
 
 ## Done When
 
