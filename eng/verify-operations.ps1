@@ -207,6 +207,16 @@ $resolvedCompose = $resolvedComposeJson | ConvertFrom-Json
 if ($resolvedCompose.name -ne 'bunkfy-preview') {
     throw 'Preview Compose must retain its default project name.'
 }
+$sourceComposeJson = & docker compose `
+    --env-file $environmentFile `
+    -f $composeFile `
+    config `
+    --format json `
+    --no-normalize
+if ($LASTEXITCODE -ne 0) {
+    throw 'Preview Compose source configuration is invalid.'
+}
+$sourceCompose = $sourceComposeJson | ConvertFrom-Json
 $expectedVolumeNames = [ordered]@{
     'postgres-data' = 'bunkfy-preview-postgres-data'
     'redis-data' = 'bunkfy-preview-redis-data'
@@ -264,6 +274,7 @@ $expectedPreviewPolicySource = [IO.Path]::GetFullPath((Join-Path `
         '..\apps\backend\eng\country-policies\development'))
 foreach ($serviceName in @('api', 'worker')) {
     $service = $resolvedCompose.services.PSObject.Properties[$serviceName].Value
+    $sourceService = $sourceCompose.services.PSObject.Properties[$serviceName].Value
     foreach ($setting in $expectedPreviewPolicySettings.GetEnumerator()) {
         $actual = [string]$service.environment.PSObject.Properties[$setting.Key].Value
         if ($actual -cne [string]$setting.Value) {
@@ -274,11 +285,31 @@ foreach ($serviceName in @('api', 'worker')) {
     $policyMounts = @($service.volumes | Where-Object {
             [string]$_.target -ceq '/etc/bunkfy/country-policies'
         })
+    $sourcePolicyMounts = @($sourceService.volumes | Where-Object {
+            [string]$_.target -ceq '/etc/bunkfy/country-policies'
+        })
+    $sourceBind = if ($sourcePolicyMounts.Count -eq 1) {
+        $sourcePolicyMounts[0].PSObject.Properties['bind']
+    }
+    else {
+        $null
+    }
+    $createHostPath = if ($null -ne $sourceBind -and
+        $null -ne $sourceBind.Value) {
+        $sourceBind.Value.PSObject.Properties['create_host_path']
+    }
+    else {
+        $null
+    }
     if ($policyMounts.Count -ne 1 -or
         [string]$policyMounts[0].type -cne 'bind' -or
         [IO.Path]::GetFullPath([string]$policyMounts[0].source) -cne $expectedPreviewPolicySource -or
         -not [bool]$policyMounts[0].read_only -or
-        [bool]$policyMounts[0].bind.create_host_path) {
+        $sourcePolicyMounts.Count -ne 1 -or
+        [string]$sourcePolicyMounts[0].type -cne 'bind' -or
+        -not [bool]$sourcePolicyMounts[0].read_only -or
+        $null -eq $createHostPath -or
+        [bool]$createHostPath.Value) {
         throw "Preview $serviceName must mount the tracked engineering policy pack read-only without creating a missing host path."
     }
 }
