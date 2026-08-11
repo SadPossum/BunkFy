@@ -13,6 +13,7 @@ param(
     [string] $OutputPath,
     [switch] $AllowLoopbackHttp,
     [switch] $IncludeOperationsNotifications,
+    [switch] $IncludeReservationsInventory,
     [switch] $Force
 )
 
@@ -23,7 +24,8 @@ $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'deployed-public-edge.common.ps1')
 . (Join-Path $PSScriptRoot 'preview-state.common.ps1')
 . (Join-Path $PSScriptRoot 'preview-mail-capture.common.ps1')
-. (Join-Path $PSScriptRoot 'preview-operations-notifications-fixture.common.ps1')
+. (Join-Path $PSScriptRoot 'preview-property-processing-fixture.common.ps1')
+. (Join-Path $PSScriptRoot 'preview-sellable-room-fixture.common.ps1')
 
 $root = Get-BunkFyRepositoryRoot
 $origin = Assert-BunkFyPublicEdgeOrigin `
@@ -62,6 +64,9 @@ $enrollmentEvidencePath = Join-Path $outputDirectory "$outputBaseName.enrollment
 $operationsNotificationsEvidencePath = Join-Path `
     $outputDirectory `
     "$outputBaseName.operations-notifications.json"
+$reservationsInventoryEvidencePath = Join-Path `
+    $outputDirectory `
+    "$outputBaseName.reservations-inventory.json"
 
 function Assert-RehearsalOutputAvailable {
     param([Parameter(Mandatory = $true)][string] $Path)
@@ -82,6 +87,9 @@ function Assert-RehearsalOutputAvailable {
 $evidencePaths = @($OutputPath, $invitationEvidencePath, $enrollmentEvidencePath)
 if ($IncludeOperationsNotifications) {
     $evidencePaths += $operationsNotificationsEvidencePath
+}
+if ($IncludeReservationsInventory) {
+    $evidencePaths += $reservationsInventoryEvidencePath
 }
 foreach ($path in $evidencePaths) {
     Assert-RehearsalOutputAvailable -Path $path
@@ -180,6 +188,12 @@ $cleanup = [ordered]@{
     else {
         'not-requested'
     }
+    reservationsInventoryFixture = if ($IncludeReservationsInventory) {
+        'not-created'
+    }
+    else {
+        'not-requested'
+    }
     capturedMail = 'not-opened'
     globalIdentities = 'not-created'
 }
@@ -194,6 +208,7 @@ $enrollmentApplicant = $null
 $invitationEvidence = $null
 $enrollmentEvidence = $null
 $operationsNotificationsFixture = $null
+$reservationsInventoryFixture = $null
 $proofError = $null
 $proofStage = 'not-started'
 $releaseIdBefore = $null
@@ -822,7 +837,10 @@ function Retire-RehearsalProperties {
 function Read-RehearsalChildEvidence {
     param(
         [Parameter(Mandatory = $true)][string] $Path,
-        [Parameter(Mandatory = $true)][string] $ExpectedKind
+        [Parameter(Mandatory = $true)][string] $ExpectedKind,
+        [Parameter(Mandatory = $true)]
+        [ValidateSet('Required', 'Forbidden')]
+        [string] $WorkspaceBinding
     )
 
     if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
@@ -834,10 +852,27 @@ function Read-RehearsalChildEvidence {
     catch {
         throw "Child evidence '$ExpectedKind' is invalid JSON."
     }
+
+    $workspaceProperty = $evidence.PSObject.Properties['workspaceId']
+    $actualWorkspaceId = [Guid]::Empty
+    $hasValidWorkspaceId =
+        $null -ne $workspaceProperty -and
+        [Guid]::TryParse([string]$workspaceProperty.Value, [ref]$actualWorkspaceId)
+    $workspaceBindingSatisfied = switch ($WorkspaceBinding) {
+        'Required' {
+            $hasValidWorkspaceId -and $actualWorkspaceId -eq $workspaceId
+            break
+        }
+        'Forbidden' {
+            $null -eq $workspaceProperty
+            break
+        }
+    }
+
     if ([string]$evidence.evidenceKind -cne $ExpectedKind -or
         [string]$evidence.result -cne 'passed' -or
         [string]$evidence.releaseId -cne $ExpectedReleaseId -or
-        [Guid]$evidence.workspaceId -ne $workspaceId -or
+        -not $workspaceBindingSatisfied -or
         @($evidence.checks | Where-Object { [string]$_.status -cne 'passed' }).Count -ne 0) {
         throw "Child evidence '$ExpectedKind' did not satisfy the rehearsal contract."
     }
@@ -1109,6 +1144,9 @@ $rehearsalAction = 'create three verified synthetic identities, exercise invitat
 if ($IncludeOperationsNotifications) {
     $rehearsalAction += ', exercise Operations Notifications'
 }
+if ($IncludeReservationsInventory) {
+    $rehearsalAction += ', exercise Reservations and Inventory'
+}
 $rehearsalAction += ', then archive and revoke the rehearsal state'
 
 if (-not $PSCmdlet.ShouldProcess(
@@ -1250,7 +1288,7 @@ try {
         -String ([string]$enrollmentApplicant.AccessToken) `
         -AsPlainText `
         -Force
-    $invokeNotificationFixtureApi = {
+    $invokeSellableRoomFixtureApi = {
         param(
             [Parameter(Mandatory = $true)][string] $Path,
             [Parameter(Mandatory = $true)][string] $Method,
@@ -1289,7 +1327,8 @@ try {
             -Confirm:$false
         $invitationEvidence = Read-RehearsalChildEvidence `
             -Path $invitationEvidencePath `
-            -ExpectedKind 'bunkfy-deployed-workspace-invitation-probe'
+            -ExpectedKind 'bunkfy-deployed-workspace-invitation-probe' `
+            -WorkspaceBinding Required
         $checks.Add([ordered]@{ name = 'invitation-child-proof-passed'; status = 'passed' })
 
         $proofStage = 'enrollment-proof'
@@ -1312,7 +1351,8 @@ try {
             -Confirm:$false
         $enrollmentEvidence = Read-RehearsalChildEvidence `
             -Path $enrollmentEvidencePath `
-            -ExpectedKind 'bunkfy-deployed-workspace-enrollment-probe'
+            -ExpectedKind 'bunkfy-deployed-workspace-enrollment-probe' `
+            -WorkspaceBinding Required
         $checks.Add([ordered]@{ name = 'qr-enrollment-child-proof-passed'; status = 'passed' })
 
         if ($IncludeOperationsNotifications) {
@@ -1320,8 +1360,8 @@ try {
             try {
                 $proofStage = 'operations-notifications-fixture'
                 $operationsNotificationsFixture = `
-                    New-BunkFyPreviewOperationsNotificationsFixture `
-                        -InvokeApi $invokeNotificationFixtureApi `
+                    New-BunkFyPreviewSellableRoomFixture `
+                        -InvokeApi $invokeSellableRoomFixtureApi `
                         -PropertyId $allowedPropertyId `
                         -RoomName "Preview notification room $batchId" `
                         -State ([ref]$operationsNotificationsFixture) `
@@ -1351,7 +1391,8 @@ try {
                     -Confirm:$false
                 [void](Read-RehearsalChildEvidence `
                         -Path $operationsNotificationsEvidencePath `
-                        -ExpectedKind 'bunkfy-deployed-operations-notifications-probe')
+                        -ExpectedKind 'bunkfy-deployed-operations-notifications-probe' `
+                        -WorkspaceBinding Required)
                 $checks.Add([ordered]@{
                         name = 'operations-notifications-child-proof-passed'
                         status = 'passed'
@@ -1363,8 +1404,8 @@ try {
             finally {
                 if ($null -ne $operationsNotificationsFixture) {
                     try {
-                        [void](Remove-BunkFyPreviewOperationsNotificationsFixture `
-                                -InvokeApi $invokeNotificationFixtureApi `
+                        [void](Remove-BunkFyPreviewSellableRoomFixture `
+                                -InvokeApi $invokeSellableRoomFixtureApi `
                                 -Fixture $operationsNotificationsFixture `
                                 -ConvergenceTimeoutSeconds $ConvergenceTimeoutSeconds `
                                 -PollIntervalMilliseconds $PollIntervalMilliseconds)
@@ -1383,6 +1424,88 @@ try {
             }
             if ($null -ne $operationsProofError) {
                 throw $operationsProofError
+            }
+        }
+
+        if ($IncludeReservationsInventory) {
+            $reservationsProofError = $null
+            try {
+                $proofStage = 'reservations-inventory-processing'
+                [void](Enable-BunkFyPreviewEngineeringPropertyProcessing `
+                        -InvokeApi $invokeSellableRoomFixtureApi `
+                        -PropertyId $allowedPropertyId `
+                        -ConvergenceTimeoutSeconds $ConvergenceTimeoutSeconds `
+                        -PollIntervalMilliseconds $PollIntervalMilliseconds)
+                $checks.Add([ordered]@{
+                        name = 'preview-engineering-country-policy-activated'
+                        status = 'passed'
+                    })
+
+                $proofStage = 'reservations-inventory-fixture'
+                $reservationsInventoryFixture = `
+                    New-BunkFyPreviewSellableRoomFixture `
+                        -InvokeApi $invokeSellableRoomFixtureApi `
+                        -PropertyId $allowedPropertyId `
+                        -RoomName "Preview reservation room $batchId" `
+                        -State ([ref]$reservationsInventoryFixture) `
+                        -ConvergenceTimeoutSeconds $ConvergenceTimeoutSeconds `
+                        -PollIntervalMilliseconds $PollIntervalMilliseconds
+                $cleanup['reservationsInventoryFixture'] = 'active-room'
+
+                $proofStage = 'reservations-inventory-proof'
+                $arrival = [DateTime]::UtcNow.Date.AddDays(60)
+                $departure = $arrival.AddDays(2)
+                & (Join-Path $PSScriptRoot 'verify-deployed-reservations-inventory.ps1') `
+                    -PublicOrigin $origin `
+                    -ExpectedReleaseId $ExpectedReleaseId `
+                    -WorkspaceId $workspaceId `
+                    -PropertyId $allowedPropertyId `
+                    -InventoryUnitId ([Guid]$reservationsInventoryFixture.InventoryUnitId) `
+                    -Arrival $arrival `
+                    -Departure $departure `
+                    -OperatorAccessToken $ownerToken `
+                    -RequestTimeoutSeconds $RequestTimeoutSeconds `
+                    -ConvergenceTimeoutSeconds ([Math]::Min($ConvergenceTimeoutSeconds, 300)) `
+                    -PollIntervalMilliseconds $PollIntervalMilliseconds `
+                    -OutputPath $reservationsInventoryEvidencePath `
+                    -AllowLoopbackHttp:$AllowLoopbackHttp `
+                    -Force `
+                    -Confirm:$false
+                [void](Read-RehearsalChildEvidence `
+                        -Path $reservationsInventoryEvidencePath `
+                        -ExpectedKind 'bunkfy-deployed-reservations-inventory-probe' `
+                        -WorkspaceBinding Forbidden)
+                $checks.Add([ordered]@{
+                        name = 'reservations-inventory-child-proof-passed'
+                        status = 'passed'
+                    })
+            }
+            catch {
+                $reservationsProofError = $_.Exception
+            }
+            finally {
+                if ($null -ne $reservationsInventoryFixture) {
+                    try {
+                        [void](Remove-BunkFyPreviewSellableRoomFixture `
+                                -InvokeApi $invokeSellableRoomFixtureApi `
+                                -Fixture $reservationsInventoryFixture `
+                                -ConvergenceTimeoutSeconds $ConvergenceTimeoutSeconds `
+                                -PollIntervalMilliseconds $PollIntervalMilliseconds)
+                        $cleanup['reservationsInventoryFixture'] = 'room-retired'
+                    }
+                    catch {
+                        $cleanup['reservationsInventoryFixture'] = 'failed'
+                        Add-RehearsalCleanupFailure `
+                            -Name 'reservations-inventory-fixture' `
+                            -Message 'The synthetic Reservations and Inventory room could not be retired.'
+                        if ($null -eq $reservationsProofError) {
+                            $reservationsProofError = $_.Exception
+                        }
+                    }
+                }
+            }
+            if ($null -ne $reservationsProofError) {
+                throw $reservationsProofError
             }
         }
     }
@@ -1560,6 +1683,12 @@ if ($IncludeOperationsNotifications) {
     $childRecords += [pscustomobject]@{
         Name = 'operationsNotifications'
         Path = $operationsNotificationsEvidencePath
+    }
+}
+if ($IncludeReservationsInventory) {
+    $childRecords += [pscustomobject]@{
+        Name = 'reservationsInventory'
+        Path = $reservationsInventoryEvidencePath
     }
 }
 foreach ($childRecord in $childRecords) {

@@ -19,7 +19,8 @@ $scripts = @(
     (Join-Path $PSScriptRoot 'operations\deployed-public-edge.common.ps1'),
     (Join-Path $PSScriptRoot 'operations\deployed-authenticated-smoke.common.ps1'),
     (Join-Path $PSScriptRoot 'operations\preview-mail-capture.common.ps1'),
-    (Join-Path $PSScriptRoot 'operations\preview-operations-notifications-fixture.common.ps1'),
+    (Join-Path $PSScriptRoot 'operations\preview-property-processing-fixture.common.ps1'),
+    (Join-Path $PSScriptRoot 'operations\preview-sellable-room-fixture.common.ps1'),
     (Join-Path $PSScriptRoot 'operations\rehearse-preview-onboarding.ps1'),
     (Join-Path $PSScriptRoot 'operations\verify-deployed-adapter-host.ps1'),
     (Join-Path $PSScriptRoot 'operations\verify-deployed-admin-boundary.ps1'),
@@ -39,7 +40,8 @@ $scripts = @(
     (Join-Path $PSScriptRoot 'test-deployed-workspace-enrollment.ps1'),
     (Join-Path $PSScriptRoot 'test-deployed-workspace-invitation.ps1'),
     (Join-Path $PSScriptRoot 'test-preview-mail-capture.ps1'),
-    (Join-Path $PSScriptRoot 'test-preview-operations-notifications-fixture.ps1'),
+    (Join-Path $PSScriptRoot 'test-preview-property-processing-fixture.ps1'),
+    (Join-Path $PSScriptRoot 'test-preview-sellable-room-fixture.ps1'),
     (Join-Path $PSScriptRoot 'test-deployed-retention.ps1'),
     (Join-Path $PSScriptRoot 'test-production-admission.ps1'),
     (Join-Path $PSScriptRoot 'new-preview-env.ps1'),
@@ -242,6 +244,43 @@ if ($apiEnvironment.Email__Smtp__Enabled -ne 'true' -or
     $apiEnvironment.Email__Smtp__SecurityMode -cne 'None' -or
     $apiEnvironment.Notifications__Adapters__Email__Enabled -ne 'true') {
     throw 'The generated Preview environment must compose API email verification through private Mailpit capture.'
+}
+$previewPolicyPath = [IO.Path]::GetFullPath((Join-Path `
+        $PSScriptRoot `
+        '..\apps\backend\eng\country-policies\development\example-hostel-policy.v2.json'))
+$previewPolicyDigest = (Get-FileHash `
+        -LiteralPath $previewPolicyPath `
+        -Algorithm SHA256).Hash.ToLowerInvariant()
+$expectedPreviewPolicySettings = [ordered]@{
+    BunkFy__CountryPolicies__PackDirectory = '/etc/bunkfy/country-policies'
+    BunkFy__CountryPolicies__Allowlist__0__OperatingCountryCode = 'GB'
+    BunkFy__CountryPolicies__Allowlist__0__PolicyId = 'development-hostel-example'
+    BunkFy__CountryPolicies__Allowlist__0__PolicyVersion = '2'
+    BunkFy__CountryPolicies__Allowlist__0__ContentSha256 = $previewPolicyDigest
+    BunkFy__CountryPolicies__Allowlist__0__LaunchStatus = 'Engineering'
+}
+$expectedPreviewPolicySource = [IO.Path]::GetFullPath((Join-Path `
+        $PSScriptRoot `
+        '..\apps\backend\eng\country-policies\development'))
+foreach ($serviceName in @('api', 'worker')) {
+    $service = $resolvedCompose.services.PSObject.Properties[$serviceName].Value
+    foreach ($setting in $expectedPreviewPolicySettings.GetEnumerator()) {
+        $actual = [string]$service.environment.PSObject.Properties[$setting.Key].Value
+        if ($actual -cne [string]$setting.Value) {
+            throw "Preview $serviceName country-policy setting '$($setting.Key)' is not digest-pinned."
+        }
+    }
+
+    $policyMounts = @($service.volumes | Where-Object {
+            [string]$_.target -ceq '/etc/bunkfy/country-policies'
+        })
+    if ($policyMounts.Count -ne 1 -or
+        [string]$policyMounts[0].type -cne 'bind' -or
+        [IO.Path]::GetFullPath([string]$policyMounts[0].source) -cne $expectedPreviewPolicySource -or
+        -not [bool]$policyMounts[0].read_only -or
+        [bool]$policyMounts[0].bind.create_host_path) {
+        throw "Preview $serviceName must mount the tracked engineering policy pack read-only without creating a missing host path."
+    }
 }
 
 $remoteEnvironmentFile = Join-Path (
@@ -942,11 +981,21 @@ foreach ($requiredToken in @(
         '/api/v1/message/',
         'verify-deployed-workspace-invitation.ps1',
         'verify-deployed-workspace-enrollment.ps1',
-        'preview-operations-notifications-fixture.common.ps1',
+        'preview-property-processing-fixture.common.ps1',
+        'preview-sellable-room-fixture.common.ps1',
         'IncludeOperationsNotifications',
         'verify-deployed-operations-notifications.ps1',
         'operations-notifications-child-proof-passed',
         "`$cleanup['operationsNotificationsFixture'] = 'room-retired'",
+        'IncludeReservationsInventory',
+        'verify-deployed-reservations-inventory.ps1',
+        'reservations-inventory-child-proof-passed',
+        'WorkspaceBinding Required',
+        'WorkspaceBinding Forbidden',
+        "`$evidence.PSObject.Properties['workspaceId']",
+        'preview-engineering-country-policy-activated',
+        'reservationsInventoryEvidencePath',
+        "`$cleanup['reservationsInventoryFixture'] = 'room-retired'",
         '/api/staff/members',
         '/depart',
         '/retire',
@@ -998,22 +1047,21 @@ foreach ($forbiddenToken in @(
 & (Join-Path $PSScriptRoot 'test-preview-mail-capture.ps1')
 Write-Host 'BunkFy Preview onboarding rehearsal policy is valid.'
 
-$previewOperationsNotificationsFixture = Get-Content -LiteralPath (
-    Join-Path $PSScriptRoot 'operations\preview-operations-notifications-fixture.common.ps1') -Raw
+$previewPropertyProcessingFixture = Get-Content -LiteralPath (
+    Join-Path $PSScriptRoot 'operations\preview-property-processing-fixture.common.ps1') -Raw
 foreach ($requiredToken in @(
-        'New-BunkFyPreviewOperationsNotificationsFixture',
-        'Remove-BunkFyPreviewOperationsNotificationsFixture',
-        '/api/properties/',
-        '/api/inventory/properties/',
-        '/sales-mode',
-        '/retirement',
-        'room-retirements',
-        "-Name 'roomLevel'",
-        "-Name 'completed'")) {
-    if (-not $previewOperationsNotificationsFixture.Contains(
+        'Get-BunkFyPreviewEngineeringCountryPolicy',
+        'Enable-BunkFyPreviewEngineeringPropertyProcessing',
+        '/country-policies',
+        '/processing/activate',
+        '/processing',
+        "'engineering'",
+        "'example'",
+        "'Properties.CountryPolicy.Allowed'")) {
+    if (-not $previewPropertyProcessingFixture.Contains(
             $requiredToken,
             [StringComparison]::Ordinal)) {
-        throw "Preview Operations Notifications fixture policy is missing '$requiredToken'."
+        throw "Preview property-processing fixture policy is missing '$requiredToken'."
     }
 }
 foreach ($forbiddenToken in @(
@@ -1023,15 +1071,50 @@ foreach ($forbiddenToken in @(
         'psql ',
         'DangerousAcceptAnyServerCertificateValidator',
         'ServerCertificateCustomValidationCallback')) {
-    if ($previewOperationsNotificationsFixture.Contains(
+    if ($previewPropertyProcessingFixture.Contains(
             $forbiddenToken,
             [StringComparison]::OrdinalIgnoreCase)) {
-        throw "Preview Operations Notifications fixture contains forbidden token '$forbiddenToken'."
+        throw "Preview property-processing fixture contains forbidden token '$forbiddenToken'."
     }
 }
 
-& (Join-Path $PSScriptRoot 'test-preview-operations-notifications-fixture.ps1')
-Write-Host 'BunkFy Preview Operations Notifications fixture policy is valid.'
+& (Join-Path $PSScriptRoot 'test-preview-property-processing-fixture.ps1')
+Write-Host 'BunkFy Preview property-processing fixture policy is valid.'
+
+$previewSellableRoomFixture = Get-Content -LiteralPath (
+    Join-Path $PSScriptRoot 'operations\preview-sellable-room-fixture.common.ps1') -Raw
+foreach ($requiredToken in @(
+        'New-BunkFyPreviewSellableRoomFixture',
+        'Remove-BunkFyPreviewSellableRoomFixture',
+        '/api/properties/',
+        '/api/inventory/properties/',
+        '/sales-mode',
+        '/retirement',
+        'room-retirements',
+        "-Name 'roomLevel'",
+        "-Name 'completed'")) {
+    if (-not $previewSellableRoomFixture.Contains(
+            $requiredToken,
+            [StringComparison]::Ordinal)) {
+        throw "Preview sellable-room fixture policy is missing '$requiredToken'."
+    }
+}
+foreach ($forbiddenToken in @(
+        '/api/admin/',
+        'Invoke-Sqlcmd',
+        'NpgsqlConnection',
+        'psql ',
+        'DangerousAcceptAnyServerCertificateValidator',
+        'ServerCertificateCustomValidationCallback')) {
+    if ($previewSellableRoomFixture.Contains(
+            $forbiddenToken,
+            [StringComparison]::OrdinalIgnoreCase)) {
+        throw "Preview sellable-room fixture contains forbidden token '$forbiddenToken'."
+    }
+}
+
+& (Join-Path $PSScriptRoot 'test-preview-sellable-room-fixture.ps1')
+Write-Host 'BunkFy Preview sellable-room fixture policy is valid.'
 
 $operationsNotificationsProbe = Get-Content -LiteralPath (
     Join-Path $PSScriptRoot 'operations\verify-deployed-operations-notifications.ps1') -Raw
@@ -1084,6 +1167,7 @@ foreach ($requiredToken in @(
         'BUNKFY_SMOKE_RESERVATION_OPERATOR_TOKEN',
         '/api/inventory/properties/',
         '/api/reservations/properties/',
+        'Reservations.CountryPolicyDenied.MissingBinding',
         'reservation-create-replay-stable',
         'reservation-check-in-replay-stable',
         'reservation-checkout-converged',

@@ -153,6 +153,7 @@ function Start-BunkFyReservationsInventoryFixtureServer {
             $script:status = 0
             $script:version = 0L
             $script:detailsRevision = 1L
+            $script:pendingCreateOperationId = $null
             $createCount = 0
             $lifecycleOperations = @{}
             $done = $false
@@ -302,6 +303,23 @@ function Start-BunkFyReservationsInventoryFixtureServer {
                             $null -ne $request.expectedArrivalTime -or
                             $null -ne $request.expectedDepartureTime) {
                             throw 'Fixture received an unsafe or unexpected Reservation create request.'
+                        }
+
+                        if ($null -eq $script:pendingCreateOperationId) {
+                            $script:pendingCreateOperationId = ([Guid]$request.operationId).ToString('D')
+                            Write-FixtureResponse `
+                                -Stream $stream `
+                                -Status 409 `
+                                -Reason Conflict `
+                                -Body ([ordered]@{
+                                    type = 'about:blank'
+                                    title = 'Reservations.CountryPolicyDenied.MissingBinding'
+                                    status = 409
+                                })
+                            continue
+                        }
+                        if ([Guid]$request.operationId -ne [Guid]$script:pendingCreateOperationId) {
+                            throw 'Reservation projection-convergence retry used a different operation id.'
                         }
 
                         $createCount++

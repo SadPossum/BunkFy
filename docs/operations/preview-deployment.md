@@ -8,6 +8,12 @@ API, Worker and management hosts. The provider lives on its own named volume
 and is never a production topology: Production still requires a separately
 registered external, production-grade ledger provider.
 
+Preview also mounts the tracked `development-hostel-example` v2 country-policy
+pack read-only into API and Worker and pins its digest in Compose. That policy is
+synthetic engineering data with `example` approval metadata. It exists so
+Preview can exercise the real fail-closed processing workflow; it is not a
+country launch decision, legal review, or production policy approval.
+
 ## Prepare
 
 Requirements: Docker with Compose v2, PowerShell 7, and recursively initialized
@@ -248,6 +254,11 @@ allocation, check-in, checkout, and inventory release against one candidate.
 Use a future range and a dedicated available unit. A passing run retains one
 checked-out synthetic reservation but no active allocation or durable Guest
 Record.
+For a self-contained Preview run, add `-IncludeReservationsInventory` to the
+Preview onboarding rehearsal. It discovers and activates the one mounted
+engineering/example policy through the public Properties API, provisions and
+retires a temporary sellable room, and binds the scrubbed child proof into the
+onboarding evidence.
 
 For a provider-to-Ingestion proof through a target remote AdapterHost, use the
 [deployed AdapterHost verifier](deployed-adapter-host-verification.md). Start the

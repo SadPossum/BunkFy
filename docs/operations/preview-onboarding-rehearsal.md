@@ -31,6 +31,15 @@ Deploy the exact candidate with `BUNKFY_EMAIL_CAPTURE_ENABLED=true`, then run:
   -Confirm:$false
 ```
 
+Add `-IncludeOperationsNotifications` or `-IncludeReservationsInventory` to
+provision the corresponding temporary sellable-room fixture and bind that
+deployed child proof into the umbrella. The two contributions may be selected
+together; each owns a separate room and coordinated cleanup result.
+The Reservations/Inventory contribution first discovers the single current
+engineering/example country policy exposed by Preview, activates it through the
+public Properties contract, and verifies the exact effective binding. This is a
+synthetic processing prerequisite, not production country-policy approval.
+
 Remote origins must use trusted HTTPS. The environment and Compose files are
 validated before mutation. The script creates its own random `.test`
 identities and passwords; none are accepted as parameters or written to
@@ -38,7 +47,7 @@ evidence.
 
 ## Evidence And Cleanup
 
-One umbrella evidence file and two child probe files are written under
+One umbrella evidence file and the selected child probe files are written under
 `.tmp/deployment-probes` by default. The umbrella stores child file names and
 SHA-256 digests, identity fingerprints, stable product identifiers, check
 outcomes, and cleanup outcomes. It excludes email addresses, passwords, bearer

@@ -118,7 +118,7 @@ external delivery adapters. Those remain candidate-specific checks.
 a deterministic loopback fixture. It proves the valid path, release mismatch
 rejection, evidence redaction, identical-token rejection, and rejection when
 the actor receives its own notification. It does not contact a deployed
-environment. `eng/test-preview-operations-notifications-fixture.ps1` separately
+environment. `eng/test-preview-sellable-room-fixture.ps1` separately
 proves bounded room provisioning, delayed projection convergence, whole-room
 sales configuration, partial-state cleanup ownership, and coordinated room
 retirement for the self-contained Preview contributor.

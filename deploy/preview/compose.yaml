@@ -41,6 +41,20 @@ x-runtime-environment: &runtime-environment
   DataRights__LedgerDelta__LocalFilePath: /var/lib/bunkfy/data-rights-ledger-delta
   DataRights__LedgerDelta__ActiveIntegrityKeyVersion: "1"
   DataRights__LedgerDelta__IntegrityKeys__1: "${BUNKFY_DATA_RIGHTS_LEDGER_INTEGRITY_KEY:?set BUNKFY_DATA_RIGHTS_LEDGER_INTEGRITY_KEY}"
+  BunkFy__CountryPolicies__PackDirectory: /etc/bunkfy/country-policies
+  BunkFy__CountryPolicies__Allowlist__0__OperatingCountryCode: GB
+  BunkFy__CountryPolicies__Allowlist__0__PolicyId: development-hostel-example
+  BunkFy__CountryPolicies__Allowlist__0__PolicyVersion: "2"
+  BunkFy__CountryPolicies__Allowlist__0__ContentSha256: 82661c0757dc035b20a63a8d6d3c55b8ef3987de40d8962b37f6565e10e4ba4d
+  BunkFy__CountryPolicies__Allowlist__0__LaunchStatus: Engineering
+
+x-preview-country-policy-volume: &preview-country-policy-volume
+  type: bind
+  source: ../../apps/backend/eng/country-policies/development
+  target: /etc/bunkfy/country-policies
+  read_only: true
+  bind:
+    create_host_path: false
 
 services:
   postgres:
@@ -187,6 +201,7 @@ services:
     volumes:
       - data-protection:/var/lib/bunkfy/data-protection
       - data-rights-ledger-delta:/var/lib/bunkfy/data-rights-ledger-delta
+      - *preview-country-policy-volume
     depends_on:
       migrations:
         condition: service_completed_successfully
@@ -263,6 +278,7 @@ services:
     volumes:
       - adapter-file-drop:/var/lib/bunkfy/file-drop
       - data-rights-ledger-delta:/var/lib/bunkfy/data-rights-ledger-delta
+      - *preview-country-policy-volume
     depends_on:
       migrations:
         condition: service_completed_successfully

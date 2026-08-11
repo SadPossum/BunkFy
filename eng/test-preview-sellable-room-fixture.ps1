@@ -1,7 +1,7 @@
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-. (Join-Path $PSScriptRoot 'operations\preview-operations-notifications-fixture.common.ps1')
+. (Join-Path $PSScriptRoot 'operations\preview-sellable-room-fixture.common.ps1')
 
 $propertyId = [Guid]'11111111-1111-4111-8111-111111111111'
 $roomId = [Guid]'22222222-2222-4222-8222-222222222222'
@@ -88,11 +88,11 @@ $invokeApi = {
         }
     }
 
-    throw "Unexpected preview notification fixture call '$Method $Path' ($Operation)."
+    throw "Unexpected preview sellable-room fixture call '$Method $Path' ($Operation)."
 }
 
 $state = $null
-$fixture = New-BunkFyPreviewOperationsNotificationsFixture `
+$fixture = New-BunkFyPreviewSellableRoomFixture `
     -InvokeApi $invokeApi `
     -PropertyId $propertyId `
     -RoomName 'Preview room fixture' `
@@ -104,10 +104,10 @@ if ($null -eq $state -or
     [Guid]$fixture.RoomId -ne $roomId -or
     [Guid]$fixture.InventoryUnitId -ne $unitId -or
     [string]$fixture.Status -cne 'ready') {
-    throw 'Preview notification fixture provisioning did not retain exact cleanup state.'
+    throw 'Preview sellable-room fixture provisioning did not retain exact cleanup state.'
 }
 
-$retired = Remove-BunkFyPreviewOperationsNotificationsFixture `
+$retired = Remove-BunkFyPreviewSellableRoomFixture `
     -InvokeApi $invokeApi `
     -Fixture $fixture `
     -ConvergenceTimeoutSeconds 2 `
@@ -115,7 +115,7 @@ $retired = Remove-BunkFyPreviewOperationsNotificationsFixture `
 if ([Guid]$retired.TopologyChangeId -ne $topologyChangeId -or
     [string]$retired.Status -cne 'retired' -or
     $script:retirementReads -ne 2) {
-    throw 'Preview notification fixture cleanup did not wait for coordinated room retirement.'
+    throw 'Preview sellable-room fixture cleanup did not wait for coordinated room retirement.'
 }
 
 $partialState = $null
@@ -157,7 +157,7 @@ $invalidProjection = {
 }
 $invalidRejected = $false
 try {
-    [void](New-BunkFyPreviewOperationsNotificationsFixture `
+    [void](New-BunkFyPreviewSellableRoomFixture `
             -InvokeApi $invalidProjection `
             -PropertyId $propertyId `
             -RoomName 'Invalid projection fixture' `
@@ -173,7 +173,7 @@ catch {
 if (-not $invalidRejected -or
     $null -eq $partialState -or
     [Guid]$partialState.RoomId -ne $roomId) {
-    throw 'Preview notification fixture did not expose partial cleanup state before rejecting invalid topology.'
+    throw 'Preview sellable-room fixture did not expose partial cleanup state before rejecting invalid topology.'
 }
 
 foreach ($requiredCall in @(
@@ -181,8 +181,8 @@ foreach ($requiredCall in @(
         "PUT /api/inventory/properties/$($propertyId.ToString('D'))/rooms/$($roomId.ToString('D'))/sales-mode",
         "POST /api/inventory/properties/$($propertyId.ToString('D'))/rooms/$($roomId.ToString('D'))/retirement")) {
     if (-not $calls.Contains($requiredCall)) {
-        throw "Preview notification fixture did not issue '$requiredCall'."
+        throw "Preview sellable-room fixture did not issue '$requiredCall'."
     }
 }
 
-Write-Host 'BunkFy Preview Operations Notifications fixture passed.'
+Write-Host 'BunkFy Preview sellable-room fixture passed.'

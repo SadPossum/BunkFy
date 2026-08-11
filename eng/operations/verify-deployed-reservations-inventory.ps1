@@ -225,28 +225,36 @@ function Wait-SmokeReservationStatus {
 }
 
 function Invoke-SmokeReservationCreate {
-    return Read-SmokeJson `
-        -Response (Invoke-SmokeApi `
-            -Path "/api/reservations/properties/$($PropertyId.ToString('D'))" `
-            -Method POST `
-            -Body ([ordered]@{
-                operationId = $operationId.ToString('D')
-                arrival = $arrivalText
-                departure = $departureText
-                expectedArrivalTime = $null
-                expectedDepartureTime = $null
-                inventoryUnitIds = @($InventoryUnitId.ToString('D'))
-                primaryGuestName = $guestLabel
-                email = $null
-                phone = $null
-                guestCount = 1
-                sourceKind = 1
-                sourceSystem = $null
-                sourceReference = $null
-                notes = $null
-            })) `
+    $body = [ordered]@{
+        operationId = $operationId.ToString('D')
+        arrival = $arrivalText
+        departure = $departureText
+        expectedArrivalTime = $null
+        expectedDepartureTime = $null
+        inventoryUnitIds = @($InventoryUnitId.ToString('D'))
+        primaryGuestName = $guestLabel
+        email = $null
+        phone = $null
+        guestCount = 1
+        sourceKind = 1
+        sourceSystem = $null
+        sourceReference = $null
+        notes = $null
+    }
+    return Invoke-BunkFyAuthenticatedJsonRequestWithConvergence `
+        -Client $client `
+        -Origin $origin `
+        -Path "/api/reservations/properties/$($PropertyId.ToString('D'))" `
+        -Method POST `
+        -TenantId $WorkspaceId.ToString('D') `
+        -AccessToken $operatorToken `
+        -TimeoutSeconds $RequestTimeoutSeconds `
+        -Body $body `
         -ExpectedStatus 200 `
-        -Operation 'Create Reservation'
+        -Operation 'Create Reservation' `
+        -ConvergenceTimeoutSeconds $ConvergenceTimeoutSeconds `
+        -PollIntervalMilliseconds $PollIntervalMilliseconds `
+        -RetryableProblemCodes @('Reservations.CountryPolicyDenied.MissingBinding')
 }
 
 function Invoke-SmokeLifecycleMutation {

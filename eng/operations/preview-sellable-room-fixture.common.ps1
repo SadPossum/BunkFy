@@ -13,7 +13,7 @@ function Test-BunkFyPreviewFixtureEnumValue {
         $text.Equals($Name, [StringComparison]::OrdinalIgnoreCase)
 }
 
-function Get-BunkFyPreviewNotificationFixtureRoom {
+function Get-BunkFyPreviewSellableRoomFixture {
     param(
         [Parameter(Mandatory = $true)][scriptblock] $InvokeApi,
         [Parameter(Mandatory = $true)][Guid] $PropertyId,
@@ -26,24 +26,24 @@ function Get-BunkFyPreviewNotificationFixtureRoom {
             -Path "/api/inventory/properties/$($PropertyId.ToString('D'))/rooms?page=$page&pageSize=100" `
             -Method 'GET' `
             -Body $null `
-            -Operation 'Read preview notification fixture Inventory topology'
+            -Operation 'Read preview sellable-room fixture Inventory topology'
         $matches = @($response.rooms | Where-Object { [Guid]$_.roomId -eq $RoomId })
         if ($matches.Count -gt 1) {
-            throw 'The preview notification fixture room was projected more than once.'
+            throw 'The preview sellable-room fixture was projected more than once.'
         }
         if ($matches.Count -eq 1) {
             return $matches[0]
         }
         $page++
         if ($page -gt 100) {
-            throw 'Preview notification fixture Inventory lookup exceeded 100 pages.'
+            throw 'Preview sellable-room fixture Inventory lookup exceeded 100 pages.'
         }
     } while ([bool]$response.hasMore)
 
     return $null
 }
 
-function Wait-BunkFyPreviewNotificationFixtureRoom {
+function Wait-BunkFyPreviewSellableRoomFixture {
     param(
         [Parameter(Mandatory = $true)][scriptblock] $InvokeApi,
         [Parameter(Mandatory = $true)][Guid] $PropertyId,
@@ -55,7 +55,7 @@ function Wait-BunkFyPreviewNotificationFixtureRoom {
 
     $deadline = [DateTimeOffset]::UtcNow.AddSeconds($ConvergenceTimeoutSeconds)
     do {
-        $room = Get-BunkFyPreviewNotificationFixtureRoom `
+        $room = Get-BunkFyPreviewSellableRoomFixture `
             -InvokeApi $InvokeApi `
             -PropertyId $PropertyId `
             -RoomId $RoomId
@@ -72,7 +72,7 @@ function Wait-BunkFyPreviewNotificationFixtureRoom {
                     -Name 'room') -and
                 [bool]$units[0].isTopologyActive
             if (-not $validRoomUnit) {
-                throw 'The preview notification fixture did not project exactly one active room unit.'
+                throw 'The preview sellable-room fixture did not project exactly one active room unit.'
             }
 
             if ($State -ceq 'unconfigured' -and
@@ -95,10 +95,10 @@ function Wait-BunkFyPreviewNotificationFixtureRoom {
         Start-Sleep -Milliseconds $PollIntervalMilliseconds
     } while ([DateTimeOffset]::UtcNow -lt $deadline)
 
-    throw "The preview notification fixture did not reach '$State' Inventory state before the timeout."
+    throw "The preview sellable-room fixture did not reach '$State' Inventory state before the timeout."
 }
 
-function New-BunkFyPreviewOperationsNotificationsFixture {
+function New-BunkFyPreviewSellableRoomFixture {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory = $true)][scriptblock] $InvokeApi,
@@ -110,24 +110,24 @@ function New-BunkFyPreviewOperationsNotificationsFixture {
     )
 
     if ($PropertyId -eq [Guid]::Empty) {
-        throw 'A non-empty property id is required for the preview notification fixture.'
+        throw 'A non-empty property id is required for the preview sellable-room fixture.'
     }
     if ($null -ne $State.Value) {
-        throw 'Preview notification fixture state must be empty before provisioning.'
+        throw 'Preview sellable-room fixture state must be empty before provisioning.'
     }
 
     $property = & $InvokeApi `
         -Path "/api/properties/$($PropertyId.ToString('D'))" `
         -Method 'GET' `
         -Body $null `
-        -Operation 'Read preview notification fixture property'
+        -Operation 'Read preview sellable-room fixture property'
     if ([Guid]$property.propertyId -ne $PropertyId -or
         -not (Test-BunkFyPreviewFixtureEnumValue `
             -Value $property.status `
             -NumericValue 1 `
             -Name 'active') -or
         [long]$property.version -lt 1) {
-        throw 'The preview notification fixture property is not active and versioned.'
+        throw 'The preview sellable-room fixture property is not active and versioned.'
     }
 
     $created = & $InvokeApi `
@@ -140,11 +140,11 @@ function New-BunkFyPreviewOperationsNotificationsFixture {
             buildingLabel = 'Preview verification'
             floorLabel = $null
         } `
-        -Operation 'Create preview notification fixture room'
+        -Operation 'Create preview sellable-room fixture'
     if ([Guid]$created.propertyId -ne $PropertyId -or
         [Guid]$created.roomId -eq [Guid]::Empty -or
         [long]$created.version -lt 1) {
-        throw 'The preview notification fixture room returned an invalid receipt.'
+        throw 'The preview sellable-room fixture returned an invalid receipt.'
     }
 
     $fixture = [pscustomobject]@{
@@ -156,7 +156,7 @@ function New-BunkFyPreviewOperationsNotificationsFixture {
     }
     $State.Value = $fixture
 
-    $unconfigured = Wait-BunkFyPreviewNotificationFixtureRoom `
+    $unconfigured = Wait-BunkFyPreviewSellableRoomFixture `
         -InvokeApi $InvokeApi `
         -PropertyId $PropertyId `
         -RoomId $fixture.RoomId `
@@ -175,7 +175,7 @@ function New-BunkFyPreviewOperationsNotificationsFixture {
             salesMode = 2
             expectedVersion = [long]$unconfigured.version
         } `
-        -Operation 'Configure preview notification fixture room sales mode'
+        -Operation 'Configure preview sellable-room fixture sales mode'
     if ([Guid]$configured.propertyId -ne $PropertyId -or
         [Guid]$configured.roomId -ne $fixture.RoomId -or
         -not (Test-BunkFyPreviewFixtureEnumValue `
@@ -183,10 +183,10 @@ function New-BunkFyPreviewOperationsNotificationsFixture {
             -NumericValue 2 `
             -Name 'roomLevel') -or
         [long]$configured.version -le [long]$unconfigured.version) {
-        throw 'The preview notification fixture sales-mode receipt is invalid.'
+        throw 'The preview sellable-room fixture sales-mode receipt is invalid.'
     }
 
-    $sellable = Wait-BunkFyPreviewNotificationFixtureRoom `
+    $sellable = Wait-BunkFyPreviewSellableRoomFixture `
         -InvokeApi $InvokeApi `
         -PropertyId $PropertyId `
         -RoomId $fixture.RoomId `
@@ -195,14 +195,14 @@ function New-BunkFyPreviewOperationsNotificationsFixture {
         -PollIntervalMilliseconds $PollIntervalMilliseconds
     $sellableUnit = @($sellable.units)[0]
     if ([Guid]$sellableUnit.inventoryUnitId -ne $fixture.InventoryUnitId) {
-        throw 'The preview notification fixture changed inventory-unit identity while configuring sales.'
+        throw 'The preview sellable-room fixture changed inventory-unit identity while configuring sales.'
     }
 
     $fixture.Status = 'ready'
     return $fixture
 }
 
-function Remove-BunkFyPreviewOperationsNotificationsFixture {
+function Remove-BunkFyPreviewSellableRoomFixture {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory = $true)][scriptblock] $InvokeApi,
@@ -214,7 +214,7 @@ function Remove-BunkFyPreviewOperationsNotificationsFixture {
     $propertyId = [Guid]$Fixture.PropertyId
     $roomId = [Guid]$Fixture.RoomId
     if ($propertyId -eq [Guid]::Empty -or $roomId -eq [Guid]::Empty) {
-        throw 'The preview notification fixture cannot retire an unknown room coordinate.'
+        throw 'The preview sellable-room fixture cannot retire an unknown room coordinate.'
     }
     if ([string]$Fixture.Status -ceq 'retired') {
         return $Fixture
@@ -226,13 +226,13 @@ function Remove-BunkFyPreviewOperationsNotificationsFixture {
             -Method 'POST' `
             -Body @{
                 operationId = [Guid]::NewGuid()
-                reason = 'Preview Operations Notifications fixture cleanup'
+                reason = 'Preview sellable-room fixture cleanup'
             } `
-            -Operation 'Request preview notification fixture room retirement'
+            -Operation 'Request preview sellable-room fixture retirement'
         if ([Guid]$retirement.propertyId -ne $propertyId -or
             [Guid]$retirement.roomId -ne $roomId -or
             [Guid]$retirement.topologyChangeId -eq [Guid]::Empty) {
-            throw 'The preview notification fixture room-retirement receipt is invalid.'
+            throw 'The preview sellable-room fixture retirement receipt is invalid.'
         }
         $Fixture.TopologyChangeId = [Guid]$retirement.topologyChangeId
         $Fixture.Status = 'retirement-requested'
@@ -244,17 +244,17 @@ function Remove-BunkFyPreviewOperationsNotificationsFixture {
             -Path "/api/inventory/properties/$($propertyId.ToString('D'))/room-retirements/$(([Guid]$Fixture.TopologyChangeId).ToString('D'))" `
             -Method 'GET' `
             -Body $null `
-            -Operation 'Read preview notification fixture room retirement'
+            -Operation 'Read preview sellable-room fixture retirement'
         if ([Guid]$retirement.propertyId -ne $propertyId -or
             [Guid]$retirement.roomId -ne $roomId -or
             [Guid]$retirement.topologyChangeId -ne [Guid]$Fixture.TopologyChangeId) {
-            throw 'The preview notification fixture room-retirement query changed identity.'
+            throw 'The preview sellable-room fixture retirement query changed identity.'
         }
         if (Test-BunkFyPreviewFixtureEnumValue `
             -Value $retirement.status `
             -NumericValue 5 `
             -Name 'rejected') {
-            throw 'The preview notification fixture room retirement was rejected.'
+            throw 'The preview sellable-room fixture retirement was rejected.'
         }
         if (Test-BunkFyPreviewFixtureEnumValue `
             -Value $retirement.status `
@@ -266,5 +266,5 @@ function Remove-BunkFyPreviewOperationsNotificationsFixture {
         Start-Sleep -Milliseconds $PollIntervalMilliseconds
     } while ([DateTimeOffset]::UtcNow -lt $deadline)
 
-    throw 'The preview notification fixture room retirement did not complete before the timeout.'
+    throw 'The preview sellable-room fixture retirement did not complete before the timeout.'
 }

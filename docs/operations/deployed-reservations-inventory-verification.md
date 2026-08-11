@@ -9,6 +9,34 @@ must be allowed to read the property and Inventory and to create, read, cancel,
 check in, and check out Reservations for that property. Supply it as a secure
 parameter or through `BUNKFY_SMOKE_RESERVATION_OPERATOR_TOKEN`.
 
+The target property must have an effective country-policy binding accepted by
+the running API and Worker. Reservation creation retries only
+`Reservations.CountryPolicyDenied.MissingBinding` with the same operation id,
+because that denial can represent asynchronous Properties projection
+convergence. Any other policy denial is treated as deployment or policy drift
+and fails immediately.
+
+For a self-contained Preview proof, let the onboarding rehearsal contribute a
+dedicated property room and operator:
+
+```powershell
+./eng/operations/rehearse-preview-onboarding.ps1 `
+  -PublicOrigin http://127.0.0.1:18080 `
+  -ExpectedReleaseId <candidate-release-id> `
+  -EnvironmentPath /secure/path/preview.env `
+  -AllowLoopbackHttp `
+  -IncludeReservationsInventory `
+  -Confirm:$false
+```
+
+The contribution writes `*.reservations-inventory.json`, binds its SHA-256 into
+the onboarding umbrella, and retires the temporary room after the checked-out
+reservation has released its allocation. The retained Reservation is terminal
+and synthetic; the parent then retires the properties, archives the workspace,
+and revokes every synthetic session.
+The parent uses Preview's digest-pinned engineering/example policy solely for
+this synthetic proof; it does not provide production approval evidence.
+
 ```powershell
 $token = Read-Host 'Reservation smoke operator access token' -AsSecureString
 
