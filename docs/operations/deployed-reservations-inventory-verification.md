@@ -1,5 +1,8 @@
 # Deployed Reservations And Inventory Verification
 
+Status: implemented, fixture verified, and VPS-preview verified
+Date: 2026-08-11
+
 Use this mutation-bearing probe to verify one deployed BunkFy release through
 the direct staff reservation lifecycle. The probe uses a caller-selected smoke
 workspace, property, sellable inventory unit, and future half-open stay range.
@@ -86,3 +89,20 @@ release-bound evidence with the candidate's other production-admission proofs.
 The probe exercises API behavior and asynchronous module integration. It does
 not exercise browser rendering, Guest Record creation, or concurrent
 overbooking contention.
+
+## VPS Preview Evidence
+
+On 2026-08-11, the probe passed all eleven checks through the VPS Preview's
+trusted HTTPS origin for release `preview-runtime-hardening-20260811`. The
+production-admission parser independently accepted the child record with
+SHA-256
+`aa1933f5a7c64030b65977717359675a32ca547e1504ffc7f396a1438b361c77`.
+
+The enclosing rehearsal retired the temporary room after allocation release,
+removed both joined memberships, retired both synthetic properties, archived
+the workspace, revoked all three sessions, and purged and closed the Mailpit
+operator window. The terminal synthetic reservation remains inside the
+archived smoke workspace as declared by the verifier. The evidence is retained
+only in ignored VPS working state and does not admit the final `f27ce996`
+candidate, prove browser behavior or durable Guest creation, or exercise
+concurrent overbooking contention.
