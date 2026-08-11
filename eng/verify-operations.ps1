@@ -271,6 +271,7 @@ $expectedPreviewPolicySettings = [ordered]@{
     BunkFy__CountryPolicies__Allowlist__0__LaunchStatus = 'Engineering'
 }
 $expectedPreviewPolicySource = '../../apps/backend/eng/country-policies/development'
+$expectedPreviewPolicySourceSuffix = '/apps/backend/eng/country-policies/development'
 foreach ($serviceName in @('api', 'worker')) {
     $service = $resolvedCompose.services.PSObject.Properties[$serviceName].Value
     $sourceService = $sourceCompose.services.PSObject.Properties[$serviceName].Value
@@ -287,12 +288,29 @@ foreach ($serviceName in @('api', 'worker')) {
     $sourcePolicyMounts = @($sourceService.volumes | Where-Object {
             [string]$_.target -ceq '/etc/bunkfy/country-policies'
         })
-    $sourceBind = if ($sourcePolicyMounts.Count -eq 1) {
-        $sourcePolicyMounts[0].PSObject.Properties['bind']
+    if ($policyMounts.Count -ne 1) {
+        throw "Preview $serviceName must resolve exactly one engineering policy mount."
     }
-    else {
-        $null
+    $policyMount = $policyMounts[0]
+    if ([string]$policyMount.type -cne 'bind' -or
+        [string]$policyMount.read_only -ine 'true') {
+        throw "Preview $serviceName must resolve the engineering policy mount as a read-only bind."
     }
+    if ($sourcePolicyMounts.Count -ne 1) {
+        throw "Preview $serviceName source configuration must retain exactly one engineering policy mount."
+    }
+    $sourcePolicyMount = $sourcePolicyMounts[0]
+    $sourcePolicyPath = ([string]$sourcePolicyMount.source).Replace('\', '/').TrimEnd('/')
+    $sourcePathMatches = $sourcePolicyPath -ceq $expectedPreviewPolicySource -or
+        $sourcePolicyPath.EndsWith(
+            $expectedPreviewPolicySourceSuffix,
+            [StringComparison]::OrdinalIgnoreCase)
+    if ([string]$sourcePolicyMount.type -cne 'bind' -or
+        [string]$sourcePolicyMount.read_only -ine 'true' -or
+        -not $sourcePathMatches) {
+        throw "Preview $serviceName source configuration must retain the tracked read-only engineering policy bind."
+    }
+    $sourceBind = $sourcePolicyMount.PSObject.Properties['bind']
     $createHostPath = if ($null -ne $sourceBind -and
         $null -ne $sourceBind.Value) {
         $sourceBind.Value.PSObject.Properties['create_host_path']
@@ -300,16 +318,9 @@ foreach ($serviceName in @('api', 'worker')) {
     else {
         $null
     }
-    if ($policyMounts.Count -ne 1 -or
-        [string]$policyMounts[0].type -cne 'bind' -or
-        -not [bool]$policyMounts[0].read_only -or
-        $sourcePolicyMounts.Count -ne 1 -or
-        [string]$sourcePolicyMounts[0].type -cne 'bind' -or
-        ([string]$sourcePolicyMounts[0].source).Replace('\', '/') -cne $expectedPreviewPolicySource -or
-        -not [bool]$sourcePolicyMounts[0].read_only -or
-        $null -eq $createHostPath -or
-        [bool]$createHostPath.Value) {
-        throw "Preview $serviceName must mount the tracked engineering policy pack read-only without creating a missing host path."
+    if ($null -eq $createHostPath -or
+        [string]$createHostPath.Value -ine 'false') {
+        throw "Preview $serviceName engineering policy bind must explicitly disable host-path creation."
     }
 }
 
