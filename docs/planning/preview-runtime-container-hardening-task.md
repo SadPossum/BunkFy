@@ -1,6 +1,6 @@
 # Preview Runtime Container Hardening Task
 
-Status: local proof complete; publication pending
+Status: completed
 Date: 2026-08-11
 
 ## Goal
@@ -84,7 +84,7 @@ backup/restore.
   restrictions.
 - [x] Apply the exact configuration to the live Preview and verify health.
 - [x] Run one consolidated end-of-slice repository gate.
-- [ ] Commit and push the root slice.
+- [x] Commit and push the root slice.
 
 ## Local Proof
 
