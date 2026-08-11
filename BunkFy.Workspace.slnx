@@ -799,6 +799,7 @@
   <Folder Name="/docs/planning/">
     <File Path="docs/planning/bunkfy-repository-stack-and-workflow-plan.md" />
     <File Path="docs/planning/preview-deployment-composition-safety-task.md" />
+    <File Path="docs/planning/preview-reservations-inventory-rehearsal-task.md" />
   </Folder>
   <Folder Name="/eng/">
     <File Path="eng/bootstrap.ps1" />
@@ -830,7 +831,8 @@
     <File Path="eng/test-deployed-workspace-invitation.ps1" />
     <File Path="eng/test-image-candidate-package.ps1" />
     <File Path="eng/test-preview-mail-capture.ps1" />
-    <File Path="eng/test-preview-operations-notifications-fixture.ps1" />
+    <File Path="eng/test-preview-property-processing-fixture.ps1" />
+    <File Path="eng/test-preview-sellable-room-fixture.ps1" />
     <File Path="eng/test-production-admission.ps1" />
     <File Path="eng/update-gma.ps1" />
     <File Path="eng/update-web-contracts.ps1" />
@@ -849,7 +851,8 @@
     <File Path="eng/operations/deployed-public-edge.common.ps1" />
     <File Path="eng/operations/offboard-staff-access.ps1" />
     <File Path="eng/operations/preview-mail-capture.common.ps1" />
-    <File Path="eng/operations/preview-operations-notifications-fixture.common.ps1" />
+    <File Path="eng/operations/preview-property-processing-fixture.common.ps1" />
+    <File Path="eng/operations/preview-sellable-room-fixture.common.ps1" />
     <File Path="eng/operations/preview-state.common.ps1" />
     <File Path="eng/operations/promote-image-candidate.ps1" />
     <File Path="eng/operations/provision-staff-access.ps1" />
