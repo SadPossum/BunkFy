@@ -46,9 +46,11 @@ if ([string]::IsNullOrWhiteSpace($projectName)) {
     throw 'Preview Compose configuration has no resolved project name.'
 }
 $volumeMap = Get-BunkFyPreviewVolumeMap -ComposeDefinition $composeDefinition
+$stateArchives = Get-BunkFyPreviewStateArchives `
+    -Version $script:BunkFyPreviewStateContractVersion
 $backendImageReference = [string]$composeDefinition.services.api.image
 $webImageReference = [string]$composeDefinition.services.web.image
-foreach ($service in @('migrations', 'worker')) {
+foreach ($service in @('tenant-termination-replay-init', 'migrations', 'worker')) {
     if ([string]$composeDefinition.services.PSObject.Properties[$service].Value.image -cne
         $backendImageReference) {
         throw "Preview service '$service' does not use the API backend image."
@@ -227,7 +229,7 @@ try {
         Invoke-PreviewCompose -Arguments (@('stop') + $stateServices)
     }
 
-    foreach ($entry in $script:BunkFyPreviewStateArchives.GetEnumerator()) {
+    foreach ($entry in $stateArchives.GetEnumerator()) {
         Backup-BunkFyVolume `
             -Volume ([string]$volumeMap[$entry.Key]) `
             -Archive ([string]$entry.Value)
@@ -244,7 +246,7 @@ try {
         }
     $createdAtUtc = [DateTimeOffset]::UtcNow
     $manifest = [ordered]@{
-        schemaVersion = 4
+        schemaVersion = 5
         backupId = [Guid]::NewGuid().ToString('D')
         createdAtUtc = $createdAtUtc.ToString('O')
         projectName = $projectName
@@ -258,7 +260,7 @@ try {
         webCommit = Get-BunkFyGitCommit `
             -RepositoryPath (Join-BunkFyPath 'apps\web')
         stateVolumes = @(
-            $script:BunkFyPreviewStateArchives.GetEnumerator() | ForEach-Object {
+            $stateArchives.GetEnumerator() | ForEach-Object {
                 [ordered]@{
                     logicalName = $_.Key
                     dockerName = [string]$volumeMap[$_.Key]
@@ -268,7 +270,7 @@ try {
         )
         protectedLedgerSnapshot = [ordered]@{
             logicalName = $script:BunkFyPreviewProtectedLedgerLogicalName
-            artifact = [string]$script:BunkFyPreviewStateArchives[
+            artifact = [string]$stateArchives[
                 $script:BunkFyPreviewProtectedLedgerLogicalName]
             capturedAtUtc = $createdAtUtc.ToString('O')
             restorePolicy = 'explicit-current-snapshot-required'

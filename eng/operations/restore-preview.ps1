@@ -69,6 +69,7 @@ if ($null -eq $manifestSchemaProperty -or
         -ExpectedSha256 $ExpectedManifestSha256)
 $stateContract = Get-BunkFyPreviewStateContract -Manifest $manifest
 Assert-BunkFyPreviewStateContractCompatible -Contract $stateContract
+$backupStateArchives = Get-BunkFyPreviewStateArchives -Version $stateContract.Version
 
 if ($manifestSchemaVersion -ge 4) {
     $backupId = [Guid]::Empty
@@ -85,7 +86,7 @@ if ($manifestSchemaVersion -ge 4) {
         [string]$protectedLedgerProperty.Value.logicalName -cne
             $script:BunkFyPreviewProtectedLedgerLogicalName -or
         [string]$protectedLedgerProperty.Value.artifact -cne
-            [string]$script:BunkFyPreviewStateArchives[
+            [string]$backupStateArchives[
                 $script:BunkFyPreviewProtectedLedgerLogicalName] -or
         [string]$protectedLedgerProperty.Value.restorePolicy -cne
             'explicit-current-snapshot-required') {
@@ -114,7 +115,7 @@ foreach ($name in @('repositoryCommit', 'backendCommit', 'webCommit')) {
 }
 
 $expectedArtifacts = @('postgres.dump') +
-    @($script:BunkFyPreviewStateArchives.Values)
+    @($backupStateArchives.Values)
 $artifactRecords = @($manifest.artifacts)
 if ($artifactRecords.Count -ne $expectedArtifacts.Count) {
     throw 'Backup manifest does not contain the exact required artifact set.'
@@ -155,7 +156,7 @@ foreach ($file in $expectedArtifacts) {
     }
 }
 
-$protectedLedgerArtifact = [string]$script:BunkFyPreviewStateArchives[
+$protectedLedgerArtifact = [string]$backupStateArchives[
     $script:BunkFyPreviewProtectedLedgerLogicalName]
 $protectedLedgerRecord = @($artifactRecords | Where-Object {
         [string]$_.file -ceq $protectedLedgerArtifact
@@ -201,10 +202,10 @@ else {
 }
 
 $recordedVolumes = @($manifest.stateVolumes)
-if ($recordedVolumes.Count -ne $script:BunkFyPreviewStateArchives.Count) {
+if ($recordedVolumes.Count -ne $backupStateArchives.Count) {
     throw 'Backup manifest does not contain the exact state-volume set.'
 }
-foreach ($entry in $script:BunkFyPreviewStateArchives.GetEnumerator()) {
+foreach ($entry in $backupStateArchives.GetEnumerator()) {
     $matching = @($recordedVolumes | Where-Object {
         [string]$_.logicalName -ceq [string]$entry.Key
     })
@@ -260,7 +261,7 @@ $expectedImages = [ordered]@{
     backend = [string]$composeDefinition.services.api.image
     web = [string]$composeDefinition.services.web.image
 }
-foreach ($service in @('migrations', 'worker')) {
+foreach ($service in @('tenant-termination-replay-init', 'migrations', 'worker')) {
     if ([string]$composeDefinition.services.PSObject.Properties[$service].Value.image -cne
         $expectedImages.backend) {
         throw "Preview service '$service' does not use the API backend image."
@@ -298,7 +299,7 @@ function Assert-BunkFyVolumeArchiveReadable {
 }
 
 $stateArchivePaths = [ordered]@{}
-foreach ($entry in $script:BunkFyPreviewStateArchives.GetEnumerator()) {
+foreach ($entry in $backupStateArchives.GetEnumerator()) {
     $path = if ($entry.Key -ceq $script:BunkFyPreviewProtectedLedgerLogicalName) {
         $selectedProtectedLedgerPath
     }
@@ -391,7 +392,7 @@ try {
             throw "Compose did not create restore target volume '$volumeName'."
         }
     }
-    foreach ($entry in $script:BunkFyPreviewStateArchives.GetEnumerator()) {
+    foreach ($entry in $backupStateArchives.GetEnumerator()) {
         Restore-BunkFyVolume `
             -Volume ([string]$volumeMap[$entry.Key]) `
             -ArchivePath ([string]$stateArchivePaths[$entry.Key])

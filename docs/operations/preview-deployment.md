@@ -85,6 +85,38 @@ The browser app is available on loopback at `http://127.0.0.1:8080` by default. 
 
 The Compose host intentionally does not terminate TLS. A remote deployment must place an HTTPS reverse proxy or ingress in front of the loopback web port and preserve forwarded headers. Do not expose the API, Admin API, databases, broker, or object storage directly.
 
+## Runtime Restrictions
+
+Backend and web images run as their declared non-root `app` and `nginx` users.
+Compose gives every first-party process a read-only root filesystem, drops all
+Linux capabilities, denies privilege escalation, uses an init process, limits
+the process count, and allows 30 seconds for graceful shutdown. Writable state
+is limited to the named application volumes and bounded tmpfs mounts. Nginx's
+generated configuration, run directory, cache, and temporary directory use
+separate tmpfs mounts owned by its runtime user.
+
+Preview explicitly places the Data Rights tenant-termination replay journal in
+its own shared `tenant-termination-replay` state volume. API, Worker, Admin API,
+and Admin CLI therefore observe one journal, and backup/restore captures it
+without placing foreign files beneath the integrity-closed ledger-delta root.
+Before those processes start, a one-shot initializer gives the backend `app`
+identity ownership of that volume root. The initializer receives no application
+environment, has no network, mounts no other state, uses a read-only root
+filesystem, and retains only `CAP_CHOWN`; it exists so current and historical
+backend images initialize the new volume identically.
+
+Every service uses the Docker `local` log driver with 10 MiB files and at most
+three files. This is a host-disk bound, not centralized observability or an
+approved log-retention policy. Export important operational signals before
+rotation in any long-lived deployment.
+
+The stateful third-party images retain their reviewed upstream entrypoint user
+behavior. Do not add an arbitrary numeric user to an existing PostgreSQL,
+Redis, NATS, MinIO, or Mailpit volume: rehearse ownership migration and restore
+with the exact upgraded image first. Hosted Production should prefer managed
+services or separately reviewed runtime identities and must still provide host,
+seccomp/AppArmor, resource-sizing, and orchestration evidence.
+
 ## Runtime Image Pins
 
 The tracked Compose contract pins PostgreSQL, Redis, NATS, MinIO, and Mailpit
@@ -339,8 +371,9 @@ Create a consistent backup during a brief write outage:
 ```
 
 The script stops the application writers, takes a PostgreSQL custom dump,
-archives MinIO, NATS, Redis, Data Protection, the protected data-rights ledger
-and adapter input volumes, writes SHA-256 hashes, and restores the previous
+archives MinIO, NATS, Redis, Data Protection, the protected Data Rights ledger
+and tenant-termination replay journal, and adapter input volumes, writes
+SHA-256 hashes, and restores the previous
 running service set. It refuses to create a backup if any declared state volume
 is missing, if a migration or Admin CLI writer is active, or if the dump or an
 archive fails structural validation. The destination is private before the
@@ -390,7 +423,10 @@ Root, backend, and web commits are retained as
 provenance; compatible newer operations tooling may restore an older backup
 without rebuilding or substituting its recorded images. Schema 2 backups map
 to state-contract version 1, schemas 3 and 4 declare that contract explicitly,
-and schema 4 also records the protected-ledger recovery policy. Restore refuses
+and schema 4 also records the protected-ledger recovery policy. Schema 5 uses
+state-contract version 2 and adds the tenant-termination replay archive. When
+restoring an older contract, the tooling creates the new replay volume empty
+because those backups never captured that process-local state. Restore refuses
 a target that already has Compose
 containers, networks, or any declared volume, restores the non-database state
 first, runs `pg_restore --exit-on-error`, and then starts the full stack through

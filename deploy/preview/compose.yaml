@@ -1,5 +1,22 @@
 name: ${BUNKFY_COMPOSE_PROJECT_NAME:-bunkfy-preview}
 
+x-preview-logging: &preview-logging
+  driver: local
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+x-bunkfy-runtime-hardening: &bunkfy-runtime-hardening
+  read_only: true
+  init: true
+  cap_drop:
+    - ALL
+  security_opt:
+    - no-new-privileges:true
+  pids_limit: 512
+  stop_grace_period: 30s
+  logging: *preview-logging
+
 x-database-environment: &database-environment
   Persistence__Provider: PostgreSql
   ConnectionStrings__PostgreSql: "Host=postgres;Port=5432;Database=bunkfy;Username=bunkfy;Password=${BUNKFY_POSTGRES_PASSWORD:?set BUNKFY_POSTGRES_PASSWORD};Include Error Detail=false"
@@ -41,6 +58,8 @@ x-runtime-environment: &runtime-environment
   DataRights__LedgerDelta__LocalFilePath: /var/lib/bunkfy/data-rights-ledger-delta
   DataRights__LedgerDelta__ActiveIntegrityKeyVersion: "1"
   DataRights__LedgerDelta__IntegrityKeys__1: "${BUNKFY_DATA_RIGHTS_LEDGER_INTEGRITY_KEY:?set BUNKFY_DATA_RIGHTS_LEDGER_INTEGRITY_KEY}"
+  DataRights__TenantTerminationReplay__Provider: LocalFile
+  DataRights__TenantTerminationReplay__LocalFilePath: /var/lib/bunkfy/tenant-termination-replay
   BunkFy__CountryPolicies__PackDirectory: /etc/bunkfy/country-policies
   BunkFy__CountryPolicies__Allowlist__0__OperatingCountryCode: GB
   BunkFy__CountryPolicies__Allowlist__0__PolicyId: development-hostel-example
@@ -60,6 +79,7 @@ services:
   postgres:
     image: postgres:17.5-alpine@sha256:6567bca8d7bc8c82c5922425a0baee57be8402df92bae5eacad5f01ae9544daa
     restart: unless-stopped
+    logging: *preview-logging
     environment:
       POSTGRES_DB: bunkfy
       POSTGRES_USER: bunkfy
@@ -76,6 +96,7 @@ services:
   redis:
     image: redis:8.0-alpine@sha256:5f61955be8ab2ccee9372b84ae4d4da2e2b156f87281e3f218544055e7ee04d4
     restart: unless-stopped
+    logging: *preview-logging
     command: ["redis-server", "--appendonly", "yes", "--requirepass", "${BUNKFY_REDIS_PASSWORD:?set BUNKFY_REDIS_PASSWORD}"]
     environment:
       REDIS_PASSWORD: "${BUNKFY_REDIS_PASSWORD:?set BUNKFY_REDIS_PASSWORD}"
@@ -91,6 +112,7 @@ services:
   nats:
     image: nats:2.11-alpine@sha256:e4bf19f15fd3218814a4e3c9e0064e1334bd8aa20d5984b9f1a0afd084f8cc00
     restart: unless-stopped
+    logging: *preview-logging
     command:
       - --jetstream
       - --store_dir=/data
@@ -109,6 +131,7 @@ services:
   minio:
     image: minio/minio:RELEASE.2025-04-22T22-12-26Z@sha256:a1ea29fa28355559ef137d71fc570e508a214ec84ff8083e39bc5428980b015e
     restart: unless-stopped
+    logging: *preview-logging
     command: ["server", "/data", "--console-address", ":9001"]
     environment:
       MINIO_ROOT_USER: "${BUNKFY_MINIO_ROOT_USER:?set BUNKFY_MINIO_ROOT_USER}"
@@ -125,6 +148,7 @@ services:
   mailpit:
     image: axllent/mailpit:v1.30.7@sha256:d5ecbb067db3705fa953d79e1b7f81ef84038df67aba6c52825d8c02a1ea748a
     restart: unless-stopped
+    logging: *preview-logging
     environment:
       MP_DATABASE: /data/mailpit.db
       MP_MAX_MESSAGES: "500"
@@ -138,7 +162,28 @@ services:
       retries: 20
     networks: [backend]
 
+  tenant-termination-replay-init:
+    image: ${BUNKFY_BACKEND_IMAGE:-bunkfy/backend:preview}
+    user: "0:0"
+    entrypoint: ["chown"]
+    command: ["app:app", "/var/lib/bunkfy/tenant-termination-replay"]
+    restart: "no"
+    read_only: true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 32
+    stop_grace_period: 5s
+    logging: *preview-logging
+    network_mode: none
+    volumes:
+      - tenant-termination-replay:/var/lib/bunkfy/tenant-termination-replay
+
   migrations:
+    <<: *bunkfy-runtime-hardening
     image: ${BUNKFY_BACKEND_IMAGE:-bunkfy/backend:preview}
     build:
       context: ../../apps/backend
@@ -154,13 +199,18 @@ services:
       postgres:
         condition: service_healthy
     restart: "no"
+    tmpfs:
+      - /tmp:size=67108864,mode=1777
     networks: [backend]
 
   api:
+    <<: *bunkfy-runtime-hardening
     image: ${BUNKFY_BACKEND_IMAGE:-bunkfy/backend:preview}
     working_dir: /opt/bunkfy/api
     command: ["BunkFy.Host.Api.dll"]
     restart: unless-stopped
+    tmpfs:
+      - /tmp:size=67108864,mode=1777
     environment:
       <<: *runtime-environment
       ASPNETCORE_URLS: http://+:8080
@@ -201,9 +251,12 @@ services:
     volumes:
       - data-protection:/var/lib/bunkfy/data-protection
       - data-rights-ledger-delta:/var/lib/bunkfy/data-rights-ledger-delta
+      - tenant-termination-replay:/var/lib/bunkfy/tenant-termination-replay
       - *preview-country-policy-volume
     depends_on:
       migrations:
+        condition: service_completed_successfully
+      tenant-termination-replay-init:
         condition: service_completed_successfully
       redis:
         condition: service_healthy
@@ -222,10 +275,13 @@ services:
     networks: [backend, edge]
 
   worker:
+    <<: *bunkfy-runtime-hardening
     image: ${BUNKFY_BACKEND_IMAGE:-bunkfy/backend:preview}
     working_dir: /opt/bunkfy/worker
     command: ["BunkFy.Host.Worker.dll"]
     restart: unless-stopped
+    tmpfs:
+      - /tmp:size=67108864,mode=1777
     environment:
       <<: *runtime-environment
       Worker__Modules__Auth: "true"
@@ -278,9 +334,12 @@ services:
     volumes:
       - adapter-file-drop:/var/lib/bunkfy/file-drop
       - data-rights-ledger-delta:/var/lib/bunkfy/data-rights-ledger-delta
+      - tenant-termination-replay:/var/lib/bunkfy/tenant-termination-replay
       - *preview-country-policy-volume
     depends_on:
       migrations:
+        condition: service_completed_successfully
+      tenant-termination-replay-init:
         condition: service_completed_successfully
       redis:
         condition: service_healthy
@@ -293,6 +352,7 @@ services:
     networks: [backend]
 
   web:
+    <<: *bunkfy-runtime-hardening
     image: ${BUNKFY_WEB_IMAGE:-bunkfy/web:preview}
     build:
       context: ../../apps/web
@@ -301,6 +361,11 @@ services:
       args:
         VITE_BUNKFY_API_BASE_URL: /
     restart: unless-stopped
+    tmpfs:
+      - /tmp:size=67108864,mode=1777
+      - /run:size=16777216,mode=0755,uid=101,gid=101
+      - /var/cache/nginx:size=67108864,mode=0755,uid=101,gid=101
+      - /etc/nginx/conf.d:size=16777216,mode=0755,uid=101,gid=101
     environment:
       BUNKFY_RELEASE_ID: "${BUNKFY_RELEASE_ID:-preview-local}"
     ports:
@@ -316,11 +381,14 @@ services:
     networks: [edge]
 
   admin-api:
+    <<: *bunkfy-runtime-hardening
     image: ${BUNKFY_BACKEND_IMAGE:-bunkfy/backend:preview}
     profiles: [operations]
     working_dir: /opt/bunkfy/admin-api
     command: ["BunkFy.Host.AdminApi.dll"]
     restart: "no"
+    tmpfs:
+      - /tmp:size=67108864,mode=1777
     environment:
       <<: *runtime-environment
       ASPNETCORE_URLS: http://+:8080
@@ -336,10 +404,13 @@ services:
       Http__PrivateNetwork__Enabled: "false"
     volumes:
       - data-rights-ledger-delta:/var/lib/bunkfy/data-rights-ledger-delta
+      - tenant-termination-replay:/var/lib/bunkfy/tenant-termination-replay
     ports:
       - "127.0.0.1:${BUNKFY_ADMIN_PORT:-5195}:8080"
     depends_on:
       migrations:
+        condition: service_completed_successfully
+      tenant-termination-replay-init:
         condition: service_completed_successfully
       redis:
         condition: service_healthy
@@ -356,19 +427,25 @@ services:
     networks: [backend, management]
 
   admin-cli:
+    <<: *bunkfy-runtime-hardening
     image: ${BUNKFY_BACKEND_IMAGE:-bunkfy/backend:preview}
     profiles: [tools]
     working_dir: /opt/bunkfy/admin-cli
     entrypoint: ["dotnet", "/opt/bunkfy/admin-cli/BunkFy.Host.AdminCli.dll"]
     command: ["--help"]
+    tmpfs:
+      - /tmp:size=67108864,mode=1777
     environment:
       <<: *runtime-environment
       MessageJournalCleanup__Enabled: "false"
       Logging__LogLevel__Default: Warning
     volumes:
       - data-rights-ledger-delta:/var/lib/bunkfy/data-rights-ledger-delta
+      - tenant-termination-replay:/var/lib/bunkfy/tenant-termination-replay
     depends_on:
       migrations:
+        condition: service_completed_successfully
+      tenant-termination-replay-init:
         condition: service_completed_successfully
       nats:
         condition: service_healthy
@@ -397,3 +474,5 @@ volumes:
     name: ${BUNKFY_VOLUME_PREFIX:-bunkfy-preview}-adapter-file-drop
   data-rights-ledger-delta:
     name: ${BUNKFY_VOLUME_PREFIX:-bunkfy-preview}-data-rights-ledger-delta
+  tenant-termination-replay:
+    name: ${BUNKFY_VOLUME_PREFIX:-bunkfy-preview}-tenant-termination-replay

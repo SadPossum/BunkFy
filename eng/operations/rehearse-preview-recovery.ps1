@@ -63,8 +63,8 @@ catch {
 $schemaVersion = 0
 if ($null -eq $manifest.PSObject.Properties['schemaVersion'] -or
     -not [int]::TryParse([string]$manifest.schemaVersion, [ref]$schemaVersion) -or
-    $schemaVersion -ne 4) {
-    throw 'Preview recovery rehearsal requires a schema-4 backup.'
+    $schemaVersion -notin @(4, 5)) {
+    throw 'Preview recovery rehearsal requires a schema-4 or schema-5 backup.'
 }
 $manifestDigest = Assert-BunkFyBackupManifestIntegrity `
     -ManifestPath $manifestPath `
@@ -72,6 +72,7 @@ $manifestDigest = Assert-BunkFyBackupManifestIntegrity `
     -ExpectedSha256 $ExpectedManifestSha256
 $stateContract = Get-BunkFyPreviewStateContract -Manifest $manifest
 Assert-BunkFyPreviewStateContractCompatible -Contract $stateContract
+$backupStateArchives = Get-BunkFyPreviewStateArchives -Version $stateContract.Version
 
 $backupId = [Guid]::Empty
 if ($null -eq $manifest.PSObject.Properties['backupId'] -or
@@ -240,7 +241,7 @@ try {
     $volumeMap = Get-BunkFyPreviewVolumeMap -ComposeDefinition $composeDefinition
     $dataProtectionVolume = [string]$volumeMap['data-protection']
     $dataProtectionArchive = Join-Path `
-        $BackupPath ([string]$script:BunkFyPreviewStateArchives['data-protection'])
+        $BackupPath ([string]$backupStateArchives['data-protection'])
     [void](Assert-BunkFyRegularFile `
             -Path $dataProtectionArchive `
             -Description 'Data Protection backup archive')
@@ -316,7 +317,11 @@ try {
             durationMilliseconds = [long]($completedAtUtc - $startedAtUtc).TotalMilliseconds
         }
         checks = @(
-            [ordered]@{ name = 'schema-4-manifest-and-artifacts-verified'; result = 'passed' }
+            [ordered]@{
+                name = 'manifest-and-artifacts-verified'
+                result = 'passed'
+                backupSchemaVersion = $schemaVersion
+            }
             [ordered]@{ name = 'empty-isolated-target-restored'; result = 'passed' }
             [ordered]@{ name = 'public-edge-recovered'; result = 'passed' }
             [ordered]@{ name = 'admin-surface-recovered-and-auth-gated'; result = 'passed' }

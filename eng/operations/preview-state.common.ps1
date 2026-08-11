@@ -2,10 +2,19 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 $script:BunkFyPreviewStateContractName = 'bunkfy-preview-state'
-$script:BunkFyPreviewStateContractVersion = 1
+$script:BunkFyPreviewLegacyStateContractVersion = 1
+$script:BunkFyPreviewStateContractVersion = 2
 $script:BunkFyPreviewArchiveUtilityImage = 'alpine:3.21@sha256:48b0309ca019d89d40f670aa1bc06e426dc0931948452e8491e3d65087abc07d'
 $script:BunkFyPreviewManifestDigestFileName = 'manifest.sha256'
 $script:BunkFyPreviewProtectedLedgerLogicalName = 'data-rights-ledger-delta'
+$script:BunkFyPreviewStateArchivesV1 = [ordered]@{
+    'minio-data' = 'minio-data.tar.gz'
+    'nats-data' = 'nats-data.tar.gz'
+    'redis-data' = 'redis-data.tar.gz'
+    'data-protection' = 'data-protection.tar.gz'
+    'adapter-file-drop' = 'adapter-file-drop.tar.gz'
+    'data-rights-ledger-delta' = 'data-rights-ledger-delta.tar.gz'
+}
 $script:BunkFyPreviewStateArchives = [ordered]@{
     'minio-data' = 'minio-data.tar.gz'
     'nats-data' = 'nats-data.tar.gz'
@@ -13,6 +22,20 @@ $script:BunkFyPreviewStateArchives = [ordered]@{
     'data-protection' = 'data-protection.tar.gz'
     'adapter-file-drop' = 'adapter-file-drop.tar.gz'
     'data-rights-ledger-delta' = 'data-rights-ledger-delta.tar.gz'
+    'tenant-termination-replay' = 'tenant-termination-replay.tar.gz'
+}
+
+function Get-BunkFyPreviewStateArchives {
+    param([Parameter(Mandatory = $true)][int] $Version)
+
+    if ($Version -eq $script:BunkFyPreviewLegacyStateContractVersion) {
+        return $script:BunkFyPreviewStateArchivesV1
+    }
+    if ($Version -eq $script:BunkFyPreviewStateContractVersion) {
+        return $script:BunkFyPreviewStateArchives
+    }
+
+    throw "Preview state contract version '$Version' has no archive definition."
 }
 
 function Get-BunkFyPreviewStateContract {
@@ -28,10 +51,10 @@ function Get-BunkFyPreviewStateContract {
     if ($schemaVersion -eq 2) {
         return [pscustomobject]@{
             Name = $script:BunkFyPreviewStateContractName
-            Version = 1
+            Version = $script:BunkFyPreviewLegacyStateContractVersion
         }
     }
-    if ($schemaVersion -notin @(3, 4)) {
+    if ($schemaVersion -notin @(3, 4, 5)) {
         throw "Backup manifest schema '$schemaVersion' is not supported."
     }
 
@@ -50,6 +73,16 @@ function Get-BunkFyPreviewStateContract {
         -not [int]::TryParse([string]$versionProperty.Value, [ref]$version) -or
         $version -lt 1) {
         throw 'Backup manifest state contract is invalid.'
+    }
+
+    $expectedVersion = if ($schemaVersion -eq 5) {
+        $script:BunkFyPreviewStateContractVersion
+    }
+    else {
+        $script:BunkFyPreviewLegacyStateContractVersion
+    }
+    if ($version -ne $expectedVersion) {
+        throw "Backup manifest schema '$schemaVersion' requires state contract version '$expectedVersion'."
     }
 
     return [pscustomobject]@{
@@ -182,7 +215,8 @@ function Assert-BunkFyPreviewStateContractCompatible {
     param([Parameter(Mandatory = $true)][object] $Contract)
 
     if ($Contract.Name -cne $script:BunkFyPreviewStateContractName -or
-        $Contract.Version -ne $script:BunkFyPreviewStateContractVersion) {
+        $Contract.Version -lt $script:BunkFyPreviewLegacyStateContractVersion -or
+        $Contract.Version -gt $script:BunkFyPreviewStateContractVersion) {
         throw "Backup state contract '$($Contract.Name)/$($Contract.Version)' is not supported by this checkout."
     }
 }

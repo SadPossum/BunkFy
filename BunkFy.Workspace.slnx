@@ -825,6 +825,7 @@
     <File Path="docs/planning/preview-historical-image-restore-task.md" />
     <File Path="docs/planning/preview-local-sensitive-state-permissions-task.md" />
     <File Path="docs/planning/preview-reservations-inventory-rehearsal-task.md" />
+    <File Path="docs/planning/preview-runtime-container-hardening-task.md" />
     <File Path="docs/planning/preview-runtime-image-pinning-task.md" />
   </Folder>
   <Folder Name="/eng/">

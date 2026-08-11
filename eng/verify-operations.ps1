@@ -173,12 +173,20 @@ $schemaThreeStateContract = Get-BunkFyPreviewStateContract -Manifest (
         schemaVersion = 3
         stateContract = [pscustomobject]@{
             name = $script:BunkFyPreviewStateContractName
-            version = $script:BunkFyPreviewStateContractVersion
+            version = $script:BunkFyPreviewLegacyStateContractVersion
+        }
+    })
+$schemaFourStateContract = Get-BunkFyPreviewStateContract -Manifest (
+    [pscustomobject]@{
+        schemaVersion = 4
+        stateContract = [pscustomobject]@{
+            name = $script:BunkFyPreviewStateContractName
+            version = $script:BunkFyPreviewLegacyStateContractVersion
         }
     })
 $currentStateContract = Get-BunkFyPreviewStateContract -Manifest (
     [pscustomobject]@{
-        schemaVersion = 4
+        schemaVersion = 5
         stateContract = [pscustomobject]@{
             name = $script:BunkFyPreviewStateContractName
             version = $script:BunkFyPreviewStateContractVersion
@@ -187,14 +195,32 @@ $currentStateContract = Get-BunkFyPreviewStateContract -Manifest (
 foreach ($contract in @(
         $legacyStateContract,
         $schemaThreeStateContract,
+        $schemaFourStateContract,
         $currentStateContract)) {
     Assert-BunkFyPreviewStateContractCompatible -Contract $contract
+}
+$invalidSchemaContractRejected = $false
+try {
+    [void](Get-BunkFyPreviewStateContract -Manifest (
+            [pscustomobject]@{
+                schemaVersion = 4
+                stateContract = [pscustomobject]@{
+                    name = $script:BunkFyPreviewStateContractName
+                    version = $script:BunkFyPreviewStateContractVersion
+                }
+            }))
+}
+catch {
+    $invalidSchemaContractRejected = $true
+}
+if (-not $invalidSchemaContractRejected) {
+    throw 'Preview restore accepted a state contract from the wrong manifest schema.'
 }
 $futureStateContractRejected = $false
 try {
     $futureStateContract = Get-BunkFyPreviewStateContract -Manifest (
         [pscustomobject]@{
-            schemaVersion = 4
+            schemaVersion = 5
             stateContract = [pscustomobject]@{
                 name = $script:BunkFyPreviewStateContractName
                 version = $script:BunkFyPreviewStateContractVersion + 1
@@ -286,7 +312,7 @@ $backendImageExpression = '${BUNKFY_BACKEND_IMAGE:-bunkfy/backend:preview}'
 $webImageExpression = '${BUNKFY_WEB_IMAGE:-bunkfy/web:preview}'
 if (@($composeSourceLines | Where-Object {
             $_.Trim() -ceq "image: $backendImageExpression"
-        }).Count -ne 5 -or
+        }).Count -ne 6 -or
     @($composeSourceLines | Where-Object {
             $_.Trim() -ceq "image: $webImageExpression"
         }).Count -ne 1) {
@@ -367,6 +393,7 @@ $expectedVolumeNames = [ordered]@{
     'data-protection' = 'bunkfy-preview-data-protection'
     'adapter-file-drop' = 'bunkfy-preview-adapter-file-drop'
     'data-rights-ledger-delta' = 'bunkfy-preview-data-rights-ledger-delta'
+    'tenant-termination-replay' = 'bunkfy-preview-tenant-termination-replay'
 }
 foreach ($entry in $expectedVolumeNames.GetEnumerator()) {
     $actual = [string]$resolvedCompose.volumes.PSObject.Properties[$entry.Key].Value.name
@@ -539,7 +566,13 @@ try {
         throw 'Preview Compose rejected explicit product image selection.'
     }
     $selectedCompose = $selectedComposeJson | ConvertFrom-Json
-    foreach ($serviceName in @('migrations', 'api', 'worker', 'admin-api', 'admin-cli')) {
+    foreach ($serviceName in @(
+            'tenant-termination-replay-init',
+            'migrations',
+            'api',
+            'worker',
+            'admin-api',
+            'admin-cli')) {
         if ([string]$selectedCompose.services.PSObject.Properties[$serviceName].Value.image -cne
             $fixtureBackendImage) {
             throw "Preview service '$serviceName' ignored the selected backend image."
@@ -594,6 +627,175 @@ if ($LASTEXITCODE -ne 0) {
     throw 'Preview operations Compose configuration is invalid.'
 }
 $resolvedOperationsCompose = $resolvedOperationsComposeJson | ConvertFrom-Json
+
+function Assert-BunkFyBoundedServiceLogging {
+    param(
+        [Parameter(Mandatory = $true)][string] $ServiceName,
+        [Parameter(Mandatory = $true)][object] $Service
+    )
+
+    $options = $Service.logging.options
+    $optionNames = @($options.PSObject.Properties.Name | Sort-Object)
+    if ([string]$Service.logging.driver -cne 'local' -or
+        ($optionNames -join ',') -cne 'max-file,max-size' -or
+        [string]$options.PSObject.Properties['max-file'].Value -cne '3' -or
+        [string]$options.PSObject.Properties['max-size'].Value -cne '10m') {
+        throw "Preview service '$ServiceName' must use the bounded local log policy."
+    }
+}
+
+function Assert-BunkFyFirstPartyRuntime {
+    param(
+        [Parameter(Mandatory = $true)][string] $ServiceName,
+        [Parameter(Mandatory = $true)][string[]] $ExpectedTmpfs,
+        [Parameter(Mandatory = $true)]
+        [AllowEmptyCollection()]
+        [string[]] $WritableVolumeTargets
+    )
+
+    $service = $resolvedOperationsCompose.services.PSObject.Properties[$ServiceName].Value
+    if (-not [bool]$service.read_only -or
+        -not [bool]$service.init -or
+        [int]$service.pids_limit -ne 512 -or
+        [string]$service.stop_grace_period -cne '30s' -or
+        (@($service.cap_drop) -join ',') -cne 'ALL' -or
+        (@($service.security_opt) -join ',') -cne 'no-new-privileges:true') {
+        throw "Preview first-party service '$ServiceName' is missing its runtime hardening policy."
+    }
+
+    $actualTmpfs = @($service.tmpfs | Sort-Object)
+    $expectedTmpfsSorted = @($ExpectedTmpfs | Sort-Object)
+    if (@(Compare-Object `
+            -ReferenceObject $expectedTmpfsSorted `
+            -DifferenceObject $actualTmpfs).Count -gt 0) {
+        throw "Preview first-party service '$ServiceName' has an unexpected writable temporary filesystem."
+    }
+
+    $allowedWritableTargets = [Collections.Generic.HashSet[string]]::new(
+        [string[]]$WritableVolumeTargets,
+        [StringComparer]::Ordinal)
+    $observedWritableTargets = [Collections.Generic.HashSet[string]]::new(
+        [StringComparer]::Ordinal)
+    $volumeProperty = $service.PSObject.Properties['volumes']
+    $mounts = if ($null -eq $volumeProperty) { @() } else { @($volumeProperty.Value) }
+    foreach ($mount in $mounts) {
+        $readOnlyProperty = $mount.PSObject.Properties['read_only']
+        if ($null -ne $readOnlyProperty -and [bool]$readOnlyProperty.Value) {
+            continue
+        }
+        $target = [string]$mount.target
+        if (-not $allowedWritableTargets.Contains($target)) {
+            throw "Preview first-party service '$ServiceName' has unexpected writable mount '$target'."
+        }
+        [void]$observedWritableTargets.Add($target)
+    }
+    if ($observedWritableTargets.Count -ne $allowedWritableTargets.Count) {
+        throw "Preview first-party service '$ServiceName' is missing a required writable state mount."
+    }
+
+    Assert-BunkFyBoundedServiceLogging -ServiceName $ServiceName -Service $service
+}
+
+$backendDockerfile = @(Get-Content -LiteralPath (
+        Join-Path $PSScriptRoot '..\apps\backend\Dockerfile'))
+$webDockerfile = @(Get-Content -LiteralPath (
+        Join-Path $PSScriptRoot '..\apps\web\Dockerfile'))
+if (@($backendDockerfile | Where-Object { $_.Trim() -ceq 'USER app' }).Count -ne 1 -or
+    @($webDockerfile | Where-Object { $_.Trim() -ceq 'USER nginx' }).Count -ne 1) {
+    throw 'Preview first-party images must retain their reviewed non-root runtime users.'
+}
+
+$replayInitializerName = 'tenant-termination-replay-init'
+$replayInitializer = $resolvedOperationsCompose.services.PSObject.Properties[
+    $replayInitializerName].Value
+$replayInitializerMounts = @($replayInitializer.volumes)
+if ([string]$replayInitializer.image -cne [string]$resolvedOperationsCompose.services.api.image -or
+    [string]$replayInitializer.user -cne '0:0' -or
+    -not [bool]$replayInitializer.read_only -or
+    [int]$replayInitializer.pids_limit -ne 32 -or
+    [string]$replayInitializer.stop_grace_period -cne '5s' -or
+    (@($replayInitializer.cap_drop) -join ',') -cne 'ALL' -or
+    (@($replayInitializer.cap_add) -join ',') -cne 'CHOWN' -or
+    (@($replayInitializer.security_opt) -join ',') -cne 'no-new-privileges:true' -or
+    [string]$replayInitializer.network_mode -cne 'none' -or
+    (@($replayInitializer.entrypoint) -join ',') -cne 'chown' -or
+    (@($replayInitializer.command) -join ',') -cne
+        'app:app,/var/lib/bunkfy/tenant-termination-replay' -or
+    $replayInitializerMounts.Count -ne 1 -or
+    [string]$replayInitializerMounts[0].source -cne 'tenant-termination-replay' -or
+    [string]$replayInitializerMounts[0].target -cne
+        '/var/lib/bunkfy/tenant-termination-replay') {
+    throw 'Preview tenant-termination replay initialization is not least-privilege bounded.'
+}
+$replayInitializerEnvironment = $replayInitializer.PSObject.Properties['environment']
+if ($null -ne $replayInitializerEnvironment -and
+    @($replayInitializerEnvironment.Value.PSObject.Properties).Count -gt 0) {
+    throw 'Preview tenant-termination replay initialization must not receive application secrets.'
+}
+Assert-BunkFyBoundedServiceLogging `
+    -ServiceName $replayInitializerName `
+    -Service $replayInitializer
+foreach ($serviceName in @('api', 'worker', 'admin-api', 'admin-cli')) {
+    $dependency = $resolvedOperationsCompose.services.PSObject.Properties[
+        $serviceName].Value.depends_on.PSObject.Properties[$replayInitializerName]
+    if ($null -eq $dependency -or
+        [string]$dependency.Value.condition -cne 'service_completed_successfully') {
+        throw "Preview service '$serviceName' must wait for replay-volume initialization."
+    }
+}
+
+$backendTmpfs = @('/tmp:size=67108864,mode=1777')
+foreach ($serviceName in @('migrations', 'api', 'worker', 'admin-api', 'admin-cli')) {
+    $writableTargets = @(switch ($serviceName) {
+        'api' {
+            @(
+                '/var/lib/bunkfy/data-protection',
+                '/var/lib/bunkfy/data-rights-ledger-delta',
+                '/var/lib/bunkfy/tenant-termination-replay')
+        }
+        'worker' {
+            @(
+                '/var/lib/bunkfy/file-drop',
+                '/var/lib/bunkfy/data-rights-ledger-delta',
+                '/var/lib/bunkfy/tenant-termination-replay')
+        }
+        { $_ -in @('admin-api', 'admin-cli') } {
+            @(
+                '/var/lib/bunkfy/data-rights-ledger-delta',
+                '/var/lib/bunkfy/tenant-termination-replay')
+        }
+        default { @() }
+    })
+    Assert-BunkFyFirstPartyRuntime `
+        -ServiceName $serviceName `
+        -ExpectedTmpfs $backendTmpfs `
+        -WritableVolumeTargets $writableTargets
+}
+Assert-BunkFyFirstPartyRuntime `
+    -ServiceName 'web' `
+    -ExpectedTmpfs @(
+        '/tmp:size=67108864,mode=1777',
+        '/run:size=16777216,mode=0755,uid=101,gid=101',
+        '/var/cache/nginx:size=67108864,mode=0755,uid=101,gid=101',
+        '/etc/nginx/conf.d:size=16777216,mode=0755,uid=101,gid=101') `
+    -WritableVolumeTargets @()
+
+foreach ($serviceName in @('api', 'worker', 'admin-api', 'admin-cli')) {
+    $environment = $resolvedOperationsCompose.services.PSObject.Properties[
+        $serviceName].Value.environment
+    if ([string]$environment.DataRights__TenantTerminationReplay__Provider -cne
+            'LocalFile' -or
+        [string]$environment.DataRights__TenantTerminationReplay__LocalFilePath -cne
+            '/var/lib/bunkfy/tenant-termination-replay') {
+        throw "Preview service '$serviceName' must use the shared tenant-termination replay store."
+    }
+}
+
+foreach ($service in $resolvedOperationsCompose.services.PSObject.Properties) {
+    Assert-BunkFyBoundedServiceLogging `
+        -ServiceName $service.Name `
+        -Service $service.Value
+}
 
 function Assert-BunkFyServiceNetworks {
     param(
@@ -725,7 +927,9 @@ foreach ($service in $resolvedMailpitOperator.services.PSObject.Properties) {
     if ($service.Name -ceq 'mailpit') {
         continue
     }
-    if ($null -ne $service.Value.networks.PSObject.Properties['mailpit-operator']) {
+    $serviceNetworks = $service.Value.PSObject.Properties['networks']
+    if ($null -ne $serviceNetworks -and
+        $null -ne $serviceNetworks.Value.PSObject.Properties['mailpit-operator']) {
         throw "Preview service '$($service.Name)' must not join the Mailpit operator network."
     }
 }
@@ -801,7 +1005,7 @@ foreach ($requiredToken in @(
         'Get-BunkFyPreviewVolumeMap',
         'Assert-BunkFyGitWorktreeClean',
         'Get-BunkFyDockerImageId',
-        'schemaVersion = 4',
+        'schemaVersion = 5',
         'backupId =',
         'stateContract =',
         'protectedLedgerSnapshot =',
@@ -886,7 +1090,7 @@ foreach ($requiredToken in @(
         'WebImage',
         'Assert-BunkFyLocalSensitivePath',
         'Assert-BunkFyLocalSensitiveTree',
-        "schemaVersion -ne 4",
+        "schemaVersion -notin @(4, 5)",
         '-AllowBackupPointProtectedLedger',
         '-RemoveFailedTarget',
         'BUNKFY_RELEASE_ID',

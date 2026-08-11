@@ -1,10 +1,10 @@
 # Preview Recovery Rehearsal
 
-Use this destructive-but-isolated rehearsal to prove that a schema-4 preview
-backup can restore into a fresh Compose project without replacing the existing
-preview deployment. It exercises the repository restore automation, public
-edge, loopback Admin surface, startup readiness, and exact Data Protection file
-continuity.
+Use this destructive-but-isolated rehearsal to prove that a supported schema-4
+or schema-5 preview backup can restore into a fresh Compose project without
+replacing the existing preview deployment. It exercises the repository restore
+automation, public edge, loopback Admin surface, startup readiness, and exact
+Data Protection file continuity.
 
 This is local recovery-mechanics evidence. It is not hosted database,
 object-store, secret-store, immutable-ledger, RPO, or RTO evidence.
@@ -72,7 +72,7 @@ retention policy, and independent restore access.
 
 The rehearsal requires:
 
-- a schema-4 manifest matching the separately supplied digest;
+- a schema-4 or schema-5 manifest matching the separately supplied digest;
 - verified artifact hashes and structurally readable archives and PostgreSQL
   dump before target creation;
 - an empty isolated target restored through the migration/readiness gate;
