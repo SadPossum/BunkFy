@@ -1,5 +1,8 @@
 # Deployed Operations Notifications Verification
 
+Status: implemented, fixture verified, and VPS-preview verified
+Date: 2026-08-11
+
 Use this mutation-bearing probe to verify BunkFy's product notification path
 through the public API, durable worker pipeline, Notifications history, and
 server-sent-event stream.
@@ -111,6 +114,22 @@ operator review; do not repair Inventory or Notifications tables directly.
 
 This probe does not exercise browser attention styling, browser navigation, or
 external delivery adapters. Those remain candidate-specific checks.
+
+## VPS Preview Evidence
+
+On 2026-08-11, the probe passed all ten checks through the VPS Preview's
+trusted HTTPS origin for release `preview-runtime-hardening-20260811`. The
+production-admission parser independently accepted the child record with
+SHA-256
+`d3ab85e1f67a4df3909fc5e2f27070d53168892500520bfeb4a8da24aa8dd683`.
+
+The enclosing rehearsal retired the notification room, removed both joined
+memberships, retired both synthetic properties, archived the workspace,
+revoked all three sessions, and purged and closed the Mailpit operator window.
+The evidence is retained only in the ignored VPS working state. It does not
+admit the final `f27ce996` candidate, prove browser attention behavior, exercise
+external delivery adapters, or replace the private notification-retention
+approval required for Production activation.
 
 ## Repository Fixture
 
