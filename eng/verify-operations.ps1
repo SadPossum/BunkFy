@@ -212,7 +212,8 @@ $sourceComposeJson = & docker compose `
     -f $composeFile `
     config `
     --format json `
-    --no-normalize
+    --no-normalize `
+    --no-path-resolution
 if ($LASTEXITCODE -ne 0) {
     throw 'Preview Compose source configuration is invalid.'
 }
@@ -269,9 +270,7 @@ $expectedPreviewPolicySettings = [ordered]@{
     BunkFy__CountryPolicies__Allowlist__0__ContentSha256 = $previewPolicyDigest
     BunkFy__CountryPolicies__Allowlist__0__LaunchStatus = 'Engineering'
 }
-$expectedPreviewPolicySource = [IO.Path]::GetFullPath((Join-Path `
-        $PSScriptRoot `
-        '..\apps\backend\eng\country-policies\development'))
+$expectedPreviewPolicySource = '../../apps/backend/eng/country-policies/development'
 foreach ($serviceName in @('api', 'worker')) {
     $service = $resolvedCompose.services.PSObject.Properties[$serviceName].Value
     $sourceService = $sourceCompose.services.PSObject.Properties[$serviceName].Value
@@ -303,10 +302,10 @@ foreach ($serviceName in @('api', 'worker')) {
     }
     if ($policyMounts.Count -ne 1 -or
         [string]$policyMounts[0].type -cne 'bind' -or
-        [IO.Path]::GetFullPath([string]$policyMounts[0].source) -cne $expectedPreviewPolicySource -or
         -not [bool]$policyMounts[0].read_only -or
         $sourcePolicyMounts.Count -ne 1 -or
         [string]$sourcePolicyMounts[0].type -cne 'bind' -or
+        ([string]$sourcePolicyMounts[0].source).Replace('\', '/') -cne $expectedPreviewPolicySource -or
         -not [bool]$sourcePolicyMounts[0].read_only -or
         $null -eq $createHostPath -or
         [bool]$createHostPath.Value) {

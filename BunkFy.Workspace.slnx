@@ -159,6 +159,7 @@
     <File Path="apps/backend/docs/planning/remote-adapter-lease-task.md" />
     <File Path="apps/backend/docs/planning/reservation-guest-record-convergence-task.md" />
     <File Path="apps/backend/docs/planning/reservation-record-retention-task.md" />
+    <File Path="apps/backend/docs/planning/reservations-aggregate-query-shape-task.md" />
     <File Path="apps/backend/docs/planning/reservations-data-rights-workflow-task.md" />
     <File Path="apps/backend/docs/planning/reservations-management-create-idempotency-task.md" />
     <File Path="apps/backend/docs/planning/reservations-management-guest-details-idempotency-task.md" />
