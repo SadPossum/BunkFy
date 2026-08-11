@@ -5,6 +5,8 @@ param(
     [string] $ExpectedManifestSha256,
     [string] $ProtectedLedgerSnapshotPath,
     [string] $ProtectedLedgerSnapshotSha256,
+    [string] $BackendImage,
+    [string] $WebImage,
     [switch] $AllowBackupPointProtectedLedger,
     [switch] $LeaveStopped,
     [switch] $RemoveFailedTarget
@@ -201,6 +203,38 @@ foreach ($entry in $script:BunkFyPreviewStateArchives.GetEnumerator()) {
     }
 }
 
+$recordedImages = @($manifest.images)
+if ($recordedImages.Count -ne 2) {
+    throw 'Backup manifest does not contain the exact image set.'
+}
+$selectedImages = [ordered]@{}
+foreach ($kind in @('backend', 'web')) {
+    $matching = @($recordedImages | Where-Object {
+            [string]$_.kind -ceq $kind
+        })
+    if ($matching.Count -ne 1 -or
+        [string]::IsNullOrWhiteSpace([string]$matching[0].reference) -or
+        [string]$matching[0].imageId -cnotmatch '^sha256:[a-f0-9]{64}$') {
+        throw "Backup image record '$kind' is invalid."
+    }
+
+    $requested = if ($kind -ceq 'backend') { $BackendImage } else { $WebImage }
+    if ([string]::IsNullOrWhiteSpace($requested)) {
+        $requested = [string]$matching[0].reference
+    }
+    $selectedImages[$kind] = Assert-BunkFyPreviewImageReference `
+        -Value $requested `
+        -Name "$kind image"
+}
+[Environment]::SetEnvironmentVariable(
+    'BUNKFY_BACKEND_IMAGE',
+    [string]$selectedImages.backend,
+    [EnvironmentVariableTarget]::Process)
+[Environment]::SetEnvironmentVariable(
+    'BUNKFY_WEB_IMAGE',
+    [string]$selectedImages.web,
+    [EnvironmentVariableTarget]::Process)
+
 $composeDefinition = Get-BunkFyPreviewComposeDefinition `
     -Root $root `
     -ComposePath $composePath `
@@ -220,17 +254,12 @@ foreach ($service in @('migrations', 'worker')) {
         throw "Preview service '$service' does not use the API backend image."
     }
 }
-$recordedImages = @($manifest.images)
-if ($recordedImages.Count -ne $expectedImages.Count) {
-    throw 'Backup manifest does not contain the exact image set.'
-}
 foreach ($entry in $expectedImages.GetEnumerator()) {
     $matching = @($recordedImages | Where-Object {
         [string]$_.kind -ceq [string]$entry.Key
     })
-    if ($matching.Count -ne 1 -or
-        [string]::IsNullOrWhiteSpace([string]$matching[0].reference)) {
-        throw "Backup image record '$($entry.Key)' is invalid."
+    if ([string]$entry.Value -cne [string]$selectedImages[$entry.Key]) {
+        throw "Preview Compose did not select the requested $($entry.Key) image."
     }
     $localImageId = Get-BunkFyDockerImageId -Reference ([string]$entry.Value)
     if ([string]$matching[0].imageId -cne $localImageId) {

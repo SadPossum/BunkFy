@@ -139,7 +139,7 @@ services:
     networks: [backend]
 
   migrations:
-    image: bunkfy/backend:preview
+    image: ${BUNKFY_BACKEND_IMAGE:-bunkfy/backend:preview}
     build:
       context: ../../apps/backend
       dockerfile: Dockerfile
@@ -157,7 +157,7 @@ services:
     networks: [backend]
 
   api:
-    image: bunkfy/backend:preview
+    image: ${BUNKFY_BACKEND_IMAGE:-bunkfy/backend:preview}
     working_dir: /opt/bunkfy/api
     command: ["BunkFy.Host.Api.dll"]
     restart: unless-stopped
@@ -222,7 +222,7 @@ services:
     networks: [backend, edge]
 
   worker:
-    image: bunkfy/backend:preview
+    image: ${BUNKFY_BACKEND_IMAGE:-bunkfy/backend:preview}
     working_dir: /opt/bunkfy/worker
     command: ["BunkFy.Host.Worker.dll"]
     restart: unless-stopped
@@ -293,7 +293,7 @@ services:
     networks: [backend]
 
   web:
-    image: bunkfy/web:preview
+    image: ${BUNKFY_WEB_IMAGE:-bunkfy/web:preview}
     build:
       context: ../../apps/web
       dockerfile: Dockerfile
@@ -316,7 +316,7 @@ services:
     networks: [edge]
 
   admin-api:
-    image: bunkfy/backend:preview
+    image: ${BUNKFY_BACKEND_IMAGE:-bunkfy/backend:preview}
     profiles: [operations]
     working_dir: /opt/bunkfy/admin-api
     command: ["BunkFy.Host.AdminApi.dll"]
@@ -356,7 +356,7 @@ services:
     networks: [backend, management]
 
   admin-cli:
-    image: bunkfy/backend:preview
+    image: ${BUNKFY_BACKEND_IMAGE:-bunkfy/backend:preview}
     profiles: [tools]
     working_dir: /opt/bunkfy/admin-cli
     entrypoint: ["dotnet", "/opt/bunkfy/admin-cli/BunkFy.Host.AdminCli.dll"]

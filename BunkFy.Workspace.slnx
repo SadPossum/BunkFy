@@ -822,6 +822,7 @@
   <Folder Name="/docs/planning/">
     <File Path="docs/planning/bunkfy-repository-stack-and-workflow-plan.md" />
     <File Path="docs/planning/preview-deployment-composition-safety-task.md" />
+    <File Path="docs/planning/preview-historical-image-restore-task.md" />
     <File Path="docs/planning/preview-reservations-inventory-rehearsal-task.md" />
     <File Path="docs/planning/preview-runtime-image-pinning-task.md" />
   </Folder>

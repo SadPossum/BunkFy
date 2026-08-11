@@ -38,6 +38,12 @@ before treating this as recovery evidence.
   -Confirm:$false
 ```
 
+When the backup's original local tags now point to newer bytes, supply
+`-BackendImage` and `-WebImage` with separate local historical references. The
+ordinary restore guard still requires those images to match the immutable IDs
+recorded by the backup. The rehearsal carries the same selections into the
+isolated public and Admin checks without changing the live Preview tags.
+
 The runner generates a unique Compose project, volume prefix, and loopback
 ports. It invokes the ordinary restore command with the backup-point protected
 ledger switch because the target is a disposable clone of that exact backup;

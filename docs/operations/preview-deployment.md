@@ -365,6 +365,27 @@ first, runs `pg_restore --exit-on-error`, and then starts the full stack through
 the migration gate. Make the recorded backend and web images available locally
 before restoring; restore never rebuilds source.
 
+If the ordinary Preview tags now point to a newer candidate, keep them intact.
+Give the historical bytes separate local references and select them explicitly:
+
+```powershell
+.\eng\operations\restore-preview.ps1 `
+  -BackupPath .tmp\backups\preview-<timestamp> `
+  -ExpectedManifestSha256 <out-of-band-manifest-sha256> `
+  -ProtectedLedgerSnapshotPath <latest-ledger-snapshot.tar.gz> `
+  -ProtectedLedgerSnapshotSha256 <trusted-ledger-sha256> `
+  -BackendImage bunkfy/backend:recovery-<release> `
+  -WebImage bunkfy/web:recovery-<release> `
+  -Confirm:$false
+```
+
+The selected references are only locators. Restore inspects their immutable
+local image IDs and rejects either reference unless its bytes exactly match the
+corresponding backup record. The same `BUNKFY_BACKEND_IMAGE` and
+`BUNKFY_WEB_IMAGE` selectors may be placed in a protected Preview environment
+for an intentional `preview.ps1 up -NoBuild`; ordinary builds and starts retain
+the tracked default tags.
+
 For a rehearsal on the same host, copy the ignored environment file, choose a
 different loopback port, and set unique values for
 `BUNKFY_COMPOSE_PROJECT_NAME` and `BUNKFY_VOLUME_PREFIX`. The production target

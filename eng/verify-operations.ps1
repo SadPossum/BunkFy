@@ -195,6 +195,20 @@ Write-Host 'BunkFy preview state-contract compatibility is valid.'
 $composeFile = Join-Path $PSScriptRoot '..\deploy\preview\compose.yaml'
 $environmentFile = Join-Path $PSScriptRoot '..\deploy\preview\.env.example'
 $composeSourceLines = @(Get-Content -LiteralPath $composeFile)
+$backendImageExpression = '${BUNKFY_BACKEND_IMAGE:-bunkfy/backend:preview}'
+$webImageExpression = '${BUNKFY_WEB_IMAGE:-bunkfy/web:preview}'
+if (@($composeSourceLines | Where-Object {
+            $_.Trim() -ceq "image: $backendImageExpression"
+        }).Count -ne 5 -or
+    @($composeSourceLines | Where-Object {
+            $_.Trim() -ceq "image: $webImageExpression"
+        }).Count -ne 1) {
+    throw 'Preview product services must use the explicit backend and web image selectors.'
+}
+[Environment]::SetEnvironmentVariable(
+    'BUNKFY_BACKEND_IMAGE', $null, [EnvironmentVariableTarget]::Process)
+[Environment]::SetEnvironmentVariable(
+    'BUNKFY_WEB_IMAGE', $null, [EnvironmentVariableTarget]::Process)
 $policyExtensionStarts = @(for ($index = 0; $index -lt $composeSourceLines.Count; $index++) {
         if ($composeSourceLines[$index] -ceq
             'x-preview-country-policy-volume: &preview-country-policy-volume') {
@@ -419,6 +433,40 @@ if ($resolvedCompose.services.api.image -ne 'bunkfy/backend:preview' -or
     $resolvedCompose.services.worker.image -ne $resolvedCompose.services.api.image -or
     $resolvedCompose.services.web.image -ne 'bunkfy/web:preview') {
     throw 'Preview services must retain explicit, shared backend and web image identities.'
+}
+$fixtureBackendImage = 'registry.fixture.invalid/bunkfy/backend:recovery-fixture'
+$fixtureWebImage = 'registry.fixture.invalid/bunkfy/web:recovery-fixture'
+try {
+    [Environment]::SetEnvironmentVariable(
+        'BUNKFY_BACKEND_IMAGE', $fixtureBackendImage, [EnvironmentVariableTarget]::Process)
+    [Environment]::SetEnvironmentVariable(
+        'BUNKFY_WEB_IMAGE', $fixtureWebImage, [EnvironmentVariableTarget]::Process)
+    $selectedComposeJson = & docker compose `
+        --env-file $environmentFile `
+        -f $composeFile `
+        --profile operations `
+        --profile tools `
+        config `
+        --format json
+    if ($LASTEXITCODE -ne 0) {
+        throw 'Preview Compose rejected explicit product image selection.'
+    }
+    $selectedCompose = $selectedComposeJson | ConvertFrom-Json
+    foreach ($serviceName in @('migrations', 'api', 'worker', 'admin-api', 'admin-cli')) {
+        if ([string]$selectedCompose.services.PSObject.Properties[$serviceName].Value.image -cne
+            $fixtureBackendImage) {
+            throw "Preview service '$serviceName' ignored the selected backend image."
+        }
+    }
+    if ([string]$selectedCompose.services.web.image -cne $fixtureWebImage) {
+        throw 'Preview web ignored the selected web image.'
+    }
+}
+finally {
+    [Environment]::SetEnvironmentVariable(
+        'BUNKFY_BACKEND_IMAGE', $null, [EnvironmentVariableTarget]::Process)
+    [Environment]::SetEnvironmentVariable(
+        'BUNKFY_WEB_IMAGE', $null, [EnvironmentVariableTarget]::Process)
 }
 $requiredWorkerModules = @(
     'Auth',
@@ -665,6 +713,9 @@ foreach ($requiredToken in @(
         'ProtectedLedgerSnapshotPath',
         'ProtectedLedgerSnapshotSha256',
         '$script:BunkFyPreviewArchiveUtilityImage',
+        'BUNKFY_BACKEND_IMAGE',
+        'BUNKFY_WEB_IMAGE',
+        'Assert-BunkFyPreviewImageReference',
         'AllowBackupPointProtectedLedger',
         'explicitly allow the backup-point snapshot only for a disposable rehearsal',
         'Assert-BunkFyVolumeArchiveReadable',
@@ -688,6 +739,8 @@ $previewRecoveryRehearsal = Get-Content -LiteralPath (
 foreach ($requiredToken in @(
         "SupportsShouldProcess = `$true",
         'ExpectedManifestSha256',
+        'BackendImage',
+        'WebImage',
         "schemaVersion -ne 4",
         '-AllowBackupPointProtectedLedger',
         '-RemoveFailedTarget',

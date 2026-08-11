@@ -3,6 +3,8 @@ param(
     [Parameter(Mandatory = $true)][string] $BackupPath,
     [Parameter(Mandatory = $true)][string] $ExpectedManifestSha256,
     [string] $EnvironmentPath,
+    [string] $BackendImage,
+    [string] $WebImage,
     [ValidateRange(1, 60)][int] $RequestTimeoutSeconds = 15,
     [string] $OutputPath,
     [switch] $KeepRestoredTarget,
@@ -192,6 +194,8 @@ try {
         -BackupPath $BackupPath `
         -EnvironmentPath $EnvironmentPath `
         -ExpectedManifestSha256 $ExpectedManifestSha256 `
+        -BackendImage $BackendImage `
+        -WebImage $WebImage `
         -AllowBackupPointProtectedLedger `
         -RemoveFailedTarget `
         -Confirm:$false

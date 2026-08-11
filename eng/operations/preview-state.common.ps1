@@ -292,3 +292,19 @@ function Get-BunkFyDockerImageId {
 
     return ([string]$imageId[0]).Trim()
 }
+
+function Assert-BunkFyPreviewImageReference {
+    param(
+        [Parameter(Mandatory = $true)][string] $Value,
+        [Parameter(Mandatory = $true)][string] $Name
+    )
+
+    if ($Value.Length -gt 512 -or
+        $Value -cne $Value.Trim() -or
+        $Value.Contains('://', [StringComparison]::Ordinal) -or
+        $Value -cnotmatch '^[A-Za-z0-9](?:[A-Za-z0-9._:/-]*[A-Za-z0-9])?(?:@sha256:[a-f0-9]{64})?$') {
+        throw "$Name must be a bounded, credential-free Docker image reference."
+    }
+
+    return $Value
+}
