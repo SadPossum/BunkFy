@@ -192,6 +192,7 @@
     <File Path="apps/backend/docs/planning/staff-property-assignment-idempotency-task.md" />
     <File Path="apps/backend/docs/planning/staff-record-retention-task.md" />
     <File Path="apps/backend/docs/planning/staff-retention-prerequisite-transaction-boundary-task.md" />
+    <File Path="apps/backend/docs/planning/staff-retired-property-operational-visibility-task.md" />
     <File Path="apps/backend/docs/planning/staff-tenant-termination-owner-task.md" />
     <File Path="apps/backend/docs/planning/standalone-adapter-host-task.md" />
     <File Path="apps/backend/docs/planning/support-admin-access-task.md" />
