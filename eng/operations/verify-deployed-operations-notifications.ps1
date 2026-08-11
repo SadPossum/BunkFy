@@ -246,7 +246,7 @@ function Assert-SmokeNotificationShape {
         throw "Notification '$ExpectedName' has an invalid identity or navigation payload."
     }
     $tags = @($Notification.tags | ForEach-Object { [string]$_ })
-    if ($tags -cnotcontains 'web' -or $tags -cnotcontains 'domain:inventory') {
+    if ($tags -cnotcontains 'delivery:web' -or $tags -cnotcontains 'domain:inventory') {
         throw "Notification '$ExpectedName' does not carry the web and inventory tags."
     }
     if ($IncludesDates -and

@@ -9,6 +9,10 @@ The rehearsal uses only:
 - the public product API through the configured public origin; and
 - Mailpit's short-lived loopback operator window.
 
+Its default convergence polling cadence is two seconds so the combined
+invitation and enrollment proof remains within the public sensitive-request
+budget while still failing within the configured convergence timeout.
+
 It does not read Auth tables, outbox or inbox rows, NATS messages, or module
 internals. Mailpit capture proves the Preview composition, not real-provider
 delivery, sender-domain authentication, suppression behavior, or inbox

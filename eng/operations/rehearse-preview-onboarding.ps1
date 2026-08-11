@@ -9,7 +9,7 @@ param(
     [string] $OperatorComposePath,
     [ValidateRange(1, 60)][int] $RequestTimeoutSeconds = 15,
     [ValidateRange(30, 600)][int] $ConvergenceTimeoutSeconds = 180,
-    [ValidateRange(500, 5000)][int] $PollIntervalMilliseconds = 1000,
+    [ValidateRange(500, 5000)][int] $PollIntervalMilliseconds = 2000,
     [string] $OutputPath,
     [switch] $AllowLoopbackHttp,
     [switch] $IncludeOperationsNotifications,

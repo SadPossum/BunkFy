@@ -148,7 +148,7 @@ function Start-BunkFyOperationsNotificationsFixtureServer {
                         blockGroupId = $Fixture.BlockGroupId
                     }
                 }
-                tags = @('web', 'domain:inventory')
+                tags = @('delivery:web', 'domain:inventory')
                 deliveryPolicy = 'respectPreferences'
             }
         }
@@ -167,7 +167,7 @@ function Start-BunkFyOperationsNotificationsFixtureServer {
                 createdAtUtc = '2026-08-06T09:00:01Z'
                 readAtUtc = '2026-08-06T09:05:00Z'
                 payload = @{}
-                tags = @('web', 'domain:staff')
+                tags = @('delivery:web', 'domain:staff')
                 deliveryPolicy = 'respectPreferences'
             }
         }
