@@ -93,6 +93,8 @@ $createdNotification = $null
 $releasedNotification = $null
 $historyStream = $null
 $reason = "Deployment notification verification $([Guid]::NewGuid().ToString('N'))"
+$createOperationId = [Guid]::NewGuid()
+$releaseOperationId = [Guid]::NewGuid()
 
 function Invoke-SmokeApi {
     param(
@@ -408,7 +410,7 @@ function Release-SmokeBlockBestEffort {
             -Method POST `
             -TenantId $WorkspaceId.ToString('D') `
             -Token $actorToken `
-            -Body $null
+            -Body @{ operationId = $releaseOperationId }
         if ($response.StatusCode -eq 200) {
             $blockReleased = $true
             return
@@ -516,6 +518,7 @@ try {
             -TenantId $WorkspaceId.ToString('D') `
             -Token $actorToken `
             -Body @{
+                operationId = $createOperationId
                 target = @{
                     kind = 5
                     buildingLabel = $null
@@ -579,7 +582,7 @@ try {
             -Method POST `
             -TenantId $WorkspaceId.ToString('D') `
             -Token $actorToken `
-            -Body $null) `
+            -Body @{ operationId = $releaseOperationId }) `
         -ExpectedStatus 200 `
         -Operation 'Release smoke inventory block'
     if ([Guid]$release.blockGroupId -ne $blockGroupId -or

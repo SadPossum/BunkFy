@@ -471,7 +471,8 @@ function Start-BunkFyOperationsNotificationsFixtureServer {
                             throw 'Inventory block creation used the wrong identity, scope, or stream order.'
                         }
                         $body = $bodyText | ConvertFrom-Json -Depth 16
-                        if ([int]$body.target.kind -ne 5 -or
+                        if ([Guid]$body.operationId -eq [Guid]::Empty -or
+                            [int]$body.target.kind -ne 5 -or
                             [Guid]$body.target.inventoryUnitId -ne [Guid]$Fixture.InventoryUnitId -or
                             [string]$body.arrival -cne $Fixture.Arrival -or
                             [string]$body.departure -cne $Fixture.Departure -or
@@ -493,6 +494,10 @@ function Start-BunkFyOperationsNotificationsFixtureServer {
                             $token -cne $Fixture.ActorToken -or
                             -not $script:created) {
                             throw 'Inventory block release used the wrong identity, scope, or order.'
+                        }
+                        $body = $bodyText | ConvertFrom-Json -Depth 16
+                        if ([Guid]$body.operationId -eq [Guid]::Empty) {
+                            throw 'Inventory block release omitted its idempotency identity.'
                         }
                         $script:released = $true
                         $response = @{
