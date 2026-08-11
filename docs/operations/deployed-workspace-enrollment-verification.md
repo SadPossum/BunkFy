@@ -1,7 +1,7 @@
 # Deployed Workspace Enrollment Verification
 
-Status: implemented with a deterministic local fixture; deployed evidence pending
-Date: 2026-08-06
+Status: implemented, fixture verified, and VPS-preview verified
+Date: 2026-08-11
 
 ## Goal
 
@@ -81,6 +81,22 @@ headers.
 The probe exercises API behavior, not QR rendering, browser redirects,
 registration, email delivery, notifications, adapters, restart, or rollback.
 Those remain separate deployment checks.
+
+## VPS Preview Evidence
+
+On 2026-08-11, the verifier passed all nine checks through the VPS Preview's
+trusted HTTPS origin for release `preview-runtime-hardening-20260811`. The
+production-admission parser independently accepted the child record with
+SHA-256
+`9feb999cb339dff0aff6e0a7e8aceb088728b73f89f13347d179d3632e4904b5`.
+
+The enclosing onboarding rehearsal removed both joined memberships, retired
+its two synthetic properties, archived the synthetic workspace, revoked all
+three sessions, and purged and closed the loopback Mailpit operator window.
+The evidence is retained only in the ignored VPS working state; it is not
+committed release evidence and does not admit the final `f27ce996` candidate.
+Browser QR rendering, registration redirects, and real-provider email delivery
+remain separate proofs.
 
 ## Repository Verification
 

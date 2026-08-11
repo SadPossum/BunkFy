@@ -1,7 +1,7 @@
 # Deployed Workspace Invitation Verification
 
-Status: implemented with a deterministic local fixture; deployed evidence pending
-Date: 2026-08-06
+Status: implemented, fixture verified, and VPS-preview verified
+Date: 2026-08-11
 
 ## Goal
 
@@ -86,6 +86,21 @@ delivery, notification delivery, adapters, restart, or rollback. Reusable QR
 approval and rejection have their own
 [deployment verifier](deployed-workspace-enrollment-verification.md); neither
 result should be presented as browser or delivery proof.
+
+## VPS Preview Evidence
+
+On 2026-08-11, the verifier passed all eight checks through the VPS Preview's
+trusted HTTPS origin for release `preview-runtime-hardening-20260811`. The
+production-admission parser independently accepted the child record with
+SHA-256
+`b980a11a76eeb258093af1267b11d77db320c9c567b7877b75b475a3b560758f`.
+
+The enclosing onboarding rehearsal removed both joined memberships, retired
+its two synthetic properties, archived the synthetic workspace, revoked all
+three sessions, and purged and closed the loopback Mailpit operator window.
+The evidence is retained only in the ignored VPS working state; it is not
+committed release evidence and does not admit the final `f27ce996` candidate.
+Browser rendering and real-provider email delivery remain separate proofs.
 
 ## Repository Verification
 
