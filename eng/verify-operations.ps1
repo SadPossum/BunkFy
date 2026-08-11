@@ -194,6 +194,29 @@ Write-Host 'BunkFy preview state-contract compatibility is valid.'
 
 $composeFile = Join-Path $PSScriptRoot '..\deploy\preview\compose.yaml'
 $environmentFile = Join-Path $PSScriptRoot '..\deploy\preview\.env.example'
+$composeSourceLines = @(Get-Content -LiteralPath $composeFile)
+$policyExtensionStarts = @(for ($index = 0; $index -lt $composeSourceLines.Count; $index++) {
+        if ($composeSourceLines[$index] -ceq
+            'x-preview-country-policy-volume: &preview-country-policy-volume') {
+            $index
+        }
+    })
+if ($policyExtensionStarts.Count -ne 1) {
+    throw 'Preview Compose must declare exactly one engineering policy volume extension.'
+}
+$policyExtensionStart = $policyExtensionStarts[0]
+$policyExtensionEnd = $composeSourceLines.Count
+for ($index = $policyExtensionStart + 1; $index -lt $composeSourceLines.Count; $index++) {
+    if ($composeSourceLines[$index] -cmatch '^\S') {
+        $policyExtensionEnd = $index
+        break
+    }
+}
+$policyExtensionLines = @($composeSourceLines[$policyExtensionStart..($policyExtensionEnd - 1)])
+if (@($policyExtensionLines | Where-Object { $_ -cmatch '^  bind:\s*$' }).Count -ne 1 -or
+    @($policyExtensionLines | Where-Object { $_ -cmatch '^    create_host_path:\s*false\s*$' }).Count -ne 1) {
+    throw 'Preview engineering policy volume must explicitly disable host-path creation.'
+}
 $resolvedComposeJson = & docker compose `
     --env-file $environmentFile `
     -f $composeFile `
@@ -309,18 +332,6 @@ foreach ($serviceName in @('api', 'worker')) {
         [string]$sourcePolicyMount.read_only -ine 'true' -or
         -not $sourcePathMatches) {
         throw "Preview $serviceName source configuration must retain the tracked read-only engineering policy bind."
-    }
-    $resolvedBind = $policyMount.PSObject.Properties['bind']
-    $createHostPath = if ($null -ne $resolvedBind -and
-        $null -ne $resolvedBind.Value) {
-        $resolvedBind.Value.PSObject.Properties['create_host_path']
-    }
-    else {
-        $null
-    }
-    if ($null -eq $createHostPath -or
-        [string]$createHostPath.Value -ine 'false') {
-        throw "Preview $serviceName engineering policy bind must explicitly disable host-path creation."
     }
 }
 
