@@ -21,6 +21,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 . (Join-Path $PSScriptRoot '..\common.ps1')
+. (Join-Path $PSScriptRoot 'local-sensitive-state.common.ps1')
 . (Join-Path $PSScriptRoot 'deployed-public-edge.common.ps1')
 . (Join-Path $PSScriptRoot 'preview-state.common.ps1')
 . (Join-Path $PSScriptRoot 'preview-mail-capture.common.ps1')
@@ -49,6 +50,10 @@ foreach ($path in @($ComposePath, $OperatorComposePath, $EnvironmentPath)) {
         throw "Required rehearsal file '$path' must not be a reparse point."
     }
 }
+Assert-BunkFyLocalSensitivePath `
+    -Path $EnvironmentPath `
+    -PathType Leaf `
+    -Description 'Preview environment'
 
 if ([string]::IsNullOrWhiteSpace($OutputPath)) {
     $stamp = [DateTimeOffset]::UtcNow.ToString(

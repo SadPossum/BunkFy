@@ -17,6 +17,7 @@ param(
 )
 
 . (Join-Path $PSScriptRoot 'common.ps1')
+. (Join-Path $PSScriptRoot 'operations\local-sensitive-state.common.ps1')
 
 $root = Get-BunkFyRepositoryRoot
 $composeFile = Join-BunkFyPath 'deploy\preview\compose.yaml'
@@ -43,6 +44,10 @@ if ($Action -eq 'build' -or ($Action -eq 'up' -and -not $NoBuild)) {
 if (-not (Test-Path -LiteralPath $environmentFile -PathType Leaf)) {
     throw "Run eng/new-preview-env.ps1 before starting the preview stack."
 }
+Assert-BunkFyLocalSensitivePath `
+    -Path $environmentFile `
+    -PathType Leaf `
+    -Description 'Preview environment'
 
 $settings = @{}
 foreach ($line in Get-Content -LiteralPath $environmentFile) {

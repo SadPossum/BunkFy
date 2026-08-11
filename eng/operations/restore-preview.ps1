@@ -16,6 +16,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 . (Join-Path $PSScriptRoot '..\common.ps1')
+. (Join-Path $PSScriptRoot 'local-sensitive-state.common.ps1')
 . (Join-Path $PSScriptRoot 'preview-state.common.ps1')
 
 $root = Get-BunkFyRepositoryRoot
@@ -29,6 +30,10 @@ $BackupPath = [IO.Path]::GetFullPath($BackupPath)
 if (-not (Test-Path -LiteralPath $EnvironmentPath -PathType Leaf)) {
     throw "Preview environment '$EnvironmentPath' does not exist."
 }
+Assert-BunkFyLocalSensitivePath `
+    -Path $EnvironmentPath `
+    -PathType Leaf `
+    -Description 'Preview environment'
 if (-not (Test-Path -LiteralPath $BackupPath -PathType Container)) {
     throw "Backup directory '$BackupPath' does not exist."
 }
@@ -36,6 +41,9 @@ $backupItem = Get-Item -LiteralPath $BackupPath -Force
 if ($backupItem.Attributes -band [IO.FileAttributes]::ReparsePoint) {
     throw "Backup directory '$BackupPath' must not be a reparse point."
 }
+Assert-BunkFyLocalSensitiveTree `
+    -Path $BackupPath `
+    -Description 'Preview backup'
 
 $manifestPath = Join-Path $BackupPath 'manifest.json'
 [void](Assert-BunkFyRegularFile `
@@ -180,6 +188,10 @@ else {
     [void](Assert-BunkFyRegularFile `
             -Path $selectedProtectedLedgerPath `
             -Description 'Protected-ledger snapshot')
+    Assert-BunkFyLocalSensitivePath `
+        -Path $selectedProtectedLedgerPath `
+        -PathType Leaf `
+        -Description 'Protected-ledger snapshot'
     $selectedProtectedLedgerDigest = (Get-FileHash `
             -LiteralPath $selectedProtectedLedgerPath `
             -Algorithm SHA256).Hash.ToLowerInvariant()

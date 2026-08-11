@@ -29,6 +29,15 @@ $manifestSha256 = (Get-Content `
 Copy the backup and manifest digest to their approved independent locations
 before treating this as recovery evidence.
 
+Restore and rehearsal reject group/world-readable Unix state, inherited or
+broad Windows ACLs, and linked paths before creating a target. For a backup
+created before that policy, tighten the local copy first without changing its
+bytes:
+
+```powershell
+.\eng\operations\protect-preview-local-state.ps1 -BackupPath $backup
+```
+
 ## Run
 
 ```powershell
@@ -54,6 +63,10 @@ Passing evidence is written under `.tmp/recovery-rehearsals`. It records the
 backup id and manifest digest, state-contract version, bounded timing, five
 check results, and explicit limitations. It does not retain key-tree hashes,
 file names, credentials, cookies, tokens, response bodies, or headers.
+
+The private local permission check is a host hygiene control only. The hosted
+recovery record must still prove encrypted storage, approved identities,
+retention policy, and independent restore access.
 
 ## Checks
 

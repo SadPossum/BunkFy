@@ -8,6 +8,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 . (Join-Path $PSScriptRoot '..\common.ps1')
+. (Join-Path $PSScriptRoot 'local-sensitive-state.common.ps1')
 . (Join-Path $PSScriptRoot 'preview-state.common.ps1')
 
 $root = Get-BunkFyRepositoryRoot
@@ -25,6 +26,10 @@ $OutputPath = [IO.Path]::GetFullPath($OutputPath)
 if (-not (Test-Path -LiteralPath $EnvironmentPath -PathType Leaf)) {
     throw "Preview environment '$EnvironmentPath' does not exist."
 }
+Assert-BunkFyLocalSensitivePath `
+    -Path $EnvironmentPath `
+    -PathType Leaf `
+    -Description 'Preview environment'
 if (Test-Path -LiteralPath $OutputPath) {
     throw "Backup destination '$OutputPath' already exists."
 }
@@ -77,13 +82,48 @@ function Backup-BunkFyVolume {
         [Parameter(Mandatory = $true)][string] $Archive
     )
 
-    Invoke-BunkFyCommand -FilePath 'docker' -Arguments @(
-        'run', '--rm',
-        '--mount', "type=volume,src=$Volume,dst=/source,readonly",
-        '--mount', "type=bind,src=$OutputPath,dst=/backup",
-        $script:BunkFyPreviewArchiveUtilityImage,
-        'tar', '-czf', "/backup/$Archive", '-C', '/source', '.'
-    ) -WorkingDirectory $root
+    $containerName = "bunkfy-preview-backup-$([Guid]::NewGuid().ToString('N'))"
+    $archivePath = Join-Path $OutputPath $Archive
+    $containerCreated = $false
+    $archiveError = $null
+    $cleanupFailed = $false
+    try {
+        Invoke-BunkFyCommand -FilePath 'docker' -Arguments @(
+            'create', '--name', $containerName,
+            '--mount', "type=volume,src=$Volume,dst=/source,readonly",
+            $script:BunkFyPreviewArchiveUtilityImage,
+            'tar', '-czf', '/tmp/bunkfy-volume.tar.gz', '-C', '/source', '.'
+        ) -WorkingDirectory $root
+        $containerCreated = $true
+        Invoke-BunkFyCommand -FilePath 'docker' -Arguments @(
+            'start', '--attach', $containerName
+        ) -WorkingDirectory $root
+        Invoke-BunkFyCommand -FilePath 'docker' -Arguments @(
+            'cp', "${containerName}:/tmp/bunkfy-volume.tar.gz", $archivePath
+        ) -WorkingDirectory $root
+    }
+    catch {
+        $archiveError = $_
+    }
+    finally {
+        if ($containerCreated) {
+            & docker rm --force $containerName 1>$null 2>$null
+            $cleanupFailed = $LASTEXITCODE -ne 0
+        }
+    }
+    if ($null -ne $archiveError) {
+        if ($cleanupFailed) {
+            Write-Warning "Temporary backup container '$containerName' also failed cleanup."
+        }
+        throw $archiveError
+    }
+    if ($cleanupFailed) {
+        throw "Temporary backup container '$containerName' failed cleanup."
+    }
+    Protect-BunkFyLocalSensitivePath `
+        -Path $archivePath `
+        -PathType Leaf `
+        -Description 'Preview backup archive'
 
     & docker run --rm `
         --mount "type=bind,src=$OutputPath,dst=/backup,readonly" `
@@ -150,7 +190,9 @@ if (-not $PSCmdlet.ShouldProcess(
     return
 }
 
-New-Item -ItemType Directory -Path $OutputPath -Force | Out-Null
+New-BunkFyLocalSensitiveDirectory `
+    -Path $OutputPath `
+    -Description 'Preview backup directory'
 $appServices = @('web', 'admin-api', 'api', 'worker') |
     Where-Object { $runningServices -contains $_ }
 $stateServices = @('nats', 'redis', 'minio') |
@@ -175,6 +217,10 @@ try {
     Invoke-PreviewCompose -Arguments @(
         'cp', "postgres:$temporaryDump", (Join-Path $OutputPath 'postgres.dump')
     )
+    Protect-BunkFyLocalSensitivePath `
+        -Path (Join-Path $OutputPath 'postgres.dump') `
+        -PathType Leaf `
+        -Description 'Preview PostgreSQL backup'
     Invoke-PreviewCompose -Arguments @('exec', '-T', 'postgres', 'rm', '-f', $temporaryDump)
 
     if ($stateServices.Count -gt 0) {
@@ -239,6 +285,10 @@ try {
             ($manifestJson.Replace("`r`n", "`n") + "`n"),
             [Text.UTF8Encoding]::new($false))
         Move-Item -LiteralPath $temporaryManifestPath -Destination $manifestPath
+        Protect-BunkFyLocalSensitivePath `
+            -Path $manifestPath `
+            -PathType Leaf `
+            -Description 'Preview backup manifest'
     }
     finally {
         if (Test-Path -LiteralPath $temporaryManifestPath) {
@@ -254,6 +304,13 @@ try {
         $manifestDigestPath,
         "$manifestDigest`n",
         [Text.UTF8Encoding]::new($false))
+    Protect-BunkFyLocalSensitivePath `
+        -Path $manifestDigestPath `
+        -PathType Leaf `
+        -Description 'Preview backup manifest digest'
+    Assert-BunkFyLocalSensitiveTree `
+        -Path $OutputPath `
+        -Description 'Preview backup'
     $backupComplete = $true
 }
 finally {

@@ -823,6 +823,7 @@
     <File Path="docs/planning/bunkfy-repository-stack-and-workflow-plan.md" />
     <File Path="docs/planning/preview-deployment-composition-safety-task.md" />
     <File Path="docs/planning/preview-historical-image-restore-task.md" />
+    <File Path="docs/planning/preview-local-sensitive-state-permissions-task.md" />
     <File Path="docs/planning/preview-reservations-inventory-rehearsal-task.md" />
     <File Path="docs/planning/preview-runtime-image-pinning-task.md" />
   </Folder>
@@ -874,12 +875,14 @@
     <File Path="eng/operations/backup-preview.ps1" />
     <File Path="eng/operations/deployed-authenticated-smoke.common.ps1" />
     <File Path="eng/operations/deployed-public-edge.common.ps1" />
+    <File Path="eng/operations/local-sensitive-state.common.ps1" />
     <File Path="eng/operations/offboard-staff-access.ps1" />
     <File Path="eng/operations/preview-mail-capture.common.ps1" />
     <File Path="eng/operations/preview-property-processing-fixture.common.ps1" />
     <File Path="eng/operations/preview-sellable-room-fixture.common.ps1" />
     <File Path="eng/operations/preview-state.common.ps1" />
     <File Path="eng/operations/promote-image-candidate.ps1" />
+    <File Path="eng/operations/protect-preview-local-state.ps1" />
     <File Path="eng/operations/provision-staff-access.ps1" />
     <File Path="eng/operations/rehearse-deployed-release-rollback.ps1" />
     <File Path="eng/operations/rehearse-preview-onboarding.ps1" />

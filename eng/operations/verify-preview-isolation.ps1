@@ -7,6 +7,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 . (Join-Path $PSScriptRoot '..\common.ps1')
+. (Join-Path $PSScriptRoot 'local-sensitive-state.common.ps1')
 
 $composeFile = Join-BunkFyPath 'deploy\preview\compose.yaml'
 if ([string]::IsNullOrWhiteSpace($EnvironmentFile)) {
@@ -17,6 +18,10 @@ $EnvironmentFile = [IO.Path]::GetFullPath($EnvironmentFile)
 if (-not (Test-Path -LiteralPath $EnvironmentFile -PathType Leaf)) {
     throw "Preview environment file is missing: '$EnvironmentFile'."
 }
+Assert-BunkFyLocalSensitivePath `
+    -Path $EnvironmentFile `
+    -PathType Leaf `
+    -Description 'Preview environment'
 
 $composeArguments = @(
     'compose',

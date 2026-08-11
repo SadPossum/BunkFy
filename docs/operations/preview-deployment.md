@@ -37,7 +37,22 @@ Set `BUNKFY_RELEASE_ID` to a new non-secret identifier for each deployed
 candidate. The API and Worker receive the same value, and deployed edge evidence
 must match it. `preview-local` is only the local default.
 
-The generated file is ignored by Git. Keep it in the server secret store or protected deployment workspace. PostgreSQL and NATS credentials must remain URL/connection-string safe.
+The generated file is ignored by Git and is written atomically with private
+local permissions. On Unix it is mode `0600`; on Windows it has a protected ACL
+for the current operator, Local System, and built-in Administrators. Preview,
+backup, restore, isolation, and rehearsal commands reject a broader file or a
+path behind a symbolic link. Keep it in the server secret store or protected
+deployment workspace. PostgreSQL and NATS credentials must remain
+URL/connection-string safe.
+
+Tighten a file created before this guard with:
+
+```powershell
+.\eng\operations\protect-preview-local-state.ps1
+```
+
+Pass `-EnvironmentPath` when the protected file lives outside the checkout.
+The command changes local permissions, not secret values.
 
 `preview.ps1 build` and the default `preview.ps1 up` refresh the backend's
 ignored GMA source-root maps before invoking Docker, so a clean recursive
@@ -328,7 +343,22 @@ archives MinIO, NATS, Redis, Data Protection, the protected data-rights ledger
 and adapter input volumes, writes SHA-256 hashes, and restores the previous
 running service set. It refuses to create a backup if any declared state volume
 is missing, if a migration or Admin CLI writer is active, or if the dump or an
-archive fails structural validation.
+archive fails structural validation. The destination is private before the
+first state byte is written. Docker volume archives are copied out of a
+disposable utility container as the invoking operator, and the completed tree
+uses `0700` directories and `0600` files on Unix or the equivalent protected
+Windows ACL.
+
+Repair one or more older local backup trees before restore or rehearsal:
+
+```powershell
+.\eng\operations\protect-preview-local-state.ps1 `
+  -BackupPath .tmp\backups\preview-<timestamp>
+```
+
+The repair rejects links, tightens ownership and permissions, then rereads the
+tree through the same policy used by restore. It does not alter file content;
+the existing manifest digests remain authoritative.
 Copy the resulting `.tmp/backups/preview-*` directory to independent encrypted
 storage. Keep the `manifest.sha256` value separately from the backup location;
 the colocated sidecar detects corruption but is not a signature against an
@@ -354,7 +384,9 @@ Restore only into an empty, stopped preview deployment:
 The restore command verifies the versioned state contract, closed artifact set,
 manifest sidecar and optional out-of-band digest, lengths, SHA-256 hashes,
 archive structure, a clean operations checkout, and immutable local backend/web
-image IDs before creating state. Root, backend, and web commits are retained as
+image IDs before creating state. It also requires a private backup tree and a
+private separately supplied protected-ledger snapshot before reading either.
+Root, backend, and web commits are retained as
 provenance; compatible newer operations tooling may restore an older backup
 without rebuilding or substituting its recorded images. Schema 2 backups map
 to state-contract version 1, schemas 3 and 4 declare that contract explicitly,
@@ -409,6 +441,9 @@ Restore PostgreSQL and the Data Protection key ring from the same backup. Losing
 The backup deliberately excludes `.env` and all secrets. Retain the matching
 secret-store versions independently and restore the same JWT, refresh-token,
 data-rights, object-store, broker, and database credentials with the state.
+Private local modes and ACLs reduce accidental host-user exposure; they do not
+encrypt the backup, protect a compromised operator account, establish immutable
+retention, or replace approved hosted backup access and recovery controls.
 
 ## Capability Gates
 

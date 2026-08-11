@@ -6,10 +6,12 @@ $scripts = @(
     (Join-Path $PSScriptRoot 'operations\provision-staff-access.ps1'),
     (Join-Path $PSScriptRoot 'operations\offboard-staff-access.ps1'),
     (Join-Path $PSScriptRoot 'operations\verify-preview-isolation.ps1'),
+    (Join-Path $PSScriptRoot 'operations\local-sensitive-state.common.ps1'),
     (Join-Path $PSScriptRoot 'operations\preview-state.common.ps1'),
     (Join-Path $PSScriptRoot 'operations\backup-preview.ps1'),
     (Join-Path $PSScriptRoot 'operations\restore-preview.ps1'),
     (Join-Path $PSScriptRoot 'operations\rehearse-preview-recovery.ps1'),
+    (Join-Path $PSScriptRoot 'operations\protect-preview-local-state.ps1'),
     (Join-Path $PSScriptRoot 'operations\rehearse-production-migrations.ps1'),
     (Join-Path $PSScriptRoot 'image-promotion.common.ps1'),
     (Join-Path $PSScriptRoot 'verify-image-promotion.ps1'),
@@ -61,6 +63,7 @@ foreach ($script in $scripts) {
 Write-Host 'BunkFy operations scripts are syntactically valid.'
 
 . (Join-Path $PSScriptRoot 'operations\admin-api.common.ps1')
+. (Join-Path $PSScriptRoot 'operations\local-sensitive-state.common.ps1')
 . (Join-Path $PSScriptRoot 'operations\preview-state.common.ps1')
 if ((Assert-BunkFyAdminApiBaseUri -BaseUri 'http://127.0.0.1:5195') -ne
     'http://127.0.0.1:5195') {
@@ -78,6 +81,90 @@ if (-not $insecureRemoteRejected) {
 }
 
 Write-Host 'BunkFy Admin API origin validation is valid.'
+
+$permissionFixtureRoot = Join-Path ([IO.Path]::GetTempPath()) (
+    'bunkfy-local-sensitive-state-' + [Guid]::NewGuid().ToString('N'))
+try {
+    New-BunkFyLocalSensitiveDirectory `
+        -Path $permissionFixtureRoot `
+        -Description 'Permission fixture'
+    $permissionFixtureFile = Join-Path $permissionFixtureRoot 'secret.txt'
+    Write-BunkFyLocalSensitiveTextFile `
+        -Path $permissionFixtureFile `
+        -Content "first`n" `
+        -Description 'Permission fixture file'
+    Write-BunkFyLocalSensitiveTextFile `
+        -Path $permissionFixtureFile `
+        -Content "second`n" `
+        -Overwrite `
+        -Description 'Permission fixture file'
+    if ([IO.File]::ReadAllText($permissionFixtureFile) -cne "second`n") {
+        throw 'Private atomic file replacement did not preserve exact content.'
+    }
+
+    if (-not (Test-BunkFyWindowsPlatform)) {
+        [IO.File]::SetUnixFileMode(
+            $permissionFixtureFile,
+            [IO.UnixFileMode]416)
+        $unsafeFileRejected = $false
+        try {
+            Assert-BunkFyLocalSensitivePath `
+                -Path $permissionFixtureFile `
+                -PathType Leaf `
+                -Description 'Permission fixture file'
+        }
+        catch {
+            $unsafeFileRejected = $_.Exception.Message.Contains(
+                'unsafe Unix mode',
+                [StringComparison]::Ordinal)
+        }
+        if (-not $unsafeFileRejected) {
+            throw 'Local sensitive-state policy accepted a group-readable file.'
+        }
+
+        [IO.File]::SetUnixFileMode(
+            $permissionFixtureRoot,
+            [IO.UnixFileMode]488)
+        $unsafeDirectoryRejected = $false
+        try {
+            Assert-BunkFyLocalSensitivePath `
+                -Path $permissionFixtureRoot `
+                -PathType Container `
+                -Description 'Permission fixture'
+        }
+        catch {
+            $unsafeDirectoryRejected = $_.Exception.Message.Contains(
+                'unsafe Unix mode',
+                [StringComparison]::Ordinal)
+        }
+        if (-not $unsafeDirectoryRejected) {
+            throw 'Local sensitive-state policy accepted a group-accessible directory.'
+        }
+    }
+
+    Protect-BunkFyLocalSensitiveTree `
+        -Path $permissionFixtureRoot `
+        -Description 'Permission fixture'
+    Assert-BunkFyLocalSensitiveTree `
+        -Path $permissionFixtureRoot `
+        -Description 'Permission fixture'
+    if (-not (Test-BunkFyWindowsPlatform)) {
+        $directoryMode = [int][IO.File]::GetUnixFileMode($permissionFixtureRoot)
+        $fileMode = [int][IO.File]::GetUnixFileMode($permissionFixtureFile)
+        if ($directoryMode -ne 448 -or $fileMode -ne 384) {
+            throw 'Local sensitive-state protection did not apply Unix 0700/0600.'
+        }
+    }
+}
+finally {
+    Remove-Item `
+        -LiteralPath $permissionFixtureRoot `
+        -Recurse `
+        -Force `
+        -ErrorAction SilentlyContinue
+}
+
+Write-Host 'BunkFy local sensitive-state permissions are valid.'
 
 $legacyStateContract = Get-BunkFyPreviewStateContract -Manifest (
     [pscustomobject]@{ schemaVersion = 2 })
@@ -670,6 +757,8 @@ foreach ($requiredToken in @(
         'open-operations',
         'close-operations',
         'BUNKFY_RELEASE_ID',
+        'local-sensitive-state.common.ps1',
+        'Assert-BunkFyLocalSensitivePath',
         "@('rm', '--stop', '--force', 'admin-api')",
         'docker network rm $managementNetwork')) {
     if (-not $previewScript.Contains($requiredToken, [StringComparison]::Ordinal)) {
@@ -678,6 +767,33 @@ foreach ($requiredToken in @(
 }
 
 Write-Host 'BunkFy preview build bootstrap is valid.'
+
+$newPreviewEnvironmentScript = Get-Content -LiteralPath (
+    Join-Path $PSScriptRoot 'new-preview-env.ps1') -Raw
+foreach ($requiredToken in @(
+        'local-sensitive-state.common.ps1',
+        'Write-BunkFyLocalSensitiveTextFile',
+        '-Overwrite:$Force')) {
+    if (-not $newPreviewEnvironmentScript.Contains(
+            $requiredToken,
+            [StringComparison]::Ordinal)) {
+        throw "Preview environment generation guard is missing '$requiredToken'."
+    }
+}
+
+$previewIsolationScript = Get-Content -LiteralPath (
+    Join-Path $PSScriptRoot 'operations\verify-preview-isolation.ps1') -Raw
+foreach ($requiredToken in @(
+        'local-sensitive-state.common.ps1',
+        'Assert-BunkFyLocalSensitivePath')) {
+    if (-not $previewIsolationScript.Contains(
+            $requiredToken,
+            [StringComparison]::Ordinal)) {
+        throw "Preview isolation permission guard is missing '$requiredToken'."
+    }
+}
+
+Write-Host 'BunkFy Preview environment permission wiring is valid.'
 
 $backupScript = Get-Content -LiteralPath (
     Join-Path $PSScriptRoot 'operations\backup-preview.ps1') -Raw
@@ -692,6 +808,11 @@ foreach ($requiredToken in @(
         '$script:BunkFyPreviewArchiveUtilityImage',
         "restorePolicy = 'explicit-current-snapshot-required'",
         '$script:BunkFyPreviewManifestDigestFileName',
+        'New-BunkFyLocalSensitiveDirectory',
+        'Protect-BunkFyLocalSensitivePath',
+        'Assert-BunkFyLocalSensitiveTree',
+        "'create', '--name', `$containerName",
+        '${containerName}:/tmp/bunkfy-volume.tar.gz',
         'pg_restore --list',
         '$concurrentOperators',
         "docker volume ls --format '{{.Name}}'",
@@ -716,6 +837,8 @@ foreach ($requiredToken in @(
         'BUNKFY_BACKEND_IMAGE',
         'BUNKFY_WEB_IMAGE',
         'Assert-BunkFyPreviewImageReference',
+        'Assert-BunkFyLocalSensitivePath',
+        'Assert-BunkFyLocalSensitiveTree',
         'AllowBackupPointProtectedLedger',
         'explicitly allow the backup-point snapshot only for a disposable rehearsal',
         'Assert-BunkFyVolumeArchiveReadable',
@@ -734,6 +857,26 @@ if ($restoreScript.Contains('$expectedCommits', [StringComparison]::Ordinal)) {
 
 Write-Host 'BunkFy preview backup and restore guards are valid.'
 
+$protectPreviewStateScript = Get-Content -LiteralPath (
+    Join-Path $PSScriptRoot 'operations\protect-preview-local-state.ps1') -Raw
+foreach ($requiredToken in @(
+        'Get-BunkFyLocalSensitiveTreeEntries',
+        'Get-BunkFyLocalUnixIdentity',
+        '$script:BunkFyPreviewArchiveUtilityImage',
+        "'--network', 'none'",
+        'chown -R "$1:$2" /state',
+        'find /state -type d -exec chmod 700',
+        'find /state -type f -exec chmod 600',
+        'Assert-BunkFyLocalSensitiveTree')) {
+    if (-not $protectPreviewStateScript.Contains(
+            $requiredToken,
+            [StringComparison]::Ordinal)) {
+        throw "Preview local-state repair guard is missing '$requiredToken'."
+    }
+}
+
+Write-Host 'BunkFy Preview local-state repair policy is valid.'
+
 $previewRecoveryRehearsal = Get-Content -LiteralPath (
     Join-Path $PSScriptRoot 'operations\rehearse-preview-recovery.ps1') -Raw
 foreach ($requiredToken in @(
@@ -741,6 +884,8 @@ foreach ($requiredToken in @(
         'ExpectedManifestSha256',
         'BackendImage',
         'WebImage',
+        'Assert-BunkFyLocalSensitivePath',
+        'Assert-BunkFyLocalSensitiveTree',
         "schemaVersion -ne 4",
         '-AllowBackupPointProtectedLedger',
         '-RemoveFailedTarget',
@@ -1090,6 +1235,7 @@ $previewOnboardingRehearsal = Get-Content -LiteralPath (
     Join-Path $PSScriptRoot 'operations\rehearse-preview-onboarding.ps1') -Raw
 foreach ($requiredToken in @(
         "SupportsShouldProcess = `$true",
+        'Assert-BunkFyLocalSensitivePath',
         '$handler.AllowAutoRedirect = $false',
         '$mailpitHandler.AllowAutoRedirect = $false',
         'ExpectedReleaseId',
