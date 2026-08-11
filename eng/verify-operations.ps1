@@ -310,10 +310,10 @@ foreach ($serviceName in @('api', 'worker')) {
         -not $sourcePathMatches) {
         throw "Preview $serviceName source configuration must retain the tracked read-only engineering policy bind."
     }
-    $sourceBind = $sourcePolicyMount.PSObject.Properties['bind']
-    $createHostPath = if ($null -ne $sourceBind -and
-        $null -ne $sourceBind.Value) {
-        $sourceBind.Value.PSObject.Properties['create_host_path']
+    $resolvedBind = $policyMount.PSObject.Properties['bind']
+    $createHostPath = if ($null -ne $resolvedBind -and
+        $null -ne $resolvedBind.Value) {
+        $resolvedBind.Value.PSObject.Properties['create_host_path']
     }
     else {
         $null
