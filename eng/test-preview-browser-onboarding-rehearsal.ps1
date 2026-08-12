@@ -6,12 +6,13 @@ $operationsPath = Join-Path $PSScriptRoot 'operations'
 $testsPath = Join-Path $PSScriptRoot 'tests'
 $commonPath = Join-Path $operationsPath 'preview-browser-onboarding.common.mjs'
 $driverPath = Join-Path $operationsPath 'rehearse-preview-browser-onboarding.mjs'
+$workspaceAccessContributorPath = Join-Path $operationsPath 'preview-browser-workspace-access-administration.mjs'
 $operatorPath = Join-Path $operationsPath 'rehearse-preview-browser-onboarding.ps1'
 $testPath = Join-Path $testsPath 'preview-browser-onboarding.common.test.mjs'
 $composePath = Join-Path (Join-Path $root 'deploy') 'preview/compose.yaml'
 $environmentPath = '/home/artem/deployments/bunkfy-preview/.env'
 
-foreach ($path in @($commonPath, $driverPath, $operatorPath, $testPath, $composePath)) {
+foreach ($path in @($commonPath, $driverPath, $workspaceAccessContributorPath, $operatorPath, $testPath, $composePath)) {
     if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
         throw "Preview browser rehearsal fixture is missing '$path'."
     }
@@ -30,6 +31,10 @@ if ($LASTEXITCODE -ne 0) {
 if ($LASTEXITCODE -ne 0) {
     throw 'Preview browser onboarding driver has invalid syntax.'
 }
+& node --check $workspaceAccessContributorPath
+if ($LASTEXITCODE -ne 0) {
+    throw 'Preview browser workspace-access contributor has invalid syntax.'
+}
 
 $webPackagePath = Join-Path (Join-Path $root 'apps') 'web/package.json'
 $webPackage = Get-Content -LiteralPath $webPackagePath -Raw |
@@ -42,13 +47,20 @@ if ([string]$webPackage.scripts.'browser:install' -cne 'playwright install chrom
 }
 
 $driver = Get-Content -LiteralPath $driverPath -Raw
+$workspaceAccessContributor = Get-Content -LiteralPath $workspaceAccessContributorPath -Raw
+$browserSources = $driver + "`n" + $workspaceAccessContributor
 foreach ($forbidden in @(
         'screenshot(',
         'recordVideo',
         'tracing.start',
         'trace: ''on''',
-        'video: ''on''')) {
-    if ($driver.Contains($forbidden, [StringComparison]::OrdinalIgnoreCase)) {
+        'video: ''on''',
+        '/api/access-control/',
+        '/api/admin/',
+        'Invoke-Sqlcmd',
+        'NpgsqlConnection',
+        'psql ')) {
+    if ($browserSources.Contains($forbidden, [StringComparison]::OrdinalIgnoreCase)) {
         throw "Preview browser rehearsal enables forbidden artifact '$forbidden'."
     }
 }
@@ -58,10 +70,25 @@ foreach ($required in @(
         'startPreviewWorker(',
         'assertSecretCleared(',
         'removeNonOwnerMembers(',
+        'runPreviewWorkspaceAccessAdministration(',
+        'ensureWorkspaceAccessProfileArchived(',
         'archiveWorkspace(',
         'sanitizedFailure(')) {
     if (-not $driver.Contains($required, [StringComparison]::Ordinal)) {
         throw "Preview browser rehearsal is missing required guard '$required'."
+    }
+}
+foreach ($required in @(
+        '/api/workspace-access/profiles',
+        '/api/workspace-access/members/',
+        '/api/access/permissions/evaluate',
+        '/api/properties/',
+        'custom-role-created-through-browser',
+        'custom-role-reassignment-least-privilege',
+        'custom-role-update-live-permissions',
+        'custom-role-unassigned-and-archived')) {
+    if (-not $workspaceAccessContributor.Contains($required, [StringComparison]::Ordinal)) {
+        throw "Preview browser workspace-access contributor is missing required guard '$required'."
     }
 }
 $tokens = $null
@@ -93,6 +120,8 @@ foreach ($required in @(
         'SupportsShouldProcess = $true',
         'Restore-BrowserRehearsalWorker',
         'Close-BrowserRehearsalMailpit',
+        'IncludeCustomProfileAdministration',
+        'BUNKFY_BROWSER_INCLUDE_CUSTOM_PROFILE_ADMINISTRATION',
         '$process.Kill($true)',
         'Write-BunkFyLocalSensitiveTextFile')) {
     if (-not $operator.Contains($required, [StringComparison]::Ordinal)) {
@@ -115,6 +144,7 @@ assertPreviewCompose(process.argv[1], process.argv[2], 'bunkfy-preview');
         -PublicOrigin 'https://preview.example.test' `
         -ExpectedReleaseId 'preview-browser-fixture' `
         -EnvironmentPath $environmentPath `
+        -IncludeCustomProfileAdministration `
         -WhatIf | Out-Null
     if ($LASTEXITCODE -ne 0) {
         throw 'Preview browser onboarding WhatIf guard failed.'

@@ -60,7 +60,7 @@ trusted-HTTPS rehearsal. Do not run a Docker rehearsal after each edit.
 
 ## Deferred
 
-- Deployment-by-deployment version 2 seed status and bootstrap evidence.
+- Deployment-by-deployment current seed version 4 status and bootstrap evidence.
 - Exhaustive coverage of every permission and workspaces with more than 100
   active custom roles.
 - Real SMTP or external identity-provider delivery and a hosted orchestrator.

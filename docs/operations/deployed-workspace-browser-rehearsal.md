@@ -78,6 +78,13 @@ the default restart path. The generated evidence is scrubbed and cleanup is
 verified, but the three random global Auth identities remain signed out because
 there is no public self-service identity-deletion contract.
 
+Add `-IncludeCustomProfileAdministration` when the candidate must also prove
+the Workspace Access administration path. The owner then creates a property-
+scoped custom role, assigns it to the invitation applicant, verifies API and
+navigation denial, adds reservation visibility, restores the built-in Front
+desk assignment, and archives the unassigned role. The opt-in result and custom
+profile cleanup are recorded in the same scrubbed evidence file.
+
 ## Recipient-Bound Invitation
 
 1. In Workspace settings, issue an invitation for applicant A, the selected

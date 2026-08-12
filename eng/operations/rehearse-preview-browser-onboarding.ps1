@@ -14,6 +14,7 @@ param(
     [string] $OutputPath,
     [switch] $AllowLoopbackHttp,
     [switch] $SkipWorkerRestart,
+    [switch] $IncludeCustomProfileAdministration,
     [switch] $Headed,
     [switch] $Force
 )
@@ -312,6 +313,7 @@ try {
     $startInfo.Environment['BUNKFY_BROWSER_FORCE'] = 'true'
     $startInfo.Environment['BUNKFY_BROWSER_HEADLESS'] = if ($Headed) { 'false' } else { 'true' }
     $startInfo.Environment['BUNKFY_BROWSER_EXERCISE_WORKER_RESTART'] = if ($SkipWorkerRestart) { 'false' } else { 'true' }
+    $startInfo.Environment['BUNKFY_BROWSER_INCLUDE_CUSTOM_PROFILE_ADMINISTRATION'] = if ($IncludeCustomProfileAdministration) { 'true' } else { 'false' }
     $startInfo.Environment['BUNKFY_BROWSER_ALLOW_LOOPBACK_HTTP'] = if ($AllowLoopbackHttp) { 'true' } else { 'false' }
     $startInfo.Environment['BUNKFY_BROWSER_REQUEST_TIMEOUT_MS'] = [string]($RequestTimeoutSeconds * 1000)
     $startInfo.Environment['BUNKFY_BROWSER_CONVERGENCE_TIMEOUT_MS'] = [string]($ConvergenceTimeoutSeconds * 1000)
@@ -395,6 +397,10 @@ if ($null -eq $evidence) {
             stage = 'browser-process'
         }
         registrationAdapters = @()
+        workspaceAccessAdministration = [pscustomobject]@{
+            requested = [bool]$IncludeCustomProfileAdministration
+            result = if ($IncludeCustomProfileAdministration) { 'browser-process-failed' } else { 'not-requested' }
+        }
         browser = [pscustomobject]@{ automaticArtifacts = 'disabled' }
         identities = @()
         identifiers = [pscustomobject]@{}
@@ -403,6 +409,19 @@ if ($null -eq $evidence) {
         checks = @()
         limitations = @(
             'browser-process-did-not-return-a-complete-scrubbed-record')
+    }
+}
+
+$workspaceAccessAdministration = $evidence.PSObject.Properties['workspaceAccessAdministration']
+if ($null -eq $workspaceAccessAdministration -or
+    [bool]$workspaceAccessAdministration.Value.requested -ne [bool]$IncludeCustomProfileAdministration -or
+    ($IncludeCustomProfileAdministration -and
+        [string]$evidence.result -ceq 'passed' -and
+        [string]$workspaceAccessAdministration.Value.result -cne 'passed')) {
+    $evidence.result = 'proof-failed'
+    $evidence.failure = [pscustomobject][ordered]@{
+        code = 'BrowserProcess.WorkspaceAccessContractMismatch'
+        stage = 'browser-process'
     }
 }
 

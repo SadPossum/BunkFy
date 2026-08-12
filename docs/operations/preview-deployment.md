@@ -307,7 +307,9 @@ Repository API probes deliberately do not claim those deployment facts.
 For the self-contained Preview composition, run
 `eng/operations/rehearse-preview-browser-onboarding.ps1` with the exact release
 id and protected environment path. Its default path includes the guarded Worker
-restart; `-SkipWorkerRestart` is diagnostic only.
+restart; `-SkipWorkerRestart` is diagnostic only. Add
+`-IncludeCustomProfileAdministration` for the owner/member custom-role create,
+assignment, permission-convergence, replacement, and archive proof.
 
 For a reversible, two-account proof of product notification projection, actor
 exclusion, individual read state, and the durable SSE feed, use the

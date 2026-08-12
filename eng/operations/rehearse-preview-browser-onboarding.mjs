@@ -23,6 +23,10 @@ import {
   waitForVerificationCode,
   writeEvidence,
 } from "./preview-browser-onboarding.common.mjs";
+import {
+  ensureWorkspaceAccessProfileArchived,
+  runPreviewWorkspaceAccessAdministration,
+} from "./preview-browser-workspace-access-administration.mjs";
 
 const scriptDirectory = dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = resolve(scriptDirectory, "../..");
@@ -49,6 +53,9 @@ const cleanup = {
   browserContexts: "not-opened",
   capturedMail: "managed-by-parent",
   globalIdentities: "not-created",
+  customProfile: configuration.includeCustomProfileAdministration
+    ? "not-created"
+    : "not-requested",
 };
 const identifiers = {
   targetWorkspaceId: null,
@@ -63,6 +70,7 @@ const identifiers = {
   enrollmentClaimId: null,
   enrollmentMembershipId: null,
   enrollmentStaffMemberId: null,
+  customProfileId: null,
 };
 const browserChecks = {
   automaticArtifacts: "disabled",
@@ -91,6 +99,9 @@ let deniedPropertyId = null;
 let workerStopped = false;
 let observedReleaseId = null;
 let registrationAdapters = [];
+let workspaceAccessAdministrationResult = configuration.includeCustomProfileAdministration
+  ? "not-completed"
+  : "not-requested";
 
 try {
   proofStage = "runtime-start";
@@ -235,6 +246,33 @@ try {
   );
   addCheck("recipient-invitation-terminal-replay-stable");
 
+  if (configuration.includeCustomProfileAdministration) {
+    proofStage = "workspace-access-administration";
+    const administration = await runPreviewWorkspaceAccessAdministration({
+      ownerPage,
+      memberPage: invitationPage,
+      api,
+      ownerAccessToken: owner.accessToken,
+      memberAccessToken: invitationApplicant.accessToken,
+      memberSubjectId: invitationOutcome.subjectId,
+      workspaceId: targetWorkspaceId,
+      workspaceName: targetWorkspace.name,
+      allowedPropertyId,
+      allowedPropertyName,
+      deniedPropertyId,
+      batchId,
+      configuration,
+      setStage: (stage) => { proofStage = stage; },
+      setProfileId: (profileId) => {
+        identifiers.customProfileId = profileId;
+        cleanup.customProfile = "active";
+      },
+    });
+    cleanup.customProfile = "archived-by-proof";
+    workspaceAccessAdministrationResult = "passed";
+    for (const name of administration.checks) addCheck(name);
+  }
+
   proofStage = "enrollment-source-browser";
   await openWorkspaceInvites(ownerPage, targetWorkspace.name, "owner-enrollment");
   const enrollmentSource = await issueEnrollmentInBrowser(
@@ -355,6 +393,15 @@ try {
       const removed = await removeNonOwnerMembers(owner, targetWorkspaceId);
       return `removed-${removed}`;
     });
+    if (identifiers.customProfileId) {
+      await attemptCleanup("customProfile", () => ensureWorkspaceAccessProfileArchived({
+        api,
+        ownerAccessToken: owner.accessToken,
+        workspaceId: targetWorkspaceId,
+        profileId: identifiers.customProfileId,
+        configuration,
+      }));
+    }
     await attemptCleanup("properties", async () => {
       const retired = await retireProperties(owner, targetWorkspaceId, [allowedPropertyId, deniedPropertyId]);
       return `retired-${retired}`;
@@ -435,6 +482,10 @@ const evidence = {
   result,
   failure: proofError ? sanitizedFailure(proofError, failedStage ?? proofStage) : null,
   registrationAdapters,
+  workspaceAccessAdministration: {
+    requested: configuration.includeCustomProfileAdministration,
+    result: workspaceAccessAdministrationResult,
+  },
   browser: browserChecks,
   identities: identityEvidence,
   identifiers,
@@ -447,6 +498,9 @@ const evidence = {
     "preview-compose-worker-control-is-not-hosted-orchestrator-proof",
     "synthetic-global-identities-retained-signed-out-no-public-delete-contract",
     "archived-workspaces-and-identifiers-retained-for-audit",
+    ...(configuration.includeCustomProfileAdministration
+      ? []
+      : ["custom-profile-administration-not-exercised"]),
   ],
 };
 
@@ -500,6 +554,10 @@ async function readConfiguration() {
     exerciseWorkerRestart: optionalBooleanEnvironment(
       "BUNKFY_BROWSER_EXERCISE_WORKER_RESTART",
       true,
+    ),
+    includeCustomProfileAdministration: optionalBooleanEnvironment(
+      "BUNKFY_BROWSER_INCLUDE_CUSTOM_PROFILE_ADMINISTRATION",
+      false,
     ),
     requestTimeoutMilliseconds: optionalIntegerEnvironment(
       "BUNKFY_BROWSER_REQUEST_TIMEOUT_MS",
