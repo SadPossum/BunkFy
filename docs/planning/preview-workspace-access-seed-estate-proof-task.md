@@ -20,8 +20,9 @@ tenants from module storage.
 - The operator must use the composed Admin CLI contracts. It must not query
   PostgreSQL, infer tenant identifiers from storage, or couple either module to
   the other module's implementation.
-- Changes to GMA are out of scope unless its existing generic catalog or CLI
-  contract proves insufficient.
+- GMA changes are limited to preserving its existing paged Organizations
+  response envelope in JSON; deployment orchestration and all BunkFy seed
+  semantics remain outside GMA.
 
 ## Current Finding
 
@@ -50,6 +51,10 @@ seeds, but each has one drifted seed and `requiresBackfill=true`.
    after status summaries, and command outcomes. Never retain names, slugs,
    tenant ids, organization ids, credentials, or raw CLI output.
 7. Add focused fixture/static guards and wire them into the operations suite.
+
+GMA Organizations and BunkFy Workspaces must emit their existing paged and
+single-result contracts as typed JSON respectively. Human-readable table output
+remains unchanged.
 
 ## Safety And Failure Semantics
 
