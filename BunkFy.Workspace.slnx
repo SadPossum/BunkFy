@@ -829,6 +829,7 @@
     <File Path="docs/planning/preview-reservations-inventory-rehearsal-task.md" />
     <File Path="docs/planning/preview-runtime-container-hardening-task.md" />
     <File Path="docs/planning/preview-runtime-image-pinning-task.md" />
+    <File Path="docs/planning/preview-state-recovery-proof-task.md" />
     <File Path="docs/planning/production-image-promotion-boundary-task.md" />
   </Folder>
   <Folder Name="/eng/">
