@@ -104,12 +104,19 @@ export async function runPreviewWorkspaceAccessAdministration(context) {
   if (frontDeskAssignment.subjectId !== context.memberSubjectId ||
       !Array.isArray(frontDeskAssignment.assignments) ||
       frontDeskAssignment.assignments.length !== 1 ||
+      !isUuid(frontDesk?.profileId) ||
       frontDesk?.profileKey !== "front-desk" ||
       frontDesk?.propertyId !== context.allowedPropertyId ||
       frontDesk?.profileId === created.profileId) {
     fail("WorkspaceAccess.FrontDeskReplacementMismatch", "workspace-access-reassign-front-desk-browser");
   }
   await waitForProfileState(context, created.profileId, 1, 0);
+  await waitForMemberAccess(
+    context,
+    frontDesk.profileId,
+    "front-desk",
+    context.allowedPropertyId,
+  );
 
   context.setStage("workspace-access-archive-role-browser");
   await openWorkspaceTab(context, context.ownerPage, "Roles", "Roles and permissions");
@@ -139,18 +146,30 @@ export async function runPreviewWorkspaceAccessAdministration(context) {
   );
   await waitForProfileState(context, created.profileId, 2, 0);
 
-  context.setStage("workspace-access-archived-role-unavailable");
+  context.setStage("workspace-access-archived-role-picker-open");
   await reloadWithReleaseGuard(context, context.ownerPage, "workspace-access-archive-refresh");
   await openWorkspaceTab(context, context.ownerPage, "Members", "Workspace members");
   const memberEditor = await openOnlyMemberAccessEditor(context);
   const rolePicker = memberEditor.getByRole("combobox", { name: "Role", exact: true });
-  await rolePicker.filter({ hasText: /^Front desk\b/ }).waitFor({
-    timeout: context.configuration.convergenceTimeoutMilliseconds,
-  });
-  await rolePicker.click();
-  await context.ownerPage.getByRole("option", { name: /^Front desk\b/ }).waitFor({
-    timeout: context.configuration.requestTimeoutMilliseconds,
-  });
+  const frontDeskOptions = context.ownerPage.getByRole("option", { name: /^Front desk\b/ });
+  await pollUntil(
+    async () => {
+      let count = await frontDeskOptions.count();
+      if (count === 0 && await rolePicker.getAttribute("aria-expanded") !== "true") {
+        await rolePicker.click();
+        count = await frontDeskOptions.count();
+      }
+      return count;
+    },
+    (count) => count === 1,
+    {
+      timeoutMilliseconds: context.configuration.convergenceTimeoutMilliseconds,
+      pollIntervalMilliseconds: context.configuration.pollIntervalMilliseconds,
+      code: "WorkspaceAccess.ActiveProfilePickerTimeout",
+      stage: "workspace-access-archived-role-picker-open",
+    },
+  );
+  context.setStage("workspace-access-archived-role-unavailable");
   const archivedOptions = context.ownerPage.getByRole("option", {
     name: new RegExp(`^${escapeRegularExpression(roleName)}\\b`),
   });
@@ -398,6 +417,36 @@ async function waitForProfileState(context, profileId, status, assignmentCount) 
       pollIntervalMilliseconds: context.configuration.pollIntervalMilliseconds,
       code: "WorkspaceAccess.ProfileStateTimeout",
       stage: "workspace-access-profile-state",
+    },
+  );
+}
+
+async function waitForMemberAccess(context, profileId, profileKey, propertyId) {
+  return pollUntil(
+    () => context.api(
+      `/api/workspace-access/members/${encodeURIComponent(context.memberSubjectId)}/access`,
+      {
+        tenantId: context.workspaceId,
+        accessToken: context.ownerAccessToken,
+        expectedStatus: [200, 429],
+        stage: "workspace-access-member-read-convergence",
+      },
+    ),
+    (response) => {
+      const assignments = response.body?.assignments;
+      const assignment = assignments?.[0];
+      return response.status === 200 &&
+        response.body?.subjectId === context.memberSubjectId &&
+        Array.isArray(assignments) && assignments.length === 1 &&
+        assignment?.profileId === profileId &&
+        assignment?.profileKey === profileKey &&
+        assignment?.propertyId === propertyId;
+    },
+    {
+      timeoutMilliseconds: context.configuration.convergenceTimeoutMilliseconds,
+      pollIntervalMilliseconds: context.configuration.pollIntervalMilliseconds,
+      code: "WorkspaceAccess.MemberReadConvergenceTimeout",
+      stage: "workspace-access-member-read-convergence",
     },
   );
 }
