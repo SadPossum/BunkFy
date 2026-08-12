@@ -24,6 +24,7 @@ $scripts = @(
     (Join-Path $PSScriptRoot 'operations\preview-property-processing-fixture.common.ps1'),
     (Join-Path $PSScriptRoot 'operations\preview-sellable-room-fixture.common.ps1'),
     (Join-Path $PSScriptRoot 'operations\rehearse-preview-onboarding.ps1'),
+    (Join-Path $PSScriptRoot 'operations\rehearse-preview-browser-onboarding.ps1'),
     (Join-Path $PSScriptRoot 'operations\rehearse-preview-adapter-host.ps1'),
     (Join-Path $PSScriptRoot 'operations\verify-deployed-adapter-host.ps1'),
     (Join-Path $PSScriptRoot 'operations\verify-deployed-admin-boundary.ps1'),
@@ -43,6 +44,7 @@ $scripts = @(
     (Join-Path $PSScriptRoot 'test-deployed-workspace-enrollment.ps1'),
     (Join-Path $PSScriptRoot 'test-deployed-workspace-invitation.ps1'),
     (Join-Path $PSScriptRoot 'test-preview-mail-capture.ps1'),
+    (Join-Path $PSScriptRoot 'test-preview-browser-onboarding-rehearsal.ps1'),
     (Join-Path $PSScriptRoot 'test-preview-adapter-host-rehearsal.ps1'),
     (Join-Path $PSScriptRoot 'test-preview-property-processing-fixture.ps1'),
     (Join-Path $PSScriptRoot 'test-preview-sellable-room-fixture.ps1'),
@@ -1534,6 +1536,7 @@ foreach ($forbiddenToken in @(
 }
 
 & (Join-Path $PSScriptRoot 'test-preview-mail-capture.ps1')
+& (Join-Path $PSScriptRoot 'test-preview-browser-onboarding-rehearsal.ps1')
 Write-Host 'BunkFy Preview onboarding rehearsal policy is valid.'
 
 $previewPropertyProcessingFixture = Get-Content -LiteralPath (

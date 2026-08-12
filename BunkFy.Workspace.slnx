@@ -865,6 +865,7 @@
     <File Path="eng/test-deployed-workspace-invitation.ps1" />
     <File Path="eng/test-image-candidate-package.ps1" />
     <File Path="eng/test-preview-adapter-host-rehearsal.ps1" />
+    <File Path="eng/test-preview-browser-onboarding-rehearsal.ps1" />
     <File Path="eng/test-preview-mail-capture.ps1" />
     <File Path="eng/test-preview-property-processing-fixture.ps1" />
     <File Path="eng/test-preview-sellable-room-fixture.ps1" />
@@ -886,6 +887,7 @@
     <File Path="eng/operations/deployed-public-edge.common.ps1" />
     <File Path="eng/operations/local-sensitive-state.common.ps1" />
     <File Path="eng/operations/offboard-staff-access.ps1" />
+    <File Path="eng/operations/preview-browser-onboarding.common.mjs" />
     <File Path="eng/operations/preview-mail-capture.common.ps1" />
     <File Path="eng/operations/preview-property-processing-fixture.common.ps1" />
     <File Path="eng/operations/preview-sellable-room-fixture.common.ps1" />
@@ -895,6 +897,8 @@
     <File Path="eng/operations/provision-staff-access.ps1" />
     <File Path="eng/operations/rehearse-deployed-release-rollback.ps1" />
     <File Path="eng/operations/rehearse-preview-adapter-host.ps1" />
+    <File Path="eng/operations/rehearse-preview-browser-onboarding.mjs" />
+    <File Path="eng/operations/rehearse-preview-browser-onboarding.ps1" />
     <File Path="eng/operations/rehearse-preview-onboarding.ps1" />
     <File Path="eng/operations/rehearse-preview-recovery.ps1" />
     <File Path="eng/operations/rehearse-production-migrations.ps1" />
@@ -908,6 +912,9 @@
     <File Path="eng/operations/verify-deployed-workspace-enrollment.ps1" />
     <File Path="eng/operations/verify-deployed-workspace-invitation.ps1" />
     <File Path="eng/operations/verify-preview-isolation.ps1" />
+  </Folder>
+  <Folder Name="/eng/tests/">
+    <File Path="eng/tests/preview-browser-onboarding.common.test.mjs" />
   </Folder>
   <Folder Name="/src/">
     <Project Path="src/BunkFy.AppHost/BunkFy.AppHost.csproj" />
