@@ -1,6 +1,6 @@
 # Preview State Recovery Proof Task
 
-Status: planned
+Status: completed for Preview recovery mechanics
 Date: 2026-08-12
 
 ## Goal
@@ -33,13 +33,37 @@ current committed root or its newer retained audit state.
 
 ## Delivery
 
-- [ ] Create a schema-5 backup from a clean, exact root/backend/web graph.
-- [ ] Verify the source Preview stack returns healthy after backup.
-- [ ] Restore the backup into a disposable isolated Compose project.
-- [ ] Pass public-edge and loopback Admin-boundary checks on the restored target.
-- [ ] Prove exact non-empty Data Protection key-tree continuity.
-- [ ] Remove every isolated container, network, and volume.
-- [ ] Retain the minimized rehearsal record and document its evidence boundary.
+- [x] Create a schema-5 backup from a clean, exact root/backend/web graph.
+- [x] Verify the source Preview stack returns healthy after backup.
+- [x] Restore the backup into a disposable isolated Compose project.
+- [x] Pass public-edge and loopback Admin-boundary checks on the restored target.
+- [x] Prove exact non-empty Data Protection key-tree continuity.
+- [x] Remove every isolated container, network, and volume.
+- [x] Retain the minimized rehearsal record and document its evidence boundary.
+
+## Verification Evidence
+
+- Backup `171f4eb6-0b43-47b6-bc94-25fa974b7afb` is schema 5 with state
+  contract `bunkfy-preview-state` version 2. It binds root `6bb0c6e`, backend
+  `a269085`, web `2583e28`, the running backend/web image IDs, and eight
+  declared state artifacts.
+- The protected backup is retained outside the repository at
+  `/home/artem/deployments/bunkfy-backups/preview-post-domain-20260812T004145Z`.
+  Its manifest SHA-256 is
+  `c4d81aa04434aca10d900dbc1be0b8bb1f0f028423fe957f01c8bd3ac08ee153`.
+- Isolated rehearsal `761fb510-a52b-4a8a-b26b-05f9aefb588f` passed all five
+  checks in 64,926 ms. Minimized local evidence is
+  `.tmp/recovery-rehearsals/preview-761fb510a52b4a8ab26b05f9aefb588f.json`,
+  SHA-256
+  `f3c823cd829412e0fb06536f8d1ecd0cfa77c3116da018b0cc813f4c5a33ee5f`.
+- The restored Data Protection tree contained one file and 1,001 bytes and
+  matched the archived tree exactly. The evidence does not retain its path or
+  content hash.
+- No rehearsal container, volume, or network remained. The source API, web,
+  worker, PostgreSQL, Redis, NATS, MinIO, and Mailpit services returned to their
+  running state; public capabilities returned HTTP `200`.
+- This does not exercise authenticator decryption, an external Admin denial
+  vantage, secret-store recovery, hosted storage, or hosted RPO/RTO.
 
 ## Done When
 
