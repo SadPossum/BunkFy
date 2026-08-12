@@ -1,6 +1,6 @@
 # Preview Workspace Access Administration Proof Task
 
-Status: in progress
+Status: complete
 Date: 2026-08-12
 
 ## Goal
@@ -65,3 +65,23 @@ trusted-HTTPS rehearsal. Do not run a Docker rehearsal after each edit.
   active custom roles.
 - Real SMTP or external identity-provider delivery and a hosted orchestrator.
 - Changes to GMA; the existing generic contracts already cover this proof.
+
+## Outcome
+
+- Exact release `preview-workspace-access-0257a44` passed 22 trusted-HTTPS
+  browser checks with custom-profile administration explicitly enabled.
+- Separate owner and member accounts proved custom-role create/edit, one-property
+  allow/deny, anti-escalation, permission-filtered navigation, exact Front desk
+  replacement, archive, and exclusion from the active assignment picker.
+- The rehearsal exposed and fixed basic select pickers propagating Escape into
+  their containing modal. Web commit `48d290c` now contains Escape consistently
+  for basic and searchable pickers.
+- Evidence is retained locally at
+  `.tmp/deployment-probes/preview-workspace-access-0257a44.json` with SHA-256
+  `2e1d7e1aa087865f0de04999776df1d7ee721f6bfd4e932c872cab741249bc7a`.
+  It contains fingerprints rather than account identifiers and no browser
+  screenshots, traces, video, credentials, or join secrets.
+- Cleanup removed both ordinary memberships, archived the custom role and both
+  synthetic workspaces, retired both properties, revoked all sessions, restored
+  the Worker, and left Mailpit empty with no operator network or browser
+  artifacts.
