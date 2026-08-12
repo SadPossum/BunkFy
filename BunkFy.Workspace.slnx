@@ -832,6 +832,7 @@
     <File Path="docs/planning/preview-runtime-image-pinning-task.md" />
     <File Path="docs/planning/preview-state-recovery-proof-task.md" />
     <File Path="docs/planning/production-image-promotion-boundary-task.md" />
+    <File Path="docs/planning/production-migration-proof-refresh-task.md" />
   </Folder>
   <Folder Name="/eng/">
     <File Path="eng/bootstrap.ps1" />
