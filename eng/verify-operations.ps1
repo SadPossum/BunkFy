@@ -24,6 +24,7 @@ $scripts = @(
     (Join-Path $PSScriptRoot 'operations\preview-property-processing-fixture.common.ps1'),
     (Join-Path $PSScriptRoot 'operations\preview-sellable-room-fixture.common.ps1'),
     (Join-Path $PSScriptRoot 'operations\rehearse-preview-onboarding.ps1'),
+    (Join-Path $PSScriptRoot 'operations\rehearse-preview-adapter-host.ps1'),
     (Join-Path $PSScriptRoot 'operations\verify-deployed-adapter-host.ps1'),
     (Join-Path $PSScriptRoot 'operations\verify-deployed-admin-boundary.ps1'),
     (Join-Path $PSScriptRoot 'operations\verify-deployed-public-edge.ps1'),
@@ -42,6 +43,7 @@ $scripts = @(
     (Join-Path $PSScriptRoot 'test-deployed-workspace-enrollment.ps1'),
     (Join-Path $PSScriptRoot 'test-deployed-workspace-invitation.ps1'),
     (Join-Path $PSScriptRoot 'test-preview-mail-capture.ps1'),
+    (Join-Path $PSScriptRoot 'test-preview-adapter-host-rehearsal.ps1'),
     (Join-Path $PSScriptRoot 'test-preview-property-processing-fixture.ps1'),
     (Join-Path $PSScriptRoot 'test-preview-sellable-room-fixture.ps1'),
     (Join-Path $PSScriptRoot 'test-deployed-retention.ps1'),
@@ -412,6 +414,9 @@ if ($apiEnvironment.DOTNET_ENVIRONMENT -ne 'Preview' -or
     $apiEnvironment.BunkFy__Deployment__Profile -ne 'Preview' -or
     $apiEnvironment.BunkFy__Deployment__ReleaseId -ne 'preview-local') {
     throw 'The preview API must retain its host environment, deployment profile, and release identity.'
+}
+if ($apiEnvironment.Ingestion__AdapterIngress__Enabled -cne 'true') {
+    throw 'The preview API must enable adapter ingress for connection-scoped runtime rehearsals.'
 }
 if ($apiEnvironment.AllowedHosts -cne 'localhost;127.0.0.1' -or
     $apiEnvironment.Http__AllowAnyHost -cne 'false') {
@@ -1472,6 +1477,14 @@ foreach ($requiredToken in @(
         'preview-engineering-country-policy-activated',
         'reservationsInventoryEvidencePath',
         "`$cleanup['reservationsInventoryFixture'] = 'room-retired'",
+        'IncludeAdapterHost',
+        'AdapterHostBackendImage',
+        'rehearse-preview-adapter-host.ps1',
+        'adapter-host-upsert-and-cancellation-proofs-passed',
+        'adapterHostUpsertEvidencePath',
+        'adapterHostCancellationEvidencePath',
+        "`$cleanup['adapterHostRuntime'] = 'removed'",
+        "`$cleanup['adapterHostFixture'] = 'room-retired'",
         '/api/staff/members',
         '/depart',
         '/retire',
@@ -1671,6 +1684,52 @@ foreach ($forbiddenToken in @(
 
 & (Join-Path $PSScriptRoot 'test-deployed-reservations-inventory.ps1')
 Write-Host 'BunkFy deployed Reservations and Inventory probe policy is valid.'
+
+$previewAdapterHostRehearsal = Get-Content -LiteralPath (
+    Join-Path $PSScriptRoot 'operations\rehearse-preview-adapter-host.ps1') -Raw
+foreach ($requiredToken in @(
+        "SupportsShouldProcess = `$true",
+        'BackendImage must be an exact lowercase repository@sha256:<digest> reference.',
+        "DOTNET_ENVIRONMENT = 'Production'",
+        "AdapterHost__CoordinationMode = 'server-lease'",
+        "AdapterHost__ProductionAdmission__Runtime = 'Container'",
+        "AdapterHost__ProductionAdmission__StatusEndpointExposure = 'Disabled'",
+        "AdapterHost__IngressTokenEnvironmentVariable = ''",
+        "AdapterHost__IngressTokenFilePath = '/run/bunkfy-adapter/ingress-token'",
+        '/remote-leases/claim',
+        '-ExpectedStatus 401',
+        'Verify Preview adapter ingress is enabled and independently authenticated',
+        '$startInfo.RedirectStandardInput = $true',
+        "'--read-only'",
+        "'--cap-drop', 'ALL'",
+        "'--security-opt', 'no-new-privileges:true'",
+        "'--publish', '127.0.0.1::8088'",
+        'verify-deployed-adapter-host.ps1',
+        'Waiting for the deployed AdapterHost to ingest the synthetic source record...',
+        "operation = 'upsert'",
+        "operation = 'cancel'",
+        '/disable',
+        '/revoke',
+        'Remove-AdapterVolume',
+        "evidenceKind -cne 'bunkfy-deployed-adapter-host-probe'",
+        'BUNKFY_SMOKE_INGESTION_OPERATOR_TOKEN')) {
+    if (-not $previewAdapterHostRehearsal.Contains($requiredToken, [StringComparison]::Ordinal)) {
+        throw "Preview AdapterHost rehearsal policy is missing '$requiredToken'."
+    }
+}
+foreach ($forbiddenToken in @(
+        'DangerousAcceptAnyServerCertificateValidator',
+        'ServerCertificateCustomValidationCallback',
+        '-SkipCertificateCheck',
+        "'--privileged'",
+        "'--network', 'host'",
+        "AdapterHost__IngressTokenEnvironmentVariable = 'BUNKFY")) {
+    if ($previewAdapterHostRehearsal.Contains($forbiddenToken, [StringComparison]::OrdinalIgnoreCase)) {
+        throw "Preview AdapterHost rehearsal contains forbidden token '$forbiddenToken'."
+    }
+}
+& (Join-Path $PSScriptRoot 'test-preview-adapter-host-rehearsal.ps1')
+Write-Host 'BunkFy Preview AdapterHost rehearsal policy is valid.'
 
 $adapterHostProbe = Get-Content -LiteralPath (
     Join-Path $PSScriptRoot 'operations\verify-deployed-adapter-host.ps1') -Raw

@@ -31,14 +31,34 @@ Deploy the exact candidate with `BUNKFY_EMAIL_CAPTURE_ENABLED=true`, then run:
   -Confirm:$false
 ```
 
-Add `-IncludeOperationsNotifications` or `-IncludeReservationsInventory` to
-provision the corresponding temporary sellable-room fixture and bind that
-deployed child proof into the umbrella. The two contributions may be selected
-together; each owns a separate room and coordinated cleanup result.
+Add `-IncludeOperationsNotifications`, `-IncludeReservationsInventory`, or
+`-IncludeAdapterHost` to provision the corresponding temporary sellable-room
+fixture and bind that deployed child proof into the umbrella. Contributions
+may be selected together; each owns a separate room and coordinated cleanup
+result.
 The Reservations/Inventory contribution first discovers the single current
 engineering/example country policy exposed by Preview, activates it through the
 public Properties contract, and verifies the exact effective binding. This is a
 synthetic processing prerequisite, not production country-policy approval.
+
+The AdapterHost contribution also requires an exact backend image reference and
+the backend source commit admitted by that runtime:
+
+```powershell
+  -IncludeAdapterHost `
+  -AdapterHostBackendImage '<registry>/bunkfy/backend@sha256:<digest>' `
+  -AdapterHostBackendSourceCommitSha '<40-character-backend-commit>'
+```
+
+It creates one short-lived `json.file-drop` RemotePolling connection, starts one
+hardened Production-mode container, and uses the read-only deployed AdapterHost
+probe for an upsert and then a cancellation. Health is published only on a
+random loopback port and `/status` remains disabled. The ingress token is
+written to a Docker-managed material volume over standard input; it is never a
+command argument or retained evidence value.
+Before creating the connection, the child requires a credentialless lease
+claim to return `401`; `503` identifies a disabled or misconfigured ingress
+surface and fails without creating runtime state.
 
 Remote origins must use trusted HTTPS. The environment and Compose files are
 validated before mutation. The script creates its own random `.test`
@@ -62,6 +82,11 @@ After proof, the rehearsal:
 4. signs out every synthetic identity and confirms the old tokens are denied;
 5. recreates Mailpit from the base topology, clearing its tmpfs mailbox and
    removing the loopback port.
+
+When selected, the AdapterHost contribution additionally stops and removes its
+container, disables its connection, revokes its credential, removes both
+runtime volumes, cancels its synthetic reservation, and retires its room before
+the parent property cleanup.
 
 Join-source issuance retries only the explicit access-profile and property
 projection readiness conflicts, preserving the same source id. Any other

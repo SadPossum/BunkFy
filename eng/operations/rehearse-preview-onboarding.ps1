@@ -14,6 +14,9 @@ param(
     [switch] $AllowLoopbackHttp,
     [switch] $IncludeOperationsNotifications,
     [switch] $IncludeReservationsInventory,
+    [switch] $IncludeAdapterHost,
+    [string] $AdapterHostBackendImage,
+    [string] $AdapterHostBackendSourceCommitSha,
     [switch] $Force
 )
 
@@ -54,6 +57,11 @@ Assert-BunkFyLocalSensitivePath `
     -Path $EnvironmentPath `
     -PathType Leaf `
     -Description 'Preview environment'
+if ($IncludeAdapterHost -and
+    ([string]::IsNullOrWhiteSpace($AdapterHostBackendImage) -or
+     $AdapterHostBackendSourceCommitSha -cnotmatch '^[0-9a-f]{40}$')) {
+    throw '-IncludeAdapterHost requires an exact backend image reference and lowercase 40-character backend source commit.'
+}
 
 if ([string]::IsNullOrWhiteSpace($OutputPath)) {
     $stamp = [DateTimeOffset]::UtcNow.ToString(
@@ -72,6 +80,12 @@ $operationsNotificationsEvidencePath = Join-Path `
 $reservationsInventoryEvidencePath = Join-Path `
     $outputDirectory `
     "$outputBaseName.reservations-inventory.json"
+$adapterHostUpsertEvidencePath = Join-Path `
+    $outputDirectory `
+    "$outputBaseName.adapter-host-upsert.json"
+$adapterHostCancellationEvidencePath = Join-Path `
+    $outputDirectory `
+    "$outputBaseName.adapter-host-cancellation.json"
 
 function Assert-RehearsalOutputAvailable {
     param([Parameter(Mandatory = $true)][string] $Path)
@@ -95,6 +109,11 @@ if ($IncludeOperationsNotifications) {
 }
 if ($IncludeReservationsInventory) {
     $evidencePaths += $reservationsInventoryEvidencePath
+}
+if ($IncludeAdapterHost) {
+    $evidencePaths += @(
+        $adapterHostUpsertEvidencePath,
+        $adapterHostCancellationEvidencePath)
 }
 foreach ($path in $evidencePaths) {
     Assert-RehearsalOutputAvailable -Path $path
@@ -199,6 +218,18 @@ $cleanup = [ordered]@{
     else {
         'not-requested'
     }
+    adapterHostFixture = if ($IncludeAdapterHost) {
+        'not-created'
+    }
+    else {
+        'not-requested'
+    }
+    adapterHostRuntime = if ($IncludeAdapterHost) {
+        'not-created'
+    }
+    else {
+        'not-requested'
+    }
     capturedMail = 'not-opened'
     globalIdentities = 'not-created'
 }
@@ -214,6 +245,7 @@ $invitationEvidence = $null
 $enrollmentEvidence = $null
 $operationsNotificationsFixture = $null
 $reservationsInventoryFixture = $null
+$adapterHostFixture = $null
 $proofError = $null
 $proofStage = 'not-started'
 $releaseIdBefore = $null
@@ -1513,6 +1545,91 @@ try {
                 throw $reservationsProofError
             }
         }
+
+        if ($IncludeAdapterHost) {
+            $adapterHostProofError = $null
+            try {
+                $proofStage = 'adapter-host-processing'
+                [void](Enable-BunkFyPreviewEngineeringPropertyProcessing `
+                        -InvokeApi $invokeSellableRoomFixtureApi `
+                        -PropertyId $allowedPropertyId `
+                        -ConvergenceTimeoutSeconds $ConvergenceTimeoutSeconds `
+                        -PollIntervalMilliseconds $PollIntervalMilliseconds)
+
+                $proofStage = 'adapter-host-fixture'
+                $adapterHostFixture = `
+                    New-BunkFyPreviewSellableRoomFixture `
+                        -InvokeApi $invokeSellableRoomFixtureApi `
+                        -PropertyId $allowedPropertyId `
+                        -RoomName "Preview adapter room $batchId" `
+                        -State ([ref]$adapterHostFixture) `
+                        -ConvergenceTimeoutSeconds $ConvergenceTimeoutSeconds `
+                        -PollIntervalMilliseconds $PollIntervalMilliseconds
+                $cleanup['adapterHostFixture'] = 'active-room'
+
+                $proofStage = 'adapter-host-proof'
+                $cleanup['adapterHostRuntime'] = 'active'
+                & (Join-Path $PSScriptRoot 'rehearse-preview-adapter-host.ps1') `
+                    -PublicOrigin $origin `
+                    -ExpectedReleaseId $ExpectedReleaseId `
+                    -WorkspaceId $workspaceId `
+                    -PropertyId $allowedPropertyId `
+                    -InventoryUnitId ([Guid]$adapterHostFixture.InventoryUnitId) `
+                    -BackendImage $AdapterHostBackendImage `
+                    -BackendSourceCommitSha $AdapterHostBackendSourceCommitSha `
+                    -OperatorAccessToken $ownerToken `
+                    -RequestTimeoutSeconds $RequestTimeoutSeconds `
+                    -CycleTimeoutSeconds ([Math]::Max($ConvergenceTimeoutSeconds, 120)) `
+                    -ConvergenceTimeoutSeconds ([Math]::Min($ConvergenceTimeoutSeconds, 300)) `
+                    -PollIntervalMilliseconds $PollIntervalMilliseconds `
+                    -UpsertEvidencePath $adapterHostUpsertEvidencePath `
+                    -CancellationEvidencePath $adapterHostCancellationEvidencePath `
+                    -AllowLoopbackPublicHttp:$AllowLoopbackHttp `
+                    -Force `
+                    -Confirm:$false
+                $cleanup['adapterHostRuntime'] = 'removed'
+                foreach ($adapterHostEvidencePath in @(
+                        $adapterHostUpsertEvidencePath,
+                        $adapterHostCancellationEvidencePath)) {
+                    [void](Read-RehearsalChildEvidence `
+                            -Path $adapterHostEvidencePath `
+                            -ExpectedKind 'bunkfy-deployed-adapter-host-probe' `
+                            -WorkspaceBinding Required)
+                }
+                $checks.Add([ordered]@{
+                        name = 'adapter-host-upsert-and-cancellation-proofs-passed'
+                        status = 'passed'
+                    })
+            }
+            catch {
+                $cleanup['adapterHostRuntime'] = 'failed-review-required'
+                $adapterHostProofError = $_.Exception
+            }
+            finally {
+                if ($null -ne $adapterHostFixture) {
+                    try {
+                        [void](Remove-BunkFyPreviewSellableRoomFixture `
+                                -InvokeApi $invokeSellableRoomFixtureApi `
+                                -Fixture $adapterHostFixture `
+                                -ConvergenceTimeoutSeconds $ConvergenceTimeoutSeconds `
+                                -PollIntervalMilliseconds $PollIntervalMilliseconds)
+                        $cleanup['adapterHostFixture'] = 'room-retired'
+                    }
+                    catch {
+                        $cleanup['adapterHostFixture'] = 'failed'
+                        Add-RehearsalCleanupFailure `
+                            -Name 'adapter-host-fixture' `
+                            -Message 'The synthetic AdapterHost room could not be retired.'
+                        if ($null -eq $adapterHostProofError) {
+                            $adapterHostProofError = $_.Exception
+                        }
+                    }
+                }
+            }
+            if ($null -ne $adapterHostProofError) {
+                throw $adapterHostProofError
+            }
+        }
     }
     finally {
         $ownerToken.Dispose()
@@ -1695,6 +1812,17 @@ if ($IncludeReservationsInventory) {
         Name = 'reservationsInventory'
         Path = $reservationsInventoryEvidencePath
     }
+}
+if ($IncludeAdapterHost) {
+    $childRecords += @(
+        [pscustomobject]@{
+            Name = 'adapterHostUpsert'
+            Path = $adapterHostUpsertEvidencePath
+        },
+        [pscustomobject]@{
+            Name = 'adapterHostCancellation'
+            Path = $adapterHostCancellationEvidencePath
+        })
 }
 foreach ($childRecord in $childRecords) {
     if (-not (Test-Path -LiteralPath $childRecord.Path -PathType Leaf)) {

@@ -14,6 +14,12 @@ synthetic engineering data with `example` approval metadata. It exists so
 Preview can exercise the real fail-closed processing workflow; it is not a
 country launch decision, legal review, or production policy approval.
 
+The Preview API explicitly enables adapter ingress so connection-scoped
+AdapterHost rehearsals use the real independently authenticated endpoints.
+Enabling the surface also activates the Redis-backed distributed quota
+provider required by Production admission; no adapter ingress port is exposed
+outside the existing same-origin API route.
+
 ## Prepare
 
 Requirements: Docker with Compose v2, PowerShell 7, and recursively initialized
@@ -329,6 +335,12 @@ read-only probe before placing one valid synthetic non-PII record in the real
 provider boundary. Complete its separate restart and credential-rotation
 rehearsal before promotion; repository automation cannot attest orchestrator or
 secret-store behavior.
+For a self-contained Preview composition proof, add `-IncludeAdapterHost` plus
+the exact backend image digest and backend source commit to the onboarding
+rehearsal. It launches a transient connection-scoped container rather than a
+static Compose singleton, proves an upsert and cancellation, and removes its
+credential, connection runtime, volumes, reservation, and room before parent
+cleanup.
 
 ## Retention
 

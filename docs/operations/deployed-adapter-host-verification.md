@@ -116,6 +116,25 @@ Keep credentials, source identities, checkpoints, payloads, and raw logs out of
 repository evidence. Promotion requires both probe results and the private
 candidate-specific restart record.
 
+## Preview Composition Rehearsal
+
+`eng/operations/rehearse-preview-adapter-host.ps1` composes this read-only probe
+with a transient Preview-only provider boundary. It requires an exact backend
+`image@sha256:<digest>` reference, starts one Production-admitted container for
+one connection, and waits for the probe's baseline marker before adding each
+synthetic file. The second cycle cancels the reservation created by the first,
+allowing the parent onboarding rehearsal to retire all temporary topology.
+Before creating that connection, it sends a credentialless remote-lease claim
+and requires `401`. A disabled ingress surface returns `503`, so deployment
+configuration drift fails before any rehearsal state is created.
+
+Use the script directly only when a synthetic workspace, active property, and
+sellable inventory unit already exist. The normal operator path is
+`rehearse-preview-onboarding.ps1 -IncludeAdapterHost`, which also owns those
+fixtures and the workspace cleanup. Passing local Preview evidence is not
+retained-candidate admission unless the supplied digest is itself the scanned
+and attested candidate digest.
+
 ## Repository Fixture
 
 `eng/test-deployed-adapter-host.ps1` exercises loopback-only and disabled status

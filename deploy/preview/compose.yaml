@@ -214,6 +214,7 @@ services:
     environment:
       <<: *runtime-environment
       ASPNETCORE_URLS: http://+:8080
+      Ingestion__AdapterIngress__Enabled: "true"
       NatsConsumers__Enabled: "false"
       MessageJournalCleanup__Enabled: "false"
       Auth__Retention__Enabled: "false"

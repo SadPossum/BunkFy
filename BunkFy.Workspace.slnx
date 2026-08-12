@@ -822,6 +822,7 @@
   </Folder>
   <Folder Name="/docs/planning/">
     <File Path="docs/planning/bunkfy-repository-stack-and-workflow-plan.md" />
+    <File Path="docs/planning/preview-adapter-host-rehearsal-task.md" />
     <File Path="docs/planning/preview-deployment-composition-safety-task.md" />
     <File Path="docs/planning/preview-historical-image-restore-task.md" />
     <File Path="docs/planning/preview-local-sensitive-state-permissions-task.md" />
@@ -859,6 +860,7 @@
     <File Path="eng/test-deployed-workspace-enrollment.ps1" />
     <File Path="eng/test-deployed-workspace-invitation.ps1" />
     <File Path="eng/test-image-candidate-package.ps1" />
+    <File Path="eng/test-preview-adapter-host-rehearsal.ps1" />
     <File Path="eng/test-preview-mail-capture.ps1" />
     <File Path="eng/test-preview-property-processing-fixture.ps1" />
     <File Path="eng/test-preview-sellable-room-fixture.ps1" />
@@ -888,6 +890,7 @@
     <File Path="eng/operations/protect-preview-local-state.ps1" />
     <File Path="eng/operations/provision-staff-access.ps1" />
     <File Path="eng/operations/rehearse-deployed-release-rollback.ps1" />
+    <File Path="eng/operations/rehearse-preview-adapter-host.ps1" />
     <File Path="eng/operations/rehearse-preview-onboarding.ps1" />
     <File Path="eng/operations/rehearse-preview-recovery.ps1" />
     <File Path="eng/operations/rehearse-production-migrations.ps1" />
