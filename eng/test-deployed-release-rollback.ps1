@@ -314,14 +314,50 @@ try {
     $server = Start-TestRollbackEdge `
         -FixtureRoot $temporaryRoot `
         -InitialReleaseId $candidateRelease
-    $transition = Start-Job -ScriptBlock {
-        param($StatePath, $RollbackRelease, $CandidateRelease)
-        Start-Sleep -Milliseconds 1500
-        [IO.File]::WriteAllText($StatePath, $RollbackRelease)
-        Start-Sleep -Milliseconds 1500
-        [IO.File]::WriteAllText($StatePath, $CandidateRelease)
-    } -ArgumentList $server.StatePath, $rollbackRelease, $candidateRelease
     $output = Join-Path $temporaryRoot 'passing-evidence'
+    $transition = Start-Job -ScriptBlock {
+        param($StatePath, $RollbackRelease, $CandidateRelease, $OutputDirectory)
+
+        function Wait-ForProbeEvidence {
+            param(
+                [Parameter(Mandatory = $true)][string] $Name,
+                [Parameter(Mandatory = $true)][string] $OutputDirectory
+            )
+
+            $parent = Split-Path -Parent $OutputDirectory
+            $prefix = [IO.Path]::GetFileName($OutputDirectory) + '.tmp-'
+            $deadline = [DateTimeOffset]::UtcNow.AddSeconds(15)
+            while ([DateTimeOffset]::UtcNow -lt $deadline) {
+                foreach ($directory in [IO.Directory]::GetDirectories($parent, "$prefix*")) {
+                    if ([IO.File]::Exists((Join-Path $directory $Name))) {
+                        return
+                    }
+                }
+                Start-Sleep -Milliseconds 50
+            }
+            throw "Timed out waiting for rollback fixture evidence '$Name'."
+        }
+
+        function Set-FixtureRelease {
+            param(
+                [Parameter(Mandatory = $true)][string] $StatePath,
+                [Parameter(Mandatory = $true)][string] $ReleaseId
+            )
+
+            $temporaryPath = "$StatePath.$([Guid]::NewGuid().ToString('N')).tmp"
+            [IO.File]::WriteAllText($temporaryPath, $ReleaseId)
+            [IO.File]::Move($temporaryPath, $StatePath, $true)
+        }
+
+        Wait-ForProbeEvidence `
+            -Name 'candidate-baseline-public-edge.json' `
+            -OutputDirectory $OutputDirectory
+        Set-FixtureRelease -StatePath $StatePath -ReleaseId $RollbackRelease
+        Wait-ForProbeEvidence `
+            -Name 'rollback-public-edge.json' `
+            -OutputDirectory $OutputDirectory
+        Set-FixtureRelease -StatePath $StatePath -ReleaseId $CandidateRelease
+    } -ArgumentList $server.StatePath, $rollbackRelease, $candidateRelease, $output
     try {
         $result = & $rehearsalScript `
             -PublicOrigin $server.Origin `
@@ -338,7 +374,7 @@ try {
             -AllowLoopbackHttp `
             -AllowFixtureEvidence `
             -PassThru
-        [void](Wait-Job $transition -Timeout 10)
+        [void](Wait-Job $transition -Timeout 20)
         if ($transition.State -ne 'Completed') {
             throw 'Rollback fixture transition did not complete.'
         }
