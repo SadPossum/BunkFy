@@ -1543,6 +1543,12 @@ foreach ($requiredToken in @(
         throw "Preview onboarding rehearsal policy is missing '$requiredToken'."
     }
 }
+$propertyProcessingActivationCalls = [regex]::Matches(
+    $previewOnboardingRehearsal,
+    '(?m)^\s*\[void\]\(Enable-BunkFyPreviewEngineeringPropertyProcessing\s*`?$').Count
+if ($propertyProcessingActivationCalls -ne 1) {
+    throw 'Preview onboarding must activate shared room-backed property processing exactly once.'
+}
 $failureEvidenceIndex = $previewOnboardingRehearsal.IndexOf(
     "'proof-failed'",
     [StringComparison]::Ordinal)

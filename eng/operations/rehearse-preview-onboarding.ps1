@@ -1503,20 +1503,22 @@ try {
             }
         }
 
+        if ($IncludeReservationsInventory -or $IncludeAdapterHost) {
+            $proofStage = 'room-backed-domain-processing'
+            [void](Enable-BunkFyPreviewEngineeringPropertyProcessing `
+                    -InvokeApi $invokeSellableRoomFixtureApi `
+                    -PropertyId $allowedPropertyId `
+                    -ConvergenceTimeoutSeconds $ConvergenceTimeoutSeconds `
+                    -PollIntervalMilliseconds $PollIntervalMilliseconds)
+            $checks.Add([ordered]@{
+                    name = 'preview-engineering-country-policy-activated'
+                    status = 'passed'
+                })
+        }
+
         if ($IncludeReservationsInventory) {
             $reservationsProofError = $null
             try {
-                $proofStage = 'reservations-inventory-processing'
-                [void](Enable-BunkFyPreviewEngineeringPropertyProcessing `
-                        -InvokeApi $invokeSellableRoomFixtureApi `
-                        -PropertyId $allowedPropertyId `
-                        -ConvergenceTimeoutSeconds $ConvergenceTimeoutSeconds `
-                        -PollIntervalMilliseconds $PollIntervalMilliseconds)
-                $checks.Add([ordered]@{
-                        name = 'preview-engineering-country-policy-activated'
-                        status = 'passed'
-                    })
-
                 $proofStage = 'reservations-inventory-fixture'
                 $reservationsInventoryFixture = `
                     New-BunkFyPreviewSellableRoomFixture `
@@ -1588,13 +1590,6 @@ try {
         if ($IncludeAdapterHost) {
             $adapterHostProofError = $null
             try {
-                $proofStage = 'adapter-host-processing'
-                [void](Enable-BunkFyPreviewEngineeringPropertyProcessing `
-                        -InvokeApi $invokeSellableRoomFixtureApi `
-                        -PropertyId $allowedPropertyId `
-                        -ConvergenceTimeoutSeconds $ConvergenceTimeoutSeconds `
-                        -PollIntervalMilliseconds $PollIntervalMilliseconds)
-
                 $proofStage = 'adapter-host-fixture'
                 $adapterHostFixture = `
                     New-BunkFyPreviewSellableRoomFixture `
