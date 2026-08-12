@@ -143,7 +143,11 @@ export async function runPreviewWorkspaceAccessAdministration(context) {
   await reloadWithReleaseGuard(context, context.ownerPage, "workspace-access-archive-refresh");
   await openWorkspaceTab(context, context.ownerPage, "Members", "Workspace members");
   const memberEditor = await openOnlyMemberAccessEditor(context);
-  await memberEditor.getByRole("combobox", { name: "Role", exact: true }).click();
+  const rolePicker = memberEditor.getByRole("combobox", { name: "Role", exact: true });
+  await rolePicker.filter({ hasText: /^Front desk\b/ }).waitFor({
+    timeout: context.configuration.convergenceTimeoutMilliseconds,
+  });
+  await rolePicker.click();
   await context.ownerPage.getByRole("option", { name: /^Front desk\b/ }).waitFor({
     timeout: context.configuration.requestTimeoutMilliseconds,
   });
