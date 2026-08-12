@@ -238,13 +238,19 @@ function Get-BunkFyPreviewComposeDefinition {
     param(
         [Parameter(Mandatory = $true)][string] $Root,
         [Parameter(Mandatory = $true)][string] $ComposePath,
-        [Parameter(Mandatory = $true)][string] $EnvironmentPath
+        [Parameter(Mandatory = $true)][string] $EnvironmentPath,
+        [ValidatePattern('^[a-z0-9][a-z0-9._-]{0,63}$')]
+        [string[]] $Profiles = @()
     )
 
+    $arguments = @('compose', '--env-file', $EnvironmentPath, '-f', $ComposePath)
+    foreach ($profile in $Profiles) {
+        $arguments += @('--profile', $profile)
+    }
+    $arguments += @('config', '--format', 'json')
     Push-Location -LiteralPath $Root
     try {
-        $json = @(& docker compose --env-file $EnvironmentPath -f $ComposePath `
-            config --format json)
+        $json = @(& docker @arguments)
         if ($LASTEXITCODE -ne 0) {
             throw 'Unable to resolve the preview Compose configuration.'
         }

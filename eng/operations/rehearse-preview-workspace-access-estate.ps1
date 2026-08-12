@@ -515,7 +515,8 @@ $docker = Get-Command docker -CommandType Application -ErrorAction Stop |
 $composeDefinition = Get-BunkFyPreviewComposeDefinition `
     -Root $root `
     -ComposePath $ComposePath `
-    -EnvironmentPath $EnvironmentPath
+    -EnvironmentPath $EnvironmentPath `
+    -Profiles @('tools')
 $projectName = [string]$composeDefinition.name
 Assert-BunkFyWorkspaceAccessBoundedString `
     -Value $projectName `

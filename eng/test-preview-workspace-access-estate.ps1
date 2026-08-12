@@ -183,6 +183,7 @@ foreach ($required in @(
         'SupportsShouldProcess = $true',
         'Assert-BunkFyPublicApiReleaseIdentity',
         'Get-BunkFyWorkspaceAccessRuntimeImage',
+        "-Profiles @('tools')",
         "'--rm'",
         "'--no-deps'",
         "'-T'",
