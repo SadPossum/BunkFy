@@ -823,6 +823,7 @@
   <Folder Name="/docs/planning/">
     <File Path="docs/planning/bunkfy-repository-stack-and-workflow-plan.md" />
     <File Path="docs/planning/preview-adapter-host-rehearsal-task.md" />
+    <File Path="docs/planning/preview-admin-boundary-proof-task.md" />
     <File Path="docs/planning/preview-deployment-composition-safety-task.md" />
     <File Path="docs/planning/preview-historical-image-restore-task.md" />
     <File Path="docs/planning/preview-local-sensitive-state-permissions-task.md" />
