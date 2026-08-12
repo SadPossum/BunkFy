@@ -1,6 +1,6 @@
 # Preview Trusted HTTPS Browser Onboarding Proof Task
 
-Status: in progress
+Status: completed
 Date: 2026-08-12
 
 ## Goal
@@ -42,6 +42,27 @@ the existing loopback browser proof and the new trusted-HTTPS API domain proof.
   tokens, verification codes, join tokens, QR payloads, storage state, traces,
   screenshots, videos, or captured message bodies.
 - A cleanup failure or changed release blocks the proof.
+
+## Outcome
+
+- Release `preview-browser-https-1f3fd75` passed all 18 browser checks through
+  `https://213.109.163.152` with trusted TLS and continuous release identity.
+- Chromium `151.0.7922.34` completed password registration, captured email
+  verification, invitation continuation and replay, Team QR rendering, pending
+  denial, approval, and one-time convergence after a guarded Worker restart.
+- The default Front desk plan allowed the intended property and denied the
+  second property plus Staff management for both separate applicants.
+- Worker restart convergence was 727 ms. Cleanup removed two non-owner
+  memberships, retired two properties, archived both synthetic workspaces,
+  revoked all three sessions, closed browser contexts without artifacts, and
+  restored the Worker.
+- Mailpit finished unpublished and empty. The evidence file is operator-only and
+  contains no sensitive key or email value:
+  `.tmp/deployment-probes/preview-browser-https-1f3fd75.json`, SHA-256
+  `cd74bd932ea3fecb8ce7b7d93cb4e69dfec91811d4c9502d2b82c859637813da`.
+- Password registration was enabled and passed through captured Preview mail;
+  external identity providers were explicitly disabled. Real-provider and
+  hosted-orchestrator evidence therefore remain open.
 
 ## Deferred
 
