@@ -1,6 +1,6 @@
 # Preview Coherent Domain Proof Task
 
-Status: in progress
+Status: completed
 Date: 2026-08-12
 
 ## Goal
@@ -50,6 +50,37 @@ records as one candidate evidence set.
 - Verify child transports, release/workspace binding, checksums, private file
   modes, cleanup, Mailpit state, and residual Docker topology.
 - Retain the evidence boundary and record concrete outcomes before closure.
+
+## Outcome
+
+- The first diagnostic run exposed a stale synthetic room-retirement request;
+  cleanup now supplies explicit confirmation and the fixture rejects an invalid
+  confirmation body (`a24165b`).
+- The next diagnostic run exposed duplicate Properties processing activation
+  when Reservations/Inventory and AdapterHost were selected together. The
+  umbrella now owns one shared activation and guards against duplicate calls
+  (`fe565f2`).
+- The trusted-HTTPS rehearsal passed 14 checks against release
+  `preview-coherent-fe565f2`. Retention passed 7 checks, invitation 8, QR
+  enrollment 9, Operations Notifications 10, Reservations/Inventory 11, and
+  both AdapterHost upsert and cancellation records passed 8 checks.
+- AdapterHost used backend source commit
+  `c8d8b35e0b990e530f744b6016742a659e8ce704` and exact local image digest
+  `sha256:385009586303fa71cd79e11f1a9a2027de25214c5adb9914322d64b3057bf1cf`.
+- The retained umbrella is
+  `.tmp/deployment-probes/preview-coherent-fe565f2.json`, SHA-256
+  `8da92ce378d39daebf3d8fdb7c894ed08468bb500979bff8c136e6391a72e949`.
+  Its seven child hashes match, all eight records are operator-only, and no
+  secret-like keys or email addresses were retained.
+- Final cleanup removed both non-owner memberships, retired all three room
+  fixtures and both properties, archived the workspace, revoked every session,
+  removed the AdapterHost container and volumes, and left Mailpit unpublished
+  and empty. The Worker remains on the backend network only.
+- The first failed diagnostic archived its synthetic workspace and revoked its
+  sessions, but could not retire one room-backed property after the stale
+  request failed. That quarantined record is not admission evidence and remains
+  subject to the normal archived-tenant lifecycle; no direct data-store repair
+  was used.
 
 ## Deferred
 

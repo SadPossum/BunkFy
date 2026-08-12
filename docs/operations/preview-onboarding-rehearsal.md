@@ -42,10 +42,11 @@ Add `-IncludeOperationsNotifications`, `-IncludeReservationsInventory`,
 `-IncludeRetention`, or `-IncludeAdapterHost` to bind the corresponding
 deployed child proof into the umbrella. Contributions may be selected together;
 room-backed contributions own separate fixtures and coordinated cleanup.
-The Reservations/Inventory contribution first discovers the single current
-engineering/example country policy exposed by Preview, activates it through the
-public Properties contract, and verifies the exact effective binding. This is a
-synthetic processing prerequisite, not production country-policy approval.
+When Reservations/Inventory or AdapterHost is selected, the umbrella first
+discovers the single current engineering/example country policy exposed by
+Preview, activates it once through the public Properties contract, and verifies
+the exact effective binding. The room-backed contributors share this synthetic
+processing prerequisite; it is not production country-policy approval.
 
 The Retention contribution captures a UTC lower bound before workspace
 creation, then uses only the public read contract to prove that both asserted
