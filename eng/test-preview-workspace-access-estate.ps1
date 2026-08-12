@@ -15,6 +15,21 @@ foreach ($path in @($commonPath, $operatorPath, $composePath)) {
 . (Join-Path $PSScriptRoot 'operations/local-sensitive-state.common.ps1')
 . $commonPath
 
+$processResult = @(
+    Invoke-BunkFyWorkspaceAccessProcess `
+        -FilePath (Get-Process -Id $PID).Path `
+        -Arguments @('-NoProfile', '-Command', "[Console]::Out.Write('contract')") `
+        -WorkingDirectory $root `
+        -TimeoutSeconds 5 `
+        -Description 'Workspace access process contract fixture')
+if ($processResult.Count -ne 1 -or
+    @($processResult[0].PSObject.Properties.Name).Count -ne 3 -or
+    $processResult[0].ExitCode -ne 0 -or
+    $processResult[0].StandardOutput -cne 'contract' -or
+    -not [string]::IsNullOrEmpty($processResult[0].StandardError)) {
+    throw 'Workspace access process helper leaked output outside its closed result contract.'
+}
+
 function Assert-Rejected {
     param(
         [Parameter(Mandatory = $true)][scriptblock] $Action,
@@ -31,6 +46,21 @@ function Assert-Rejected {
     if (-not $rejected) {
         throw "$Description was not rejected."
     }
+}
+
+$timeoutStartedAt = [DateTimeOffset]::UtcNow
+Assert-Rejected `
+    -Description 'Workspace access process timeout' `
+    -Action {
+        Invoke-BunkFyWorkspaceAccessProcess `
+            -FilePath (Get-Process -Id $PID).Path `
+            -Arguments @('-NoProfile', '-Command', 'Start-Sleep -Seconds 10') `
+            -WorkingDirectory $root `
+            -TimeoutSeconds 1 `
+            -Description 'Workspace access timeout fixture'
+    }
+if (([DateTimeOffset]::UtcNow - $timeoutStartedAt).TotalSeconds -ge 5) {
+    throw 'Workspace access process timeout did not terminate its child promptly.'
 }
 
 function New-CatalogFixture {

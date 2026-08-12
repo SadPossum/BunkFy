@@ -6,6 +6,72 @@ $script:BunkFyWorkspaceAccessSeedVersion = 4
 $script:BunkFyWorkspaceAccessSeedProfileCount = 4
 $script:BunkFyWorkspaceAccessMaximumJsonBytes = 1MB
 
+function Invoke-BunkFyWorkspaceAccessProcess {
+    param(
+        [Parameter(Mandatory = $true)][string] $FilePath,
+        [Parameter(Mandatory = $true)][AllowEmptyCollection()][string[]] $Arguments,
+        [Parameter(Mandatory = $true)][string] $WorkingDirectory,
+        [Parameter(Mandatory = $true)][int] $TimeoutSeconds,
+        [Parameter(Mandatory = $true)][string] $Description
+    )
+
+    $startInfo = [Diagnostics.ProcessStartInfo]::new()
+    $startInfo.FileName = $FilePath
+    $startInfo.WorkingDirectory = $WorkingDirectory
+    $startInfo.UseShellExecute = $false
+    $startInfo.CreateNoWindow = $true
+    $startInfo.RedirectStandardOutput = $true
+    $startInfo.RedirectStandardError = $true
+    foreach ($argument in $Arguments) {
+        [void]$startInfo.ArgumentList.Add($argument)
+    }
+
+    $process = [Diagnostics.Process]::new()
+    $process.StartInfo = $startInfo
+    $cancellation = [Threading.CancellationTokenSource]::new(
+        [TimeSpan]::FromSeconds($TimeoutSeconds))
+    try {
+        if (-not $process.Start()) {
+            throw "$Description could not be started."
+        }
+        $stdoutTask = $process.StandardOutput.ReadToEndAsync()
+        $stderrTask = $process.StandardError.ReadToEndAsync()
+        $timedOut = $false
+        try {
+            [void]$process.WaitForExitAsync($cancellation.Token).GetAwaiter().GetResult()
+        }
+        catch [OperationCanceledException] {
+            $timedOut = $true
+            if (-not $process.HasExited) {
+                [void]$process.Kill($true)
+            }
+            [void]$process.WaitForExit()
+        }
+
+        $stdout = $stdoutTask.GetAwaiter().GetResult()
+        $stderr = $stderrTask.GetAwaiter().GetResult()
+        if ($timedOut) {
+            throw "$Description exceeded the $TimeoutSeconds-second timeout."
+        }
+        if ([Text.Encoding]::UTF8.GetByteCount($stdout) -gt
+            $script:BunkFyWorkspaceAccessMaximumJsonBytes -or
+            [Text.Encoding]::UTF8.GetByteCount($stderr) -gt
+            $script:BunkFyWorkspaceAccessMaximumJsonBytes) {
+            throw "$Description exceeded the bounded output size."
+        }
+
+        return [pscustomobject]@{
+            ExitCode = $process.ExitCode
+            StandardOutput = $stdout
+            StandardError = $stderr
+        }
+    }
+    finally {
+        [void]$cancellation.Dispose()
+        [void]$process.Dispose()
+    }
+}
+
 function Assert-BunkFyWorkspaceAccessExactProperties {
     param(
         [Parameter(Mandatory = $true)][object] $Value,
