@@ -226,6 +226,7 @@ function Remove-BunkFyPreviewSellableRoomFixture {
             -Method 'POST' `
             -Body @{
                 operationId = [Guid]::NewGuid()
+                confirmed = $true
                 reason = 'Preview sellable-room fixture cleanup'
             } `
             -Operation 'Request preview sellable-room fixture retirement'

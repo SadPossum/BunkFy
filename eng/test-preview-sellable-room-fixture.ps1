@@ -71,6 +71,12 @@ $invokeApi = {
         }
     }
     if ($Method -ceq 'POST' -and $Path.EndsWith('/retirement', [StringComparison]::Ordinal)) {
+        if (-not $Body.ContainsKey('confirmed') -or
+            -not [bool]$Body.confirmed -or
+            [Guid]$Body.operationId -eq [Guid]::Empty -or
+            [string]$Body.reason -cne 'Preview sellable-room fixture cleanup') {
+            throw 'Fixture room retirement used an invalid confirmation body.'
+        }
         return [pscustomobject]@{
             topologyChangeId = $topologyChangeId
             propertyId = $propertyId

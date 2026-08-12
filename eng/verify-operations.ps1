@@ -1620,6 +1620,7 @@ foreach ($requiredToken in @(
         '/sales-mode',
         '/retirement',
         'room-retirements',
+        'confirmed = $true',
         "-Name 'roomLevel'",
         "-Name 'completed'")) {
     if (-not $previewSellableRoomFixture.Contains(
