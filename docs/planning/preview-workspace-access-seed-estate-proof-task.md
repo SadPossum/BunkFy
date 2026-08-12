@@ -1,6 +1,6 @@
 # Preview Workspace Access Seed Estate Proof Task
 
-Status: in progress
+Status: completed for the Preview deployment estate
 Date: 2026-08-12
 
 ## Goal
@@ -80,3 +80,28 @@ rehearsal while correcting failures.
 - Automatic bootstrap during application startup.
 - Production admission policy for deployment classes beyond Preview.
 - Any product-domain work outside Workspace Access.
+
+## Outcome
+
+The exact-release rehearsal
+`preview-workspace-access-estate-651107f` completed on 2026-08-12. The
+authorized Organizations catalog contained 81 workspaces: 3 active and 78
+archived. All three active workspaces started on seed version 4 with four
+active profiles and one drifted profile; the operator bootstrapped each one
+without migrating legacy members, then reread all three as fully converged.
+The catalog fingerprint remained stable throughout the run.
+
+The deployed API and transient Admin CLI resolved to the same backend image,
+all transient containers were removed, and the public web and API retained the
+expected release identity. The passing private evidence is stored locally at
+`.tmp/deployment-probes/preview-workspace-access-estate-651107f-passed.json`
+with mode `0600` and SHA-256
+`33dea3decd98fa95708a08e74e272e75efe83c9c39f6e8fd71158bc45f115edd`.
+It contains only aggregate state and one-way workspace fingerprints; an audit
+found no tenant ids, names, slugs, UUID values, credentials, or raw CLI output.
+
+The full operations gate passed once before the live rehearsal. A focused
+fixture subsequently caught and closed a PowerShell process-result leak before
+tenant mutation; it now proves a single closed result object and prompt child
+termination on timeout. Hosted fleet orchestration and production classes
+beyond Preview remain deferred rather than implied by this evidence.
