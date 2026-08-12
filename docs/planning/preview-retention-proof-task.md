@@ -1,6 +1,6 @@
 # Preview Retention Proof Task
 
-Status: in progress
+Status: completed
 Date: 2026-08-12
 
 ## Goal
@@ -56,3 +56,24 @@ without an Admin trigger or direct data-store mutation.
   restart drill.
 - Production admission still requires approved policy and private operational
   references in addition to this public engineering evidence.
+
+## Outcome
+
+- Commit `eb4580a` added schema-v2 baseline/lower-bound evidence, strict
+  production-admission validation, Preview composition, and deterministic race
+  and stale-completion fixtures. Commit `f0c4922` moved every PowerShell
+  deployed probe onto the shared atomic operator-only evidence writer.
+- Exact release `preview-retention-f0c4922` passed the umbrella Preview rehearsal:
+  Retention 7/7, invitation 8/8, enrollment 9/9, and parent 10/10 checks.
+- The fresh workspace projected six healthy schedules. Both asserted Ingestion
+  runs completed after the pre-provisioning lower bound with zero remaining
+  backlog and continuous release identity.
+- Parent and child evidence is retained under
+  `.tmp/deployment-probes/preview-onboarding-retention-f0c4922*.json`. All four
+  files are mode `0600`, and every child SHA-256 matches the parent record.
+- Cleanup removed two non-owner memberships, retired two properties, archived
+  the workspace, revoked all sessions, and purged Mailpit. Final inspection
+  found an empty unpublished Mailpit, a running Worker on the backend network,
+  and no management network.
+- `eng/verify-operations.ps1` passed after the final implementation. Backend,
+  GMA Framework, and GMA Skeleton code were not changed by this slice.
