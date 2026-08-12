@@ -304,6 +304,10 @@ proves owner rejection and approval for reusable QR enrollment. Complete the
 the same candidate to verify registration adapters, mail or identity-provider
 delivery, redirect continuity, QR rendering, and Worker restart recovery.
 Repository API probes deliberately do not claim those deployment facts.
+For the self-contained Preview composition, run
+`eng/operations/rehearse-preview-browser-onboarding.ps1` with the exact release
+id and protected environment path. Its default path includes the guarded Worker
+restart; `-SkipWorkerRestart` is diagnostic only.
 
 For a reversible, two-account proof of product notification projection, actor
 exclusion, individual read state, and the durable SSE feed, use the

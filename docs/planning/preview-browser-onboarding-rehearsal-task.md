@@ -1,6 +1,6 @@
 # Preview Browser Onboarding Rehearsal Task
 
-Status: planned
+Status: completed
 Date: 2026-08-12
 
 ## Goal
@@ -73,3 +73,27 @@ boundaries or retaining join credentials.
 - retained evidence contains no reusable credential or personal data; and
 - the runbook distinguishes this proof from real-provider and hosted-network
   evidence that still must be captured privately before launch.
+
+## Outcome
+
+Release `preview-browser-onboarding-5741666` passed all 18 checks in both the
+non-disruptive diagnostic and the guarded Worker-restart rehearsal. The retained
+private proof is
+`.tmp/deployment-probes/preview-browser-onboarding-5741666.json`; its cleanup
+record confirms two non-owner memberships removed, two properties retired,
+both synthetic workspaces archived, all three browser identities signed out,
+the Worker restored, browser contexts closed without artifacts, and captured
+mail purged before the loopback operator window closed.
+
+The implementation also recovered a product failure exposed by the rehearsal:
+an approved browser could remain on `/join` when the access-readiness request
+was temporarily rate limited. BunkFy Web now preserves bounded `Retry-After`
+guidance, retries only the known readiness responses, and offers an explicit
+activation retry after either invitation or Team QR membership succeeds.
+
+This is local Preview composition evidence. It does not prove real SMTP
+delivery, an external OIDC callback, a remote HTTPS ingress, or a hosted
+orchestrator restart. Before multi-tenant Production admission, review the
+current IP-partitioned sensitive limit: read-only enrollment polling shares the
+same 60-request window as mutations, so unrelated users behind one NAT can
+delay onboarding even though the UI now recovers correctly.

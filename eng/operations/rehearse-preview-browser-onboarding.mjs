@@ -244,16 +244,18 @@ try {
   identifiers.enrollmentSourceId = enrollmentSource.sourceId;
   addCheck("team-qr-rendered");
 
-  proofStage = "enrollment-existing-account-entry";
+  proofStage = "enrollment-existing-account-sign-in";
   enrollmentContext = await newBrowserContext();
   const enrollmentPage = await enrollmentContext.newPage();
   const enrollmentLogin = await signIn(enrollmentPage, enrollmentApplicant);
   enrollmentApplicant.accessToken = enrollmentLogin.accessToken;
+  proofStage = "enrollment-existing-account-back-navigation";
   await openAndBackOutOfEnrollment(
     enrollmentPage,
     enrollmentSource,
     homeWorkspace.name,
   );
+  proofStage = "enrollment-existing-account-submit";
   const pendingEnrollment = await submitEnrollmentInBrowser(
     enrollmentPage,
     enrollmentSource,
@@ -288,9 +290,14 @@ try {
     cleanup.worker = `restored-${workerState}`;
     browserChecks.workerRestartConvergenceMilliseconds = Date.now() - restartStartedAt;
   }
-  addCheck("worker-stopped-approval-remained-denied");
+  addCheck(configuration.exerciseWorkerRestart
+    ? "worker-stopped-approval-remained-denied"
+    : "running-worker-approval-remained-denied");
 
-  proofStage = "enrollment-restart-convergence";
+  proofStage = "enrollment-browser-convergence";
+  await waitForDashboard(enrollmentPage, targetWorkspace.name);
+
+  proofStage = "enrollment-api-convergence";
   const enrollmentOutcome = await waitForProvisionedAccess(
     enrollmentApplicant,
     targetWorkspaceId,
@@ -301,11 +308,9 @@ try {
     approval.membershipId,
   );
   identifiers.enrollmentStaffMemberId = enrollmentOutcome.staffMemberId;
-  await enrollmentPage.waitForURL(
-    (url) => url.origin === configuration.publicOrigin.origin && url.pathname === "/" && !url.hash,
-    { timeout: configuration.convergenceTimeoutMilliseconds },
-  );
-  addCheck("worker-restart-converged-once");
+  addCheck(configuration.exerciseWorkerRestart
+    ? "worker-restart-converged-once"
+    : "running-worker-converged-once");
 
   proofStage = "enrollment-terminal-replay";
   await replayEnrollmentInBrowser(
@@ -586,6 +591,7 @@ async function registerAndVerifyIdentity(identity) {
   await pollUntil(
     () => api("/api/auth/methods", {
       accessToken: identity.accessToken,
+      expectedStatus: [200, 429],
       stage: `wait-verified-email-${identity.role}`,
     }),
     (response) => {
@@ -680,7 +686,7 @@ async function createProperty(identity, workspaceId, name, code) {
     () => api(`/api/properties/${propertyId}`, {
       tenantId: workspaceId,
       accessToken: identity.accessToken,
-      expectedStatus: [200, 404],
+      expectedStatus: [200, 404, 429],
       stage: `wait-property-${code}`,
     }),
     (candidate) => candidate.status === 200 &&
@@ -697,10 +703,13 @@ async function waitForWorkspace(identity, workspaceId, expectedStatus) {
       const items = await listAll(
         (page) => api(`/api/organizations?page=${page}&pageSize=100`, {
           accessToken: identity.accessToken,
+          expectedStatus: [200, 429],
           stage: `list-workspaces-${identity.role}`,
         }),
         `list-workspaces-${identity.role}`,
+        true,
       );
+      if (items === null) return null;
       return items.find((item) => item?.organization?.organizationId === workspaceId) ?? null;
     },
     (candidate) => candidate?.organization?.status === expectedStatus,
@@ -713,7 +722,7 @@ async function waitForCurrentStaff(identity, workspaceId) {
     () => api("/api/staff/me", {
       tenantId: workspaceId,
       accessToken: identity.accessToken,
-      expectedStatus: [200, 404],
+      expectedStatus: [200, 404, 429],
       stage: `wait-current-staff-${identity.role}`,
     }),
     (candidate) => candidate.status === 200 && isUuid(candidate.body?.staffMemberId),
@@ -736,10 +745,11 @@ function isUuid(value) {
     /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }
 
-async function listAll(loadPage, stage) {
+async function listAll(loadPage, stage, allowRateLimited = false) {
   const items = [];
   for (let page = 1; page <= 100; page += 1) {
     const response = await loadPage(page);
+    if (allowRateLimited && response.status === 429) return null;
     if (!Array.isArray(response.body?.items)) fail("Api.InvalidPage", stage);
     items.push(...response.body.items);
     if (response.body.hasMore !== true) return items;
@@ -1034,15 +1044,33 @@ async function replayInvitationInBrowser(page, source, identity, original) {
 }
 
 async function openAndBackOutOfEnrollment(page, source, homeWorkspaceName) {
+  proofStage = "enrollment-back-link-capture";
   await openJoinLink(page, source, "enrollment-back-link-capture");
+  proofStage = "enrollment-back-heading";
   await page.getByRole("heading", { name: /^Join / }).waitFor({
     timeout: configuration.requestTimeoutMilliseconds,
   });
-  await page.getByRole("button", { name: "Back to BunkFy", exact: true }).click();
+  proofStage = "enrollment-back-control";
+  const backControls = page.locator('button[aria-label="Back to BunkFy"]');
+  const backControlCount = await backControls.count();
+  if (backControlCount === 0) {
+    fail("Browser.BackControlMissing", proofStage);
+  }
+  if (backControlCount !== 1) {
+    fail("Browser.BackControlAmbiguous", proofStage);
+  }
+  try {
+    await backControls.click();
+  } catch (error) {
+    if (error?.name === "TimeoutError") throw error;
+    fail("Browser.BackControlActivationFailed", proofStage);
+  }
+  proofStage = "enrollment-back-url";
   await page.waitForURL(
     (url) => url.origin === configuration.publicOrigin.origin && url.pathname === "/" && !url.hash,
     { timeout: configuration.requestTimeoutMilliseconds },
   );
+  proofStage = "enrollment-back-workspace-selector";
   const workspaceSelector = page.getByRole("combobox", {
     name: "Current workspace",
     exact: true,
@@ -1054,14 +1082,18 @@ async function openAndBackOutOfEnrollment(page, source, homeWorkspaceName) {
   if (!selectedWorkspace?.includes(homeWorkspaceName)) {
     fail("Browser.BackDidNotReturnToExistingWorkspace", "enrollment-back-navigation");
   }
+  proofStage = "enrollment-back-secret-clearance";
   await assertSecretCleared(page, source.token, "enrollment-back-navigation");
 }
 
 async function submitEnrollmentInBrowser(page, source, identity, targetWorkspace) {
+  proofStage = "enrollment-submit-link-capture";
   await openJoinLink(page, source, "enrollment-link-capture");
+  proofStage = "enrollment-submit-heading";
   await page.getByRole("heading", { name: `Join ${targetWorkspace.name}`, exact: true }).waitFor({
     timeout: configuration.requestTimeoutMilliseconds,
   });
+  proofStage = "enrollment-submit-profile";
   identity.displayName = "Preview enrollment browser applicant";
   await page.getByLabel("Display name", { exact: true }).fill(identity.displayName);
   await page.getByLabel("Work email (optional)", { exact: true }).fill(identity.email);
@@ -1083,6 +1115,7 @@ async function submitEnrollmentInBrowser(page, source, identity, targetWorkspace
     "enrollment-browser-claim",
     configuration.convergenceTimeoutMilliseconds,
   );
+  proofStage = "enrollment-submit-request";
   await page.getByRole("button", { name: "Request access", exact: true }).click();
   const [applicationResponse, claimResponse] = await Promise.all([applicationPromise, claimPromise]);
   const application = await readBoundedJson(
@@ -1101,6 +1134,7 @@ async function submitEnrollmentInBrowser(page, source, identity, targetWorkspace
       !isUuid(claim?.claim?.claimId) || claim?.claim?.status !== "pending" || claim?.membership !== null) {
     fail("Browser.InvalidPendingEnrollment", "enrollment-browser-claim");
   }
+  proofStage = "enrollment-submit-confirmation";
   await page.getByRole("heading", { name: "Request sent", exact: true }).waitFor({
     timeout: configuration.requestTimeoutMilliseconds,
   });
@@ -1390,6 +1424,7 @@ async function assertPendingAccessDenied(identity, workspaceId, propertyId) {
     method: "POST",
     tenantId: workspaceId,
     accessToken: identity.accessToken,
+    expectedStatus: [200, 403],
     data: {
       checks: [
         { permission: "properties.read", scope: propertyScope },
@@ -1399,6 +1434,7 @@ async function assertPendingAccessDenied(identity, workspaceId, propertyId) {
     },
     stage: "pending-policy-evaluation",
   });
+  if (evaluation.status === 403) return;
   for (const candidate of evaluation.body?.permissions ?? []) {
     if (candidate?.allowed !== false) {
       fail("Access.PendingPermissionGranted", "pending-policy-evaluation");
@@ -1425,6 +1461,7 @@ async function waitForProvisionedAccess(
         `?sourceKind=${sourceKind}&sourceId=${sourceId}`,
       {
         accessToken: identity.accessToken,
+        expectedStatus: [200, 429],
         stage: "wait-onboarding-application",
       },
     ),
@@ -1444,6 +1481,7 @@ async function waitForProvisionedAccess(
       method: "POST",
       tenantId: workspaceId,
       accessToken: identity.accessToken,
+      expectedStatus: [200, 429],
       data: {
         checks: [
           { permission: "properties.read", scope: allowedScope },
@@ -1490,7 +1528,7 @@ async function waitForProvisionedAccess(
     () => api(`/api/workspace-access/members/${encodedSubject}/access`, {
       tenantId: workspaceId,
       accessToken: owner.accessToken,
-      expectedStatus: [200, 404],
+      expectedStatus: [200, 404, 429],
       stage: "verify-owner-visible-assignment",
     }),
     (response) => response.status === 200 &&
@@ -1679,7 +1717,7 @@ async function revokeIdentitySessions(identity) {
   await pollUntil(
     () => api("/api/auth/methods", {
       accessToken: identity.accessToken,
-      expectedStatus: [200, 401],
+      expectedStatus: [200, 401, 429],
       responseType: "body",
       stage: `verify-session-revocation-${identity.role}`,
     }),

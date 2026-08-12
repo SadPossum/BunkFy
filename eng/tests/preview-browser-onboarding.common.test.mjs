@@ -12,6 +12,7 @@ import {
   optionalIntegerEnvironment,
   parseMailpitOrigin,
   parsePublicOrigin,
+  resolvePollDelayMilliseconds,
   sanitizedFailure,
   writeEvidence,
 } from "../operations/preview-browser-onboarding.common.mjs";
@@ -50,6 +51,40 @@ test("environment parsing is closed and bounded", () => {
     () => optionalIntegerEnvironment("COUNT", 2, 1, 5, { COUNT: "6" }),
     ProofFailure,
   );
+});
+
+test("convergence polling honors bounded Retry-After responses", () => {
+  const now = Date.parse("2026-08-12T02:00:00Z");
+  assert.equal(resolvePollDelayMilliseconds(
+    { status: 429, headers: { "retry-after": "7" } },
+    500,
+    30_000,
+    now,
+  ), 7_000);
+  assert.equal(resolvePollDelayMilliseconds(
+    { status: 429, headers: { "retry-after": "Wed, 12 Aug 2026 02:00:12 GMT" } },
+    500,
+    30_000,
+    now,
+  ), 12_000);
+  assert.equal(resolvePollDelayMilliseconds(
+    { status: 429, headers: { "retry-after": "120" } },
+    500,
+    30_000,
+    now,
+  ), 30_000);
+  assert.equal(resolvePollDelayMilliseconds(
+    { status: 429, headers: { "retry-after": "invalid" } },
+    500,
+    30_000,
+    now,
+  ), 500);
+  assert.equal(resolvePollDelayMilliseconds(
+    { status: 200, headers: { "retry-after": "7" } },
+    500,
+    30_000,
+    now,
+  ), 500);
 });
 
 test("synthetic evidence uses fingerprints and sanitized failures", () => {

@@ -59,6 +59,25 @@ variables, or secure prompts. Do not put credentials on a command line.
 Each mutation-bearing verifier needs an applicant that is not yet a member of
 the target workspace; do not reuse the identity joined by the first probe.
 
+For the self-contained Preview composition, the guarded browser rehearsal
+creates its own synthetic identities, workspaces, properties, invitation, and
+one-use Team QR. It temporarily opens Mailpit on a random loopback port and
+stops/restarts only the exact Preview Worker:
+
+```powershell
+./eng/operations/rehearse-preview-browser-onboarding.ps1 `
+  -PublicOrigin http://127.0.0.1:8080 `
+  -ExpectedReleaseId '<exact-release-id>' `
+  -EnvironmentPath /protected/bunkfy-preview/.env `
+  -AllowLoopbackHttp `
+  -Confirm:$false
+```
+
+Use `-SkipWorkerRestart` only for diagnosis. A release-bound result requires
+the default restart path. The generated evidence is scrubbed and cleanup is
+verified, but the three random global Auth identities remain signed out because
+there is no public self-service identity-deletion contract.
+
 ## Recipient-Bound Invitation
 
 1. In Workspace settings, issue an invitation for applicant A, the selected
@@ -86,10 +105,12 @@ the target workspace; do not reuse the identity joined by the first probe.
    Staff form, and submit. The applicant must remain denied target-workspace
    access while approval is pending.
 3. In the owner's browser, confirm exactly one pending request appears with the
-   submitted Staff summary. Reject it and confirm applicant B sees the terminal
-   rejection without target access.
-4. Issue a fresh one-use Team QR link and submit it as applicant B. Stop the
-   candidate Worker through the approved deployment control before approving.
+   submitted Staff summary. A separate rejection rehearsal may reject it and
+   prove the terminal denial; the automated restart proof proceeds with the
+   same pending claim to avoid creating a second applicant.
+4. For the approval path, use a fresh one-use Team QR when the rejection path
+   was exercised. Stop the candidate Worker through the approved deployment
+   control before approving.
 5. Approve in the owner browser. While the Worker is stopped, no partial access
    may appear. Start the same candidate Worker and confirm the request converges
    once to the intended Staff profile and property-scoped access.

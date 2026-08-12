@@ -282,9 +282,46 @@ export async function pollUntil(action, predicate, {
   while (Date.now() < deadline) {
     last = await action();
     if (await predicate(last)) return last;
-    await delay(pollIntervalMilliseconds);
+    const remainingMilliseconds = deadline - Date.now();
+    if (remainingMilliseconds <= 0) break;
+    await delay(Math.min(
+      resolvePollDelayMilliseconds(
+        last,
+        pollIntervalMilliseconds,
+        timeoutMilliseconds,
+      ),
+      remainingMilliseconds,
+    ));
   }
   fail(code, stage);
+}
+
+export function resolvePollDelayMilliseconds(
+  candidate,
+  fallbackMilliseconds,
+  maximumMilliseconds,
+  nowMilliseconds = Date.now(),
+) {
+  if (candidate?.status !== 429) return fallbackMilliseconds;
+  const raw = candidate?.headers?.["retry-after"]?.trim();
+  if (!raw) return fallbackMilliseconds;
+
+  let requestedMilliseconds;
+  if (/^[0-9]+$/.test(raw)) {
+    requestedMilliseconds = Number(raw) * 1_000;
+  } else {
+    const retryAt = Date.parse(raw);
+    requestedMilliseconds = Number.isFinite(retryAt)
+      ? retryAt - nowMilliseconds
+      : Number.NaN;
+  }
+  if (!Number.isFinite(requestedMilliseconds) || requestedMilliseconds <= 0) {
+    return fallbackMilliseconds;
+  }
+  return Math.max(
+    fallbackMilliseconds,
+    Math.min(requestedMilliseconds, maximumMilliseconds),
+  );
 }
 
 export function runCompose(composePath, environmentPath, args, stage) {

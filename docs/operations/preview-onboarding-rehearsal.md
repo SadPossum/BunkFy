@@ -18,6 +18,13 @@ internals. Mailpit capture proves the Preview composition, not real-provider
 delivery, sender-domain authentication, suppression behavior, or inbox
 placement.
 
+Use the sibling
+[Preview browser onboarding rehearsal](deployed-workspace-browser-rehearsal.md)
+when the release gate also needs rendered QR, signed-out registration
+continuity, existing-account Back behavior, browser redirect convergence, and
+a guarded Worker restart. The API umbrella and browser rehearsal are separate
+evidence records and should use fresh synthetic identities.
+
 ## Run
 
 Deploy the exact candidate with `BUNKFY_EMAIL_CAPTURE_ENABLED=true`, then run:
