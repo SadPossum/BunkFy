@@ -4,6 +4,7 @@ param(
     [ValidatePattern('^[a-z0-9][a-z0-9._-]{2,127}$')]
     [string] $ExpectedReleaseId,
     [Parameter(Mandatory = $true)][Guid] $WorkspaceId,
+    [Nullable[DateTimeOffset]] $CompletionNotBeforeUtc,
     [Security.SecureString] $ReaderAccessToken,
     [ValidateRange(1, 60)][int] $RequestTimeoutSeconds = 15,
     [ValidateRange(30, 7200)][int] $CycleTimeoutSeconds = 4500,
@@ -26,6 +27,16 @@ $origin = Assert-BunkFyPublicEdgeOrigin `
     -AllowLoopbackHttp:$AllowLoopbackHttp
 if ($WorkspaceId -eq [Guid]::Empty) {
     throw 'WorkspaceId must not be an empty GUID.'
+}
+$completionLowerBound = if ($null -eq $CompletionNotBeforeUtc) {
+    $null
+}
+else {
+    ([DateTimeOffset]$CompletionNotBeforeUtc).ToUniversalTime()
+}
+if ($null -ne $completionLowerBound -and
+    $completionLowerBound -gt [DateTimeOffset]::UtcNow.AddSeconds($ClockSkewSeconds)) {
+    throw 'CompletionNotBeforeUtc cannot be in the future beyond the configured clock skew.'
 }
 
 if ([string]::IsNullOrWhiteSpace($OutputPath)) {
@@ -208,6 +219,48 @@ function Get-ExpectedSchedule {
     return $matches[0]
 }
 
+function Test-ExpectedCataloguePresent {
+    param([Parameter(Mandatory = $true)][object] $Snapshot)
+
+    foreach ($expected in $expectedSchedules) {
+        $matches = @($Snapshot.Items | Where-Object {
+                [string]$_.ownerKey -ceq [string]$expected.OwnerKey -and
+                [string]$_.dataClassKey -ceq [string]$expected.DataClassKey -and
+                [int]$_.targetScopeKind -eq [int]$expected.TargetScopeKind -and
+                $null -eq $_.propertyId -and
+                [int]$_.executionPolicyVersion -eq
+                    [int]$expected.ExecutionPolicyVersion
+            })
+        if ($matches.Count -gt 1) {
+            throw "Expected Retention schedule '$($expected.OwnerKey).$($expected.DataClassKey).v$($expected.ExecutionPolicyVersion)' was duplicated."
+        }
+        if ($matches.Count -eq 0) {
+            return $false
+        }
+    }
+    return $true
+}
+
+function Test-ExpectedSchedulesCompletedAfter {
+    param(
+        [Parameter(Mandatory = $true)][object] $Snapshot,
+        [Parameter(Mandatory = $true)][DateTimeOffset] $LowerBound
+    )
+
+    $minimumCompletion = $LowerBound.AddSeconds(-$ClockSkewSeconds)
+    foreach ($expected in $expectedSchedules) {
+        $schedule = Get-ExpectedSchedule -Snapshot $Snapshot -Expected $expected
+        if ([int]$schedule.status -ne 3 -or
+            $null -eq $schedule.lastRunId -or
+            [Guid]$schedule.lastRunId -eq [Guid]::Empty -or
+            $null -eq $schedule.lastCompletedAtUtc -or
+            [DateTimeOffset]$schedule.lastCompletedAtUtc -lt $minimumCompletion) {
+            return $false
+        }
+    }
+    return $true
+}
+
 function Assert-ExpectedCatalogue {
     param([Parameter(Mandatory = $true)][object] $Snapshot)
 
@@ -281,7 +334,20 @@ try {
         -Origin $origin `
         -ExpectedReleaseId $ExpectedReleaseId `
         -TimeoutSeconds $RequestTimeoutSeconds
-    $baseline = Get-SmokeRetentionSnapshot
+    $cycleStartedAt = [DateTimeOffset]::UtcNow
+    $deadline = $cycleStartedAt.AddSeconds($CycleTimeoutSeconds)
+    if ($null -eq $completionLowerBound) {
+        $baseline = Get-SmokeRetentionSnapshot
+    }
+    else {
+        do {
+            $baseline = Get-SmokeRetentionSnapshot
+            if (Test-ExpectedCataloguePresent -Snapshot $baseline) {
+                break
+            }
+            Start-Sleep -Milliseconds $PollIntervalMilliseconds
+        } while ([DateTimeOffset]::UtcNow -lt $deadline)
+    }
     Assert-ExpectedCatalogue -Snapshot $baseline
     [void]$checks.Add([ordered]@{
             name = 'retention-catalogue-present'
@@ -312,9 +378,26 @@ try {
     }
     $baselineWasRunning = [int]$baselineObserved.status -eq 2
     $baselineCapturedAt = [DateTimeOffset]::UtcNow
-    $deadline = $baselineCapturedAt.AddSeconds($CycleTimeoutSeconds)
-    Write-Host 'Waiting for the deployed Retention scheduler to complete the next raw-source-evidence occurrence...'
-    if (-not $baselineWasRunning) {
+    if ($null -ne $completionLowerBound -and
+        (Test-ExpectedSchedulesCompletedAfter `
+            -Snapshot $baseline `
+            -LowerBound $completionLowerBound) -and
+        [int]$baseline.Summary.running -eq 0 -and
+        [int]$baseline.Summary.needsAttention -eq 0) {
+        $finalSnapshot = $baseline
+    }
+    else {
+        $waitDescription = if ($null -eq $completionLowerBound) {
+            'the next raw-source-evidence occurrence'
+        }
+        else {
+            'every required occurrence after the supplied lower bound'
+        }
+        Write-Host "Waiting for the deployed Retention scheduler to complete $waitDescription..."
+    }
+    if ($null -eq $finalSnapshot -and
+        $null -eq $completionLowerBound -and
+        -not $baselineWasRunning) {
         $wakeAt = ([DateTimeOffset]$baselineObserved.nextDueAtUtc).AddSeconds(
             -$ClockSkewSeconds)
         if ($wakeAt -ge $deadline) {
@@ -325,37 +408,57 @@ try {
             Start-Sleep -Milliseconds ([int][Math]::Floor($initialDelay.TotalMilliseconds))
         }
     }
-    do {
-        $candidate = Get-SmokeRetentionSnapshot
-        Assert-ExpectedCatalogue -Snapshot $candidate
-        $candidateObserved = Get-ExpectedSchedule `
-            -Snapshot $candidate `
-            -Expected $observedSchedule
-        $candidateRunId = if ($null -eq $candidateObserved.lastRunId) {
-            [Guid]::Empty
-        }
-        else {
-            [Guid]$candidateObserved.lastRunId
-        }
-        $eligibleIdentity = $candidateRunId -ne [Guid]::Empty -and (
-            $candidateRunId -ne $baselineRunId -or
-            ($baselineWasRunning -and $candidateRunId -eq $baselineRunId))
-        if ($eligibleIdentity -and [int]$candidateObserved.status -in @(4, 5)) {
-            throw 'The observed Retention occurrence completed blocked or failed.'
-        }
-        if ($eligibleIdentity -and
-            [int]$candidateObserved.status -eq 3 -and
-            $null -ne $candidateObserved.lastCompletedAtUtc -and
-            [DateTimeOffset]$candidateObserved.lastCompletedAtUtc -ge
-                $baselineCapturedAt.AddSeconds(-$ClockSkewSeconds)) {
-            $finalSnapshot = $candidate
-            break
-        }
-        Start-Sleep -Milliseconds $PollIntervalMilliseconds
-    } while ([DateTimeOffset]::UtcNow -lt $deadline)
+    if ($null -eq $finalSnapshot) {
+        do {
+            $candidate = Get-SmokeRetentionSnapshot
+            Assert-ExpectedCatalogue -Snapshot $candidate
+            $failedSchedules = @($candidate.Items | Where-Object {
+                    [int]$_.status -in @(4, 5)
+                })
+            if ($failedSchedules.Count -gt 0) {
+                throw 'A Retention occurrence completed blocked or failed.'
+            }
+            $candidateObserved = Get-ExpectedSchedule `
+                -Snapshot $candidate `
+                -Expected $observedSchedule
+            $candidateRunId = if ($null -eq $candidateObserved.lastRunId) {
+                [Guid]::Empty
+            }
+            else {
+                [Guid]$candidateObserved.lastRunId
+            }
+            $eligible = if ($null -eq $completionLowerBound) {
+                $candidateRunId -ne [Guid]::Empty -and
+                ($candidateRunId -ne $baselineRunId -or
+                 ($baselineWasRunning -and $candidateRunId -eq $baselineRunId)) -and
+                [int]$candidateObserved.status -eq 3 -and
+                $null -ne $candidateObserved.lastCompletedAtUtc -and
+                [DateTimeOffset]$candidateObserved.lastCompletedAtUtc -ge
+                    $baselineCapturedAt.AddSeconds(-$ClockSkewSeconds)
+            }
+            else {
+                (Test-ExpectedSchedulesCompletedAfter `
+                    -Snapshot $candidate `
+                    -LowerBound $completionLowerBound) -and
+                [int]$candidate.Summary.running -eq 0 -and
+                [int]$candidate.Summary.needsAttention -eq 0
+            }
+            if ($eligible) {
+                $finalSnapshot = $candidate
+                break
+            }
+            Start-Sleep -Milliseconds $PollIntervalMilliseconds
+        } while ([DateTimeOffset]::UtcNow -lt $deadline)
+    }
 
     if ($null -eq $finalSnapshot) {
-        throw 'No new terminal raw-source-evidence Retention occurrence was observed before the timeout.'
+        $timeoutDescription = if ($null -eq $completionLowerBound) {
+            'No new terminal raw-source-evidence Retention occurrence was observed before the timeout.'
+        }
+        else {
+            'Not every required Retention occurrence completed after the supplied lower bound before the timeout.'
+        }
+        throw $timeoutDescription
     }
     [void]$checks.Add([ordered]@{
             name = 'automatic-retention-occurrence-observed'
@@ -410,7 +513,7 @@ $expectedEvidence = foreach ($expected in $expectedSchedules) {
     }
 }
 $evidence = [ordered]@{
-    schemaVersion = 1
+    schemaVersion = 2
     evidenceKind = 'bunkfy-deployed-retention-probe'
     generatedAtUtc = [DateTimeOffset]::UtcNow.ToString('O')
     publicOrigin = $origin.GetLeftPart([UriPartial]::Authority)
@@ -420,6 +523,29 @@ $evidence = [ordered]@{
     workspaceId = $WorkspaceId.ToString('D')
     observedDataClassKey = [string]$observedSchedule.DataClassKey
     catalogueCount = [int]$finalSnapshot.Summary.total
+    observation = [ordered]@{
+        mode = if ($null -eq $completionLowerBound) {
+            'next-occurrence-after-baseline'
+        }
+        else {
+            'completed-after-lower-bound'
+        }
+        baselineCapturedAtUtc = $baselineCapturedAt.ToString('O')
+        completionNotBeforeUtc = if ($null -eq $completionLowerBound) {
+            $null
+        }
+        else {
+            $completionLowerBound.ToString('O')
+        }
+        baselineObservedRunId = if ($baselineRunId -eq [Guid]::Empty) {
+            $null
+        }
+        else {
+            $baselineRunId.ToString('D')
+        }
+        baselineObservedRunning = $baselineWasRunning
+        clockSkewSeconds = $ClockSkewSeconds
+    }
     schedules = @($expectedEvidence)
     checks = @($checks)
     limitations = @(

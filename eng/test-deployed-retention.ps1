@@ -20,15 +20,25 @@ $fixture = [pscustomobject]@{
     RawObservedStarted = $now.AddSeconds(-3).ToString('O')
     RawObservedCompleted = $now.AddSeconds(-2).ToString('O')
     RawObservedNextDue = $now.AddMinutes(59).ToString('O')
-    SensitiveStarted = $now.AddHours(-2).AddMinutes(-1).ToString('O')
-    SensitiveCompleted = $now.AddHours(-2).ToString('O')
-    SensitiveNextDue = $now.AddHours(4).ToString('O')
+    SensitiveStarted = $now.AddSeconds(-4).ToString('O')
+    SensitiveCompleted = $now.AddSeconds(-3).ToString('O')
+    SensitiveNextDue = $now.AddHours(6).ToString('O')
+    SensitiveStaleStarted = $now.AddMinutes(-31).ToString('O')
+    SensitiveStaleCompleted = $now.AddMinutes(-30).ToString('O')
+    SensitiveStaleNextDue = $now.AddHours(5).AddMinutes(30).ToString('O')
 }
 
 function Start-BunkFyRetentionFixtureServer {
     param(
         [Parameter(Mandatory = $true)]
-        [ValidateSet('valid', 'missing-catalogue', 'cross-workspace-leak', 'backlog')]
+        [ValidateSet(
+            'valid',
+            'fresh-baseline',
+            'partial-first-run',
+            'stale-completion',
+            'missing-catalogue',
+            'cross-workspace-leak',
+            'backlog')]
         [string] $Mode
     )
 
@@ -92,6 +102,9 @@ function Start-BunkFyRetentionFixtureServer {
                 nextDueAtUtc = if ($Advanced) {
                     $Fixture.RawObservedNextDue
                 }
+                elseif ($Mode -ceq 'stale-completion') {
+                    ([DateTimeOffset]::UtcNow.AddHours(1)).ToString('O')
+                }
                 else {
                     $Fixture.RawBaselineNextDue
                 }
@@ -111,6 +124,8 @@ function Start-BunkFyRetentionFixtureServer {
         }
 
         function New-SensitiveSchedule {
+            param([Parameter(Mandatory = $true)][bool] $Advanced)
+
             return [ordered]@{
                 ownerKey = 'ingestion'
                 dataClassKey = 'sensitive-reservation-history'
@@ -119,9 +134,24 @@ function Start-BunkFyRetentionFixtureServer {
                 executionPolicyVersion = 1
                 status = 3
                 lastRunId = $Fixture.SensitiveRunId
-                lastStartedAtUtc = $Fixture.SensitiveStarted
-                lastCompletedAtUtc = $Fixture.SensitiveCompleted
-                nextDueAtUtc = $Fixture.SensitiveNextDue
+                lastStartedAtUtc = if ($Advanced) {
+                    $Fixture.SensitiveStarted
+                }
+                else {
+                    $Fixture.SensitiveStaleStarted
+                }
+                lastCompletedAtUtc = if ($Advanced) {
+                    $Fixture.SensitiveCompleted
+                }
+                else {
+                    $Fixture.SensitiveStaleCompleted
+                }
+                nextDueAtUtc = if ($Advanced) {
+                    $Fixture.SensitiveNextDue
+                }
+                else {
+                    $Fixture.SensitiveStaleNextDue
+                }
                 overdue = $false
                 consecutiveFailures = 0
                 lastScannedCount = 0
@@ -133,12 +163,15 @@ function Start-BunkFyRetentionFixtureServer {
         }
 
         function New-ScheduleResponse {
-            param([Parameter(Mandatory = $true)][bool] $Advanced)
+            param(
+                [Parameter(Mandatory = $true)][bool] $Advanced,
+                [Parameter(Mandatory = $true)][bool] $SensitiveAdvanced
+            )
 
             $items = [Collections.Generic.List[object]]::new()
             [void]$items.Add((New-RawSchedule -Advanced $Advanced))
             if ($Mode -cne 'missing-catalogue') {
-                [void]$items.Add((New-SensitiveSchedule))
+                [void]$items.Add((New-SensitiveSchedule -Advanced $SensitiveAdvanced))
             }
             return [ordered]@{
                 items = $items.ToArray()
@@ -163,9 +196,9 @@ function Start-BunkFyRetentionFixtureServer {
             $requestCount = 0
             $done = $false
             $workflowComplete = $false
-            $inactivityDeadline = [DateTimeOffset]::UtcNow.AddSeconds(15)
+            $inactivityDeadline = [DateTimeOffset]::UtcNow.AddSeconds(40)
             while (-not $done -and
-                $requestCount -lt 10 -and
+                $requestCount -lt 100 -and
                 [DateTimeOffset]::UtcNow -lt $inactivityDeadline) {
                 if (-not $listener.Pending()) {
                     Start-Sleep -Milliseconds 25
@@ -242,7 +275,9 @@ function Start-BunkFyRetentionFixtureServer {
                     $tenantId = [string]$headers['X-Tenant-Id']
                     if ($tenantId -cne $Fixture.WorkspaceId) {
                         if ($Mode -ceq 'cross-workspace-leak') {
-                            $body = New-ScheduleResponse -Advanced $false |
+                            $body = New-ScheduleResponse `
+                                -Advanced $false `
+                                -SensitiveAdvanced $false |
                                 ConvertTo-Json -Depth 12 -Compress
                             Write-FixtureResponse `
                                 -Stream $stream `
@@ -262,14 +297,32 @@ function Start-BunkFyRetentionFixtureServer {
                     }
 
                     $targetReadCount++
-                    $body = New-ScheduleResponse -Advanced ($targetReadCount -gt 1) |
+                    $advanced = $Mode -cne 'stale-completion' -and (
+                        $Mode -in @(
+                            'fresh-baseline',
+                            'partial-first-run') -or
+                        $targetReadCount -gt 1)
+                    $sensitiveAdvanced = $Mode -cne 'stale-completion' -and (
+                        $Mode -cne 'partial-first-run' -or
+                        $targetReadCount -gt 1)
+                    $body = New-ScheduleResponse `
+                        -Advanced $advanced `
+                        -SensitiveAdvanced $sensitiveAdvanced |
                         ConvertTo-Json -Depth 12 -Compress
                     Write-FixtureResponse `
                         -Stream $stream `
                         -Status 200 `
                         -Reason 'OK' `
                         -Body $body
-                    if ($Mode -in @('valid', 'backlog') -and $targetReadCount -ge 2) {
+                    if ($Mode -in @(
+                            'valid',
+                            'partial-first-run',
+                            'backlog') -and
+                        $targetReadCount -ge 2) {
+                        $workflowComplete = $true
+                    }
+                    elseif ($Mode -ceq 'fresh-baseline' -and
+                        $targetReadCount -ge 1) {
                         $workflowComplete = $true
                     }
                 }
@@ -336,26 +389,39 @@ function Stop-BunkFyRetentionFixtureServer {
 function Invoke-BunkFyRetentionFixtureProbe {
     param(
         [Parameter(Mandatory = $true)]
-        [ValidateSet('valid', 'missing-catalogue', 'cross-workspace-leak', 'backlog')]
+        [ValidateSet(
+            'valid',
+            'fresh-baseline',
+            'partial-first-run',
+            'stale-completion',
+            'missing-catalogue',
+            'cross-workspace-leak',
+            'backlog')]
         [string] $Mode,
-        [Parameter(Mandatory = $true)][string] $OutputPath
+        [Parameter(Mandatory = $true)][string] $OutputPath,
+        [Nullable[DateTimeOffset]] $CompletionNotBeforeUtc
     )
 
     $server = $null
     try {
         $server = Start-BunkFyRetentionFixtureServer -Mode $Mode
         $token = ConvertTo-SecureString $fixture.ReaderToken -AsPlainText -Force
-        & $probeScript `
-            -PublicOrigin $server.Origin `
-            -ExpectedReleaseId $fixture.ReleaseId `
-            -WorkspaceId $fixture.WorkspaceId `
-            -ReaderAccessToken $token `
-            -RequestTimeoutSeconds 5 `
-            -CycleTimeoutSeconds 30 `
-            -PollIntervalMilliseconds 500 `
-            -ClockSkewSeconds 120 `
-            -OutputPath $OutputPath `
-            -AllowLoopbackHttp
+        $arguments = @{
+            PublicOrigin = $server.Origin
+            ExpectedReleaseId = $fixture.ReleaseId
+            WorkspaceId = $fixture.WorkspaceId
+            ReaderAccessToken = $token
+            RequestTimeoutSeconds = 5
+            CycleTimeoutSeconds = 30
+            PollIntervalMilliseconds = 500
+            ClockSkewSeconds = 120
+            OutputPath = $OutputPath
+            AllowLoopbackHttp = $true
+        }
+        if ($null -ne $CompletionNotBeforeUtc) {
+            $arguments.CompletionNotBeforeUtc = $CompletionNotBeforeUtc
+        }
+        & $probeScript @arguments
         Complete-BunkFyRetentionFixtureServer -Server $server
         $server = $null
     }
@@ -369,12 +435,14 @@ try {
     Invoke-BunkFyRetentionFixtureProbe -Mode valid -OutputPath $validOutput
     $evidence = Get-Content -LiteralPath $validOutput -Raw |
         ConvertFrom-Json -Depth 12
-    if ($evidence.schemaVersion -ne 1 -or
+    if ($evidence.schemaVersion -ne 2 -or
         $evidence.evidenceKind -cne 'bunkfy-deployed-retention-probe' -or
         $evidence.result -cne 'passed' -or
         $evidence.releaseId -cne $fixture.ReleaseId -or
         @($evidence.checks).Count -ne 7 -or
         @($evidence.schedules).Count -ne 2 -or
+        $evidence.observation.mode -cne 'next-occurrence-after-baseline' -or
+        $null -ne $evidence.observation.completionNotBeforeUtc -or
         [Guid]$evidence.schedules[0].lastRunId -ne
             [Guid]$fixture.RawObservedRunId) {
         throw 'The valid Retention fixture produced invalid evidence.'
@@ -387,6 +455,55 @@ try {
         if ($evidenceText.Contains($sensitive, [StringComparison]::OrdinalIgnoreCase)) {
             throw 'Retention evidence retained a credential or request header.'
         }
+    }
+
+    $freshOutput = Join-Path $fixtureRoot 'fresh-completion-evidence.json'
+    $completionLowerBound = $now.AddMinutes(-5)
+    Invoke-BunkFyRetentionFixtureProbe `
+        -Mode fresh-baseline `
+        -OutputPath $freshOutput `
+        -CompletionNotBeforeUtc $completionLowerBound
+    $freshEvidence = Get-Content -LiteralPath $freshOutput -Raw |
+        ConvertFrom-Json -Depth 12
+    if ($freshEvidence.schemaVersion -ne 2 -or
+        $freshEvidence.observation.mode -cne 'completed-after-lower-bound' -or
+        [DateTimeOffset]$freshEvidence.observation.completionNotBeforeUtc -ne
+            $completionLowerBound -or
+        [Guid]$freshEvidence.schedules[0].lastRunId -ne
+            [Guid]$fixture.RawObservedRunId) {
+        throw 'The Retention probe did not bind a valid first-completion lower bound.'
+    }
+
+    $partialOutput = Join-Path $fixtureRoot 'partial-first-run-evidence.json'
+    Invoke-BunkFyRetentionFixtureProbe `
+        -Mode partial-first-run `
+        -OutputPath $partialOutput `
+        -CompletionNotBeforeUtc $completionLowerBound
+    $partialEvidence = Get-Content -LiteralPath $partialOutput -Raw |
+        ConvertFrom-Json -Depth 12
+    if ($partialEvidence.observation.mode -cne 'completed-after-lower-bound' -or
+        [Guid]$partialEvidence.schedules[0].lastRunId -ne
+            [Guid]$fixture.RawObservedRunId -or
+        [Guid]$partialEvidence.schedules[1].lastRunId -ne
+            [Guid]$fixture.SensitiveRunId) {
+        throw 'The Retention probe did not wait for a partial first-run catalogue to converge.'
+    }
+
+    $staleOutput = Join-Path $fixtureRoot 'stale-completion-evidence.json'
+    $staleRejected = $false
+    try {
+        Invoke-BunkFyRetentionFixtureProbe `
+            -Mode stale-completion `
+            -OutputPath $staleOutput `
+            -CompletionNotBeforeUtc $completionLowerBound
+    }
+    catch {
+        $staleRejected = $_.Exception.Message.Contains(
+            'completed after the supplied lower bound before the timeout',
+            [StringComparison]::OrdinalIgnoreCase)
+    }
+    if (-not $staleRejected -or (Test-Path -LiteralPath $staleOutput)) {
+        throw 'The Retention probe accepted stale completions or wrote passing evidence.'
     }
 
     $missingOutput = Join-Path $fixtureRoot 'missing-evidence.json'

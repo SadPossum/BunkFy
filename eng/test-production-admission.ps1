@@ -162,6 +162,11 @@ function New-TestProbeEvidence {
             $record['receipt'] = [ordered]@{ receiptId = [Guid]::NewGuid().ToString('D') }
         }
         'retention' {
+            $generatedAt = [DateTimeOffset]::Parse(
+                [string]$record.generatedAtUtc,
+                [Globalization.CultureInfo]::InvariantCulture)
+            $baselineRunId = [Guid]::NewGuid()
+            $rawRunId = [Guid]::NewGuid()
             $record['publicOrigin'] = $Origin.GetLeftPart([UriPartial]::Authority)
             $record['releaseId'] = $ReleaseId
             $record['transport'] = 'loopback-http-fixture'
@@ -169,7 +174,41 @@ function New-TestProbeEvidence {
             $record['workspaceId'] = [Guid]::NewGuid().ToString('D')
             $record['observedDataClassKey'] = 'raw-source-evidence'
             $record['catalogueCount'] = 2
-            $record['schedules'] = @()
+            $record['observation'] = [ordered]@{
+                mode = 'next-occurrence-after-baseline'
+                baselineCapturedAtUtc = $generatedAt.AddMinutes(-1).ToString('O')
+                completionNotBeforeUtc = $null
+                baselineObservedRunId = $baselineRunId.ToString('D')
+                baselineObservedRunning = $false
+                clockSkewSeconds = 120
+            }
+            $record['schedules'] = @(
+                [ordered]@{
+                    ownerKey = 'ingestion'
+                    dataClassKey = 'raw-source-evidence'
+                    executionPolicyVersion = 1
+                    lastRunId = $rawRunId.ToString('D')
+                    lastStartedAtUtc = $generatedAt.AddSeconds(-32).ToString('O')
+                    lastCompletedAtUtc = $generatedAt.AddSeconds(-31).ToString('O')
+                    nextDueAtUtc = $generatedAt.AddMinutes(59).ToString('O')
+                    scannedCount = 1
+                    affectedCount = 1
+                    remainingCount = 0
+                    outcomeCode = 'ingestion.raw-payload.completed'
+                },
+                [ordered]@{
+                    ownerKey = 'ingestion'
+                    dataClassKey = 'sensitive-reservation-history'
+                    executionPolicyVersion = 1
+                    lastRunId = [Guid]::NewGuid().ToString('D')
+                    lastStartedAtUtc = $generatedAt.AddMinutes(-3).ToString('O')
+                    lastCompletedAtUtc = $generatedAt.AddMinutes(-2).ToString('O')
+                    nextDueAtUtc = $generatedAt.AddHours(4).ToString('O')
+                    scannedCount = 0
+                    affectedCount = 0
+                    remainingCount = 0
+                    outcomeCode = 'ingestion.sensitive-history.completed'
+                })
         }
     }
     $record['checks'] = @($spec.Checks | ForEach-Object {
@@ -446,6 +485,32 @@ try {
     if ([IO.Directory]::Exists([string]$mismatchArguments.OutputDirectory)) {
         throw 'Rejected cross-release evidence left an admission bundle.'
     }
+
+    $staleRetentionPath = Join-Path $temporaryRoot 'stale-retention.json'
+    $staleRetention = Get-Content -LiteralPath $probePaths.Retention -Raw |
+        ConvertFrom-Json -AsHashtable -DateKind String
+    $staleRetention.observation.mode = 'completed-after-lower-bound'
+    $staleRetention.observation.baselineCapturedAtUtc =
+        ([DateTimeOffset]::Parse(
+            [string]$staleRetention.generatedAtUtc,
+            [Globalization.CultureInfo]::InvariantCulture).AddSeconds(-5)).ToString('O')
+    $staleRetention.observation.completionNotBeforeUtc =
+        ([DateTimeOffset]::Parse(
+            [string]$staleRetention.generatedAtUtc,
+            [Globalization.CultureInfo]::InvariantCulture).AddSeconds(-10)).ToString('O')
+    $staleRetention.observation.clockSkewSeconds = 0
+    Write-BunkFyCandidateJson -Path $staleRetentionPath -Value $staleRetention
+    Assert-TestFailure `
+        -Operation {
+            Get-BunkFyVerifiedProductionAdmissionProbe `
+                -Path $staleRetentionPath `
+                -SpecificationName retention `
+                -ExpectedOrigin $origin `
+                -ExpectedReleaseId $candidateRelease `
+                -AllowFixtureEvidence | Out-Null
+        } `
+        -ExpectedMessage 'predates its completion lower bound' `
+        -Context 'stale lower-bound Retention evidence'
 
     $wrongAdmissionReference = "admission:$([Guid]::NewGuid().ToString('N'))"
     $wrongAdmissionArguments = $verificationArguments.Clone()

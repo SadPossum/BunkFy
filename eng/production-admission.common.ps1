@@ -48,9 +48,16 @@ function Assert-BunkFyProductionAdmissionSha256 {
 function ConvertTo-BunkFyProductionAdmissionTimestamp {
     param(
         [Parameter(Mandatory = $true)][object] $Value,
-        [Parameter(Mandatory = $true)][string] $Context
+        [Parameter(Mandatory = $true)][string] $Context,
+        [switch] $AllowFuture
     )
 
+    $timestampRequirement = if ($AllowFuture) {
+        'a valid UTC round-trip timestamp'
+    }
+    else {
+        'a valid non-future UTC round-trip timestamp'
+    }
     $parsed = [DateTimeOffset]::MinValue
     if ($Value -is [DateTimeOffset]) {
         $parsed = [DateTimeOffset]$Value
@@ -58,7 +65,7 @@ function ConvertTo-BunkFyProductionAdmissionTimestamp {
     elseif ($Value -is [DateTime]) {
         $dateTime = [DateTime]$Value
         if ($dateTime.Kind -ne [DateTimeKind]::Utc) {
-            throw "$Context must be a valid non-future UTC round-trip timestamp."
+            throw "$Context must be $timestampRequirement."
         }
         $parsed = [DateTimeOffset]::new($dateTime)
     }
@@ -68,12 +75,13 @@ function ConvertTo-BunkFyProductionAdmissionTimestamp {
             [Globalization.CultureInfo]::InvariantCulture,
             [Globalization.DateTimeStyles]::RoundtripKind,
             [ref]$parsed)) {
-        throw "$Context must be a valid non-future UTC round-trip timestamp."
+        throw "$Context must be $timestampRequirement."
     }
     if (
         $parsed.Offset -ne [TimeSpan]::Zero -or
-        $parsed -gt [DateTimeOffset]::UtcNow.AddMinutes(5)) {
-        throw "$Context must be a valid non-future UTC round-trip timestamp."
+        (-not $AllowFuture -and
+         $parsed -gt [DateTimeOffset]::UtcNow.AddMinutes(5))) {
+        throw "$Context must be $timestampRequirement."
     }
     return $parsed.ToUniversalTime()
 }
@@ -250,14 +258,185 @@ function Get-BunkFyProductionAdmissionProbeSpecification {
             return [pscustomobject]@{
                 Name = $Name
                 EvidenceKind = 'bunkfy-deployed-retention-probe'
-                SchemaVersion = 1
+                SchemaVersion = 2
                 OriginProperty = 'publicOrigin'
                 TransportProperty = 'transport'
-                Properties = @('schemaVersion', 'evidenceKind', 'generatedAtUtc', 'publicOrigin', 'releaseId', 'transport', 'result', 'workspaceId', 'observedDataClassKey', 'catalogueCount', 'schedules', 'checks', 'limitations')
+                Properties = @('schemaVersion', 'evidenceKind', 'generatedAtUtc', 'publicOrigin', 'releaseId', 'transport', 'result', 'workspaceId', 'observedDataClassKey', 'catalogueCount', 'observation', 'schedules', 'checks', 'limitations')
                 Checks = @('retention-catalogue-present', 'cross-workspace-retention-denied', 'automatic-retention-occurrence-observed', 'retention-schedules-terminal-and-current', 'retention-summary-consistent', 'retention-outcomes-pii-minimized', 'release-identity-continuous')
                 Limitations = @('owner-data-not-seeded-or-read', 'generic-task-lease-and-restart-not-observed', 'legal-hold-and-admin-retry-not-exercised', 'private-maintenance-owner-topology-and-alerting-not-observed')
                 GuidProperties = @('workspaceId')
             }
+        }
+    }
+}
+
+function Assert-BunkFyRetentionAdmissionEvidence {
+    param(
+        [Parameter(Mandatory = $true)][object] $Record,
+        [Parameter(Mandatory = $true)][DateTimeOffset] $GeneratedAt
+    )
+
+    if ([string]$Record.observedDataClassKey -cne 'raw-source-evidence' -or
+        [int]$Record.catalogueCount -lt 2 -or
+        [int]$Record.catalogueCount -gt 10000) {
+        throw 'Retention deployment evidence has an invalid catalogue summary.'
+    }
+
+    Assert-BunkFyCandidateProperties `
+        -Value $Record.observation `
+        -ExpectedProperties @(
+            'mode',
+            'baselineCapturedAtUtc',
+            'completionNotBeforeUtc',
+            'baselineObservedRunId',
+            'baselineObservedRunning',
+            'clockSkewSeconds') `
+        -Context 'Retention observation evidence'
+    $observation = $Record.observation
+    $baselineCapturedAt = ConvertTo-BunkFyProductionAdmissionTimestamp `
+        -Value $observation.baselineCapturedAtUtc `
+        -Context 'Retention baseline capture time'
+    $clockSkewSeconds = [int]$observation.clockSkewSeconds
+    if ($clockSkewSeconds -lt 0 -or
+        $clockSkewSeconds -gt 600 -or
+        $baselineCapturedAt -gt $GeneratedAt.AddSeconds($clockSkewSeconds)) {
+        throw 'Retention observation timing is invalid.'
+    }
+    $baselineRunId = [Guid]::Empty
+    if ($null -ne $observation.baselineObservedRunId -and
+        (-not [Guid]::TryParseExact(
+                [string]$observation.baselineObservedRunId,
+                'D',
+                [ref]$baselineRunId) -or
+         $baselineRunId -eq [Guid]::Empty)) {
+        throw 'Retention observation has an invalid baseline run id.'
+    }
+    $baselineWasRunning = [bool]$observation.baselineObservedRunning
+    if ($baselineWasRunning -and $baselineRunId -eq [Guid]::Empty) {
+        throw 'A running Retention baseline must identify its run.'
+    }
+
+    $completionLowerBound = $null
+    switch ([string]$observation.mode) {
+        'next-occurrence-after-baseline' {
+            if ($null -ne $observation.completionNotBeforeUtc) {
+                throw 'Next-occurrence Retention evidence cannot carry a completion lower bound.'
+            }
+        }
+        'completed-after-lower-bound' {
+            if ($null -eq $observation.completionNotBeforeUtc) {
+                throw 'Lower-bound Retention evidence is missing its completion timestamp.'
+            }
+            $completionLowerBound = ConvertTo-BunkFyProductionAdmissionTimestamp `
+                -Value $observation.completionNotBeforeUtc `
+                -Context 'Retention completion lower bound'
+            if ($completionLowerBound -gt
+                $baselineCapturedAt.AddSeconds($clockSkewSeconds)) {
+                throw 'Retention completion lower bound is after the baseline capture.'
+            }
+        }
+        default {
+            throw 'Retention deployment evidence has an unsupported observation mode.'
+        }
+    }
+
+    $expectedSchedules = @{
+        'raw-source-evidence' = [pscustomobject]@{
+            Outcome = 'ingestion.raw-payload.completed'
+            Interval = [TimeSpan]::FromHours(1)
+        }
+        'sensitive-reservation-history' = [pscustomobject]@{
+            Outcome = 'ingestion.sensitive-history.completed'
+            Interval = [TimeSpan]::FromHours(6)
+        }
+    }
+    $schedules = @($Record.schedules)
+    if ($schedules.Count -ne $expectedSchedules.Count -or
+        [int]$Record.catalogueCount -lt $schedules.Count) {
+        throw 'Retention deployment evidence has an invalid schedule set.'
+    }
+    $seen = [Collections.Generic.HashSet[string]]::new(
+        [StringComparer]::Ordinal)
+    $rawRunId = [Guid]::Empty
+    $rawCompletedAt = [DateTimeOffset]::MinValue
+    foreach ($schedule in $schedules) {
+        Assert-BunkFyCandidateProperties `
+            -Value $schedule `
+            -ExpectedProperties @(
+                'ownerKey',
+                'dataClassKey',
+                'executionPolicyVersion',
+                'lastRunId',
+                'lastStartedAtUtc',
+                'lastCompletedAtUtc',
+                'nextDueAtUtc',
+                'scannedCount',
+                'affectedCount',
+                'remainingCount',
+                'outcomeCode') `
+            -Context 'Retention schedule evidence'
+        $dataClassKey = [string]$schedule.dataClassKey
+        if (-not $seen.Add($dataClassKey) -or
+            -not $expectedSchedules.ContainsKey($dataClassKey) -or
+            [string]$schedule.ownerKey -cne 'ingestion' -or
+            [int]$schedule.executionPolicyVersion -ne 1 -or
+            [string]$schedule.outcomeCode -cne
+                [string]$expectedSchedules[$dataClassKey].Outcome) {
+            throw 'Retention deployment evidence has an unsupported schedule coordinate.'
+        }
+        $runId = [Guid]::Empty
+        if (-not [Guid]::TryParseExact(
+                [string]$schedule.lastRunId,
+                'D',
+                [ref]$runId) -or
+            $runId -eq [Guid]::Empty) {
+            throw 'Retention schedule evidence has an invalid run id.'
+        }
+        $startedAt = ConvertTo-BunkFyProductionAdmissionTimestamp `
+            -Value $schedule.lastStartedAtUtc `
+            -Context 'Retention schedule start time'
+        $completedAt = ConvertTo-BunkFyProductionAdmissionTimestamp `
+            -Value $schedule.lastCompletedAtUtc `
+            -Context 'Retention schedule completion time'
+        $nextDueAt = ConvertTo-BunkFyProductionAdmissionTimestamp `
+            -Value $schedule.nextDueAtUtc `
+            -Context 'Retention schedule next due time' `
+            -AllowFuture
+        if ($startedAt -gt $completedAt -or
+            $completedAt -ge $nextDueAt -or
+            $nextDueAt -gt
+                $startedAt.Add(
+                    [TimeSpan]$expectedSchedules[$dataClassKey].Interval).AddMinutes(5) -or
+            $completedAt -gt $GeneratedAt.AddSeconds($clockSkewSeconds) -or
+            [int]$schedule.scannedCount -lt 0 -or
+            [int]$schedule.affectedCount -lt 0 -or
+            [int]$schedule.affectedCount -gt [int]$schedule.scannedCount -or
+            [int]$schedule.remainingCount -ne 0) {
+            throw 'Retention schedule evidence has invalid timing or bounded counts.'
+        }
+        if ($null -ne $completionLowerBound -and
+            $completedAt -lt
+                $completionLowerBound.AddSeconds(-$clockSkewSeconds)) {
+            throw 'Retention schedule evidence predates its completion lower bound.'
+        }
+        if ($dataClassKey -ceq 'raw-source-evidence') {
+            $rawRunId = $runId
+            $rawCompletedAt = $completedAt
+        }
+    }
+
+    if ([string]$observation.mode -ceq 'next-occurrence-after-baseline') {
+        if (-not $baselineWasRunning -and
+            $baselineRunId -ne [Guid]::Empty -and
+            $rawRunId -eq $baselineRunId) {
+            throw 'Retention evidence did not advance beyond its terminal baseline run.'
+        }
+        if ($baselineWasRunning -and $rawRunId -ne $baselineRunId) {
+            throw 'Retention evidence did not finish the run observed at baseline.'
+        }
+        if ($rawCompletedAt -lt
+            $baselineCapturedAt.AddSeconds(-$clockSkewSeconds)) {
+            throw 'Retention observed occurrence completed before its baseline.'
         }
     }
 }
@@ -332,6 +511,12 @@ function Get-BunkFyVerifiedProductionAdmissionProbe {
         -Actual @($record.limitations) `
         -Expected $spec.Limitations `
         -Context "$SpecificationName limitations"
+
+    if ($SpecificationName -ceq 'retention') {
+        Assert-BunkFyRetentionAdmissionEvidence `
+            -Record $record `
+            -GeneratedAt $generatedAt
+    }
 
     if ($SpecificationName.StartsWith('admin-', [StringComparison]::Ordinal)) {
         $expectedReachability = $SpecificationName.Substring(6)

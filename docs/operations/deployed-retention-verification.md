@@ -39,6 +39,13 @@ window, and then polls at a bounded 30-second interval. Its default 75-minute
 cycle timeout covers the current hourly schedule without continuous requests.
 Increase the timeout only when the reviewed deployment policy justifies it.
 
+For a harness that captures a trusted timestamp before creating a fresh smoke
+workspace, `-CompletionNotBeforeUtc` switches the observation to first-run
+mode. The verifier waits for the catalogue and requires every expected schedule
+to complete after that lower bound. It does not accept a prior completion or
+silently fall back to the next-cycle claim. Ordinary standalone use should omit
+the parameter and retain the baseline-to-next-occurrence behavior above.
+
 ## Checks
 
 The probe verifies:
@@ -63,8 +70,10 @@ while paging fails closed rather than combining inconsistent snapshots.
 Passing JSON evidence is written atomically under `.tmp/deployment-probes` by
 default. It includes the public origin, release identity, workspace id, observed
 data class, catalogue count, the two expected schedule coordinates, run ids,
-timestamps, bounded counts, outcome codes, seven checks, and explicit
-limitations.
+timestamps, bounded counts, outcome codes, seven checks, explicit limitations,
+and a schema-v2 observation record. The observation identifies whether the
+proof advanced beyond a baseline or satisfied a supplied lower bound, including
+the baseline run identity and bounded clock-skew allowance.
 
 It excludes the bearer token, request headers, owner records, property
 coordinates from future schedules, payloads, legal-hold details, and response
@@ -87,6 +96,7 @@ holds, Admin retry, object deletion, backup/restore, or alert delivery.
 ## Repository Fixture
 
 `eng/test-deployed-retention.ps1` uses a deterministic loopback server. It
-proves a fresh occurrence, evidence redaction, missing-catalogue rejection,
-cross-workspace denial, backlog rejection, and rejection of insecure
-non-loopback HTTP. It does not start a Worker or contact a deployment.
+proves default next-occurrence and first-completion modes, stale-completion and
+missing-catalogue rejection, evidence redaction, cross-workspace denial,
+backlog rejection, and rejection of insecure non-loopback HTTP. It does not
+start a Worker or contact a deployment.

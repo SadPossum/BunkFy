@@ -14,6 +14,7 @@ param(
     [switch] $AllowLoopbackHttp,
     [switch] $IncludeOperationsNotifications,
     [switch] $IncludeReservationsInventory,
+    [switch] $IncludeRetention,
     [switch] $IncludeAdapterHost,
     [string] $AdapterHostBackendImage,
     [string] $AdapterHostBackendSourceCommitSha,
@@ -80,6 +81,9 @@ $operationsNotificationsEvidencePath = Join-Path `
 $reservationsInventoryEvidencePath = Join-Path `
     $outputDirectory `
     "$outputBaseName.reservations-inventory.json"
+$retentionEvidencePath = Join-Path `
+    $outputDirectory `
+    "$outputBaseName.retention.json"
 $adapterHostUpsertEvidencePath = Join-Path `
     $outputDirectory `
     "$outputBaseName.adapter-host-upsert.json"
@@ -109,6 +113,9 @@ if ($IncludeOperationsNotifications) {
 }
 if ($IncludeReservationsInventory) {
     $evidencePaths += $reservationsInventoryEvidencePath
+}
+if ($IncludeRetention) {
+    $evidencePaths += $retentionEvidencePath
 }
 if ($IncludeAdapterHost) {
     $evidencePaths += @(
@@ -236,6 +243,7 @@ $cleanup = [ordered]@{
 $mailpitOrigin = $null
 $mailpitWindowOpened = $false
 $workspaceId = [Guid]::Empty
+$workspaceProvisioningStartedAtUtc = $null
 $allowedPropertyId = [Guid]::Empty
 $deniedPropertyId = [Guid]::Empty
 $owner = $null
@@ -1184,6 +1192,12 @@ if ($IncludeOperationsNotifications) {
 if ($IncludeReservationsInventory) {
     $rehearsalAction += ', exercise Reservations and Inventory'
 }
+if ($IncludeRetention) {
+    $rehearsalAction += ', exercise automatic Retention'
+}
+if ($IncludeAdapterHost) {
+    $rehearsalAction += ', exercise AdapterHost'
+}
 $rehearsalAction += ', then archive and revoke the rehearsal state'
 
 if (-not $PSCmdlet.ShouldProcess(
@@ -1229,6 +1243,7 @@ try {
     $checks.Add([ordered]@{ name = 'three-captured-email-identities-verified'; status = 'passed' })
 
     $proofStage = 'workspace-provisioning'
+    $workspaceProvisioningStartedAtUtc = [DateTimeOffset]::UtcNow
     $workspaceReceipt = Read-RehearsalJson `
         -Response (Invoke-RehearsalApi `
             -Path '/api/organizations' `
@@ -1344,6 +1359,30 @@ try {
             -Operation $Operation
     }
     try {
+        if ($IncludeRetention) {
+            $proofStage = 'retention-proof'
+            & (Join-Path $PSScriptRoot 'verify-deployed-retention.ps1') `
+                -PublicOrigin $origin `
+                -ExpectedReleaseId $ExpectedReleaseId `
+                -WorkspaceId $workspaceId `
+                -CompletionNotBeforeUtc $workspaceProvisioningStartedAtUtc `
+                -ReaderAccessToken $ownerToken `
+                -RequestTimeoutSeconds $RequestTimeoutSeconds `
+                -CycleTimeoutSeconds ([Math]::Max($ConvergenceTimeoutSeconds, 300)) `
+                -PollIntervalMilliseconds $PollIntervalMilliseconds `
+                -OutputPath $retentionEvidencePath `
+                -AllowLoopbackHttp:$AllowLoopbackHttp `
+                -Force
+            [void](Read-RehearsalChildEvidence `
+                    -Path $retentionEvidencePath `
+                    -ExpectedKind 'bunkfy-deployed-retention-probe' `
+                    -WorkspaceBinding Required)
+            $checks.Add([ordered]@{
+                    name = 'retention-child-proof-passed'
+                    status = 'passed'
+                })
+        }
+
         $proofStage = 'invitation-proof'
         & (Join-Path $PSScriptRoot 'verify-deployed-workspace-invitation.ps1') `
             -PublicOrigin $origin `
@@ -1811,6 +1850,12 @@ if ($IncludeReservationsInventory) {
     $childRecords += [pscustomobject]@{
         Name = 'reservationsInventory'
         Path = $reservationsInventoryEvidencePath
+    }
+}
+if ($IncludeRetention) {
+    $childRecords += [pscustomobject]@{
+        Name = 'retention'
+        Path = $retentionEvidencePath
     }
 }
 if ($IncludeAdapterHost) {
