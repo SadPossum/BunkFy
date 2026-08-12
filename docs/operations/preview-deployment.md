@@ -311,6 +311,12 @@ restart; `-SkipWorkerRestart` is diagnostic only. Add
 `-IncludeCustomProfileAdministration` for the owner/member custom-role create,
 assignment, permission-convergence, replacement, and archive proof.
 
+After deploying a workspace-access seed change, run the
+[workspace-access seed estate operator](preview-workspace-access-seed-estate.md)
+in status-only mode. If it reports drift, rerun with explicit `-Apply` consent;
+the operator bootstraps only active workspaces and retains minimized exact-release
+evidence without querying module storage.
+
 For a reversible, two-account proof of product notification projection, actor
 exclusion, individual read state, and the durable SSE feed, use the
 [deployed Operations Notifications verifier](deployed-operations-notifications-verification.md).

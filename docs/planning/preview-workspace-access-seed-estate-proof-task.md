@@ -44,8 +44,8 @@ seeds, but each has one drifted seed and `requiresBackfill=true`.
    before invoking `workspaces access bootstrap --yes`. Bootstrap only
    non-converged active workspaces, then re-read every active workspace.
 5. Require seed version 4, four expected and active seeds, zero drifted or
-   archived seeds, zero legacy members, matching marker coverage, and
-   `requiresBackfill=false` after convergence.
+   archived seeds, zero legacy members, nondecreasing membership-marker
+   coverage, and `requiresBackfill=false` after convergence.
 6. Retain private, atomic JSON evidence containing only release identity,
    image identity, aggregate counts, stable workspace fingerprints, before and
    after status summaries, and command outcomes. Never retain names, slugs,
