@@ -1,0 +1,77 @@
+# Preview Workspace Access Seed Estate Proof Task
+
+Status: in progress
+Date: 2026-08-12
+
+## Goal
+
+Provide a bounded, repeatable deployment operator that proves every active
+Preview workspace is converged on the current BunkFy workspace-access seed
+version and can explicitly repair stale seed definitions without inferring
+tenants from module storage.
+
+## Boundary
+
+- GMA Organizations owns the authorized, paged organization catalog.
+- BunkFy Workspaces owns seed definitions, drift detection, tenant-scoped
+  status, and idempotent bootstrap behavior.
+- The product root owns deployment enumeration, exact-release admission,
+  explicit mutation consent, bounded execution, and minimized evidence.
+- The operator must use the composed Admin CLI contracts. It must not query
+  PostgreSQL, infer tenant identifiers from storage, or couple either module to
+  the other module's implementation.
+- Changes to GMA are out of scope unless its existing generic catalog or CLI
+  contract proves insufficient.
+
+## Current Finding
+
+The live Preview catalog currently contains 81 workspaces: 3 active and 78
+archived. All three active workspaces report seed version 4 with four active
+seeds, but each has one drifted seed and `requiresBackfill=true`.
+
+## Implementation
+
+1. Add a Preview operator that verifies the public exact release before any
+   tenant work and resolves the tracked Compose/Admin CLI boundary.
+2. Walk the authorized organization catalog with a fixed page size and hard
+   page/workspace bounds. Select only active workspaces and reject unknown or
+   duplicate catalog entries.
+3. Inspect every active workspace through `workspaces access status`.
+   Status-only execution must make no writes and fail the proof when any
+   workspace is not converged.
+4. Require an explicit apply switch plus PowerShell confirmation semantics
+   before invoking `workspaces access bootstrap --yes`. Bootstrap only
+   non-converged active workspaces, then re-read every active workspace.
+5. Require seed version 4, four expected and active seeds, zero drifted or
+   archived seeds, zero legacy members, matching marker coverage, and
+   `requiresBackfill=false` after convergence.
+6. Retain private, atomic JSON evidence containing only release identity,
+   image identity, aggregate counts, stable workspace fingerprints, before and
+   after status summaries, and command outcomes. Never retain names, slugs,
+   tenant ids, organization ids, credentials, or raw CLI output.
+7. Add focused fixture/static guards and wire them into the operations suite.
+
+## Safety And Failure Semantics
+
+- Use noninteractive Admin CLI containers with `--rm --no-deps -T` so paged
+  input cannot be consumed and transient containers do not remain.
+- A catalog truncation, duplicate scope, malformed JSON, CLI failure, release
+  mismatch, partial bootstrap, or incomplete final convergence fails closed.
+- Evidence records failure without serializing raw command output or tenant
+  identity. Existing evidence is not overwritten unless explicitly requested.
+- An empty active estate is reported distinctly and does not count as proof of
+  a populated deployment.
+
+## Verification Cadence
+
+Use PowerShell syntax and focused fixture guards while editing. Run the full
+operations suite once when the slice is coherent, then run one exact-release
+Preview estate rehearsal with explicit apply consent. Re-run only the focused
+rehearsal while correcting failures.
+
+## Deferred
+
+- A hosted scheduler or fleet-wide multi-deployment orchestrator.
+- Automatic bootstrap during application startup.
+- Production admission policy for deployment classes beyond Preview.
+- Any product-domain work outside Workspace Access.
