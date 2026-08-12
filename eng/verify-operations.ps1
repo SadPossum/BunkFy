@@ -22,6 +22,7 @@ $scripts = @(
     (Join-Path $PSScriptRoot 'operations\deployed-public-edge.common.ps1'),
     (Join-Path $PSScriptRoot 'operations\deployed-authenticated-smoke.common.ps1'),
     (Join-Path $PSScriptRoot 'operations\preview-mail-capture.common.ps1'),
+    (Join-Path $PSScriptRoot 'operations\preview-totp.common.ps1'),
     (Join-Path $PSScriptRoot 'operations\preview-property-processing-fixture.common.ps1'),
     (Join-Path $PSScriptRoot 'operations\preview-sellable-room-fixture.common.ps1'),
     (Join-Path $PSScriptRoot 'operations\rehearse-preview-onboarding.ps1'),
@@ -34,6 +35,7 @@ $scripts = @(
     (Join-Path $PSScriptRoot 'operations\rehearse-deployed-release-rollback.ps1'),
     (Join-Path $PSScriptRoot 'operations\verify-deployed-operations-notifications.ps1'),
     (Join-Path $PSScriptRoot 'operations\verify-deployed-reservations-inventory.ps1'),
+    (Join-Path $PSScriptRoot 'operations\verify-deployed-data-rights-access-export.ps1'),
     (Join-Path $PSScriptRoot 'operations\verify-deployed-workspace-enrollment.ps1'),
     (Join-Path $PSScriptRoot 'operations\verify-deployed-workspace-invitation.ps1'),
     (Join-Path $PSScriptRoot 'operations\verify-deployed-retention.ps1'),
@@ -43,9 +45,11 @@ $scripts = @(
     (Join-Path $PSScriptRoot 'test-deployed-release-rollback.ps1'),
     (Join-Path $PSScriptRoot 'test-deployed-operations-notifications.ps1'),
     (Join-Path $PSScriptRoot 'test-deployed-reservations-inventory.ps1'),
+    (Join-Path $PSScriptRoot 'test-deployed-data-rights-access-export.ps1'),
     (Join-Path $PSScriptRoot 'test-deployed-workspace-enrollment.ps1'),
     (Join-Path $PSScriptRoot 'test-deployed-workspace-invitation.ps1'),
     (Join-Path $PSScriptRoot 'test-preview-mail-capture.ps1'),
+    (Join-Path $PSScriptRoot 'test-preview-totp.ps1'),
     (Join-Path $PSScriptRoot 'test-preview-browser-onboarding-rehearsal.ps1'),
     (Join-Path $PSScriptRoot 'test-preview-workspace-access-estate.ps1'),
     (Join-Path $PSScriptRoot 'test-preview-adapter-host-rehearsal.ps1'),
@@ -89,6 +93,7 @@ $deployedEvidenceWriters = @(
     'verify-deployed-operations-notifications.ps1',
     'verify-deployed-public-edge.ps1',
     'verify-deployed-reservations-inventory.ps1',
+    'verify-deployed-data-rights-access-export.ps1',
     'verify-deployed-retention.ps1',
     'verify-deployed-workspace-enrollment.ps1',
     'verify-deployed-workspace-invitation.ps1')
@@ -1478,6 +1483,19 @@ foreach ($requiredToken in @(
     }
 }
 
+$previewTotpCommon = Get-Content -LiteralPath (
+    Join-Path $PSScriptRoot 'operations\preview-totp.common.ps1') -Raw
+foreach ($requiredToken in @(
+        'ConvertFrom-BunkFyPreviewBase32',
+        'Get-BunkFyPreviewTotpCode',
+        '[Security.Cryptography.HMACSHA1]::new',
+        '[Security.Cryptography.CryptographicOperations]::ZeroMemory')) {
+    if (-not $previewTotpCommon.Contains($requiredToken, [StringComparison]::Ordinal)) {
+        throw "Preview TOTP helper policy is missing '$requiredToken'."
+    }
+}
+& (Join-Path $PSScriptRoot 'test-preview-totp.ps1')
+
 $previewOnboardingRehearsal = Get-Content -LiteralPath (
     Join-Path $PSScriptRoot 'operations\rehearse-preview-onboarding.ps1') -Raw
 foreach ($requiredToken in @(
@@ -1509,6 +1527,23 @@ foreach ($requiredToken in @(
         'IncludeReservationsInventory',
         'verify-deployed-reservations-inventory.ps1',
         'reservations-inventory-child-proof-passed',
+        'IncludeDataRightsAccessExport',
+        'New-RehearsalDataRightsSessions',
+        'preview-totp.common.ps1',
+        '/api/auth/mfa/totp/enrollment',
+        '/api/auth/mfa/totp/activate',
+        '/api/auth/mfa/totp/disable',
+        "codeType = 'recovery-code'",
+        'Remove-RehearsalDataRightsMfa',
+        'verify-deployed-data-rights-access-export.ps1',
+        'data-rights-access-export-child-proof-passed',
+        'dataRightsAccessExportEvidencePath',
+        "`$cleanup['dataRightsAccessExport'] =",
+        'guest-archived-artifact-scheduled-expiry',
+        "`$cleanup['dataRightsMfa'] =",
+        'disabled-sessions-revoked',
+        '-RetainPassword:$IncludeDataRightsAccessExport',
+        '$owner.Password.Dispose()',
         'IncludeRetention',
         'verify-deployed-retention.ps1',
         'CompletionNotBeforeUtc',
@@ -1737,6 +1772,51 @@ foreach ($forbiddenToken in @(
 & (Join-Path $PSScriptRoot 'test-deployed-reservations-inventory.ps1')
 Write-Host 'BunkFy deployed Reservations and Inventory probe policy is valid.'
 
+$dataRightsAccessExportProbe = Get-Content -LiteralPath (
+    Join-Path $PSScriptRoot 'operations\verify-deployed-data-rights-access-export.ps1') -Raw
+foreach ($requiredToken in @(
+        "SupportsShouldProcess = `$true",
+        '$handler.AllowAutoRedirect = $false',
+        'ExpectedReleaseId',
+        'release-identity-continuous',
+        'BUNKFY_SMOKE_DATA_RIGHTS_ASSURED_TOKEN',
+        'BUNKFY_SMOKE_DATA_RIGHTS_UNASSURED_TOKEN',
+        'BUNKFY_SMOKE_DATA_RIGHTS_DENIED_TOKEN',
+        '/api/data-rights/properties/',
+        '/api/guests/properties/',
+        'DataRights.ExportArtifactAlreadyRequested',
+        'Security.InsufficientAuthentication',
+        'Test-SmokeTimestampReplayEquivalent',
+        '$script:MaximumExportBodyBytes = 1MB',
+        'ResponseHeadersRead',
+        'CryptographicOperations]::FixedTimeEquals',
+        'Clear-SmokeResponseBody',
+        'Write-BunkFyPrivateJsonEvidence',
+        "evidenceKind = 'bunkfy-deployed-data-rights-access-export-probe'",
+        "'browser-privacy-workflow-not-exercised'",
+        "'case-history-and-encrypted-artifact-retained-until-configured-lifecycle'")) {
+    if (-not $dataRightsAccessExportProbe.Contains($requiredToken, [StringComparison]::Ordinal)) {
+        throw "Deployed Data Rights access export probe policy is missing '$requiredToken'."
+    }
+}
+foreach ($forbiddenToken in @(
+        'DangerousAcceptAnyServerCertificateValidator',
+        'ServerCertificateCustomValidationCallback',
+        '-SkipCertificateCheck',
+        '$handler.AllowAutoRedirect = $true',
+        'ReadAsByteArrayAsync',
+        'WriteAllBytes',
+        'Set-Content',
+        'Out-File',
+        '/api/admin/')) {
+    if ($dataRightsAccessExportProbe.Contains($forbiddenToken, [StringComparison]::OrdinalIgnoreCase)) {
+        throw "Deployed Data Rights access export probe contains forbidden token '$forbiddenToken'."
+    }
+}
+
+& (Join-Path $PSScriptRoot 'test-deployed-data-rights-access-export.ps1')
+Write-Host 'BunkFy deployed Data Rights access export probe policy is valid.'
+
 $previewAdapterHostRehearsal = Get-Content -LiteralPath (
     Join-Path $PSScriptRoot 'operations\rehearse-preview-adapter-host.ps1') -Raw
 foreach ($requiredToken in @(
@@ -1872,6 +1952,9 @@ $productionAdmissionVerifier = Get-Content -LiteralPath (
 foreach ($requiredToken in @(
         'Get-BunkFyVerifiedProductionAdmissionProbe',
         'Assert-BunkFyRetentionAdmissionEvidence',
+        'Assert-BunkFyDataRightsAccessExportAdmissionEvidence',
+        "'data-rights-access-export'",
+        "'bunkfy-deployed-data-rights-access-export-probe'",
         "'completed-after-lower-bound'",
         'Retention schedule evidence predates its completion lower bound.',
         'Get-BunkFyVerifiedProductionMigrationRehearsal',
@@ -1894,6 +1977,8 @@ foreach ($requiredToken in @(
         'MigrationRehearsalPath',
         'AdminAllowedEvidencePath',
         'AdminDeniedEvidencePath',
+        'DataRightsAccessExportEvidencePath',
+        "'deployed-data-rights-access-export'",
         'BrowserRehearsalReference',
         'HostedRecoveryReference',
         'DeploymentControlReference',

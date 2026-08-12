@@ -39,14 +39,26 @@ Deploy the exact candidate with `BUNKFY_EMAIL_CAPTURE_ENABLED=true`, then run:
 ```
 
 Add `-IncludeOperationsNotifications`, `-IncludeReservationsInventory`,
-`-IncludeRetention`, or `-IncludeAdapterHost` to bind the corresponding
-deployed child proof into the umbrella. Contributions may be selected together;
-room-backed contributions own separate fixtures and coordinated cleanup.
-When Reservations/Inventory or AdapterHost is selected, the umbrella first
+`-IncludeDataRightsAccessExport`, `-IncludeRetention`, or
+`-IncludeAdapterHost` to bind the corresponding deployed child proof into the
+umbrella. Contributions may be selected together; room-backed contributions
+own separate fixtures and coordinated cleanup. When Data Rights,
+Reservations/Inventory, or AdapterHost is selected, the umbrella first
 discovers the single current engineering/example country policy exposed by
 Preview, activates it once through the public Properties contract, and verifies
-the exact effective binding. The room-backed contributors share this synthetic
-processing prerequisite; it is not production country-policy approval.
+the exact effective binding. The contributors share this synthetic processing
+prerequisite; it is not production country-policy approval.
+
+The Data Rights contribution retains the generated owner password only as a
+disposable `SecureString`, creates a fresh unassured login, completes password
+authentication for the negative assurance control, temporarily enrolls TOTP
+for the destructive-assurance session, and runs the protected Access Export
+child before either applicant joins the workspace. The invitation applicant
+therefore supplies a distinct authenticated nonmember session. Cleanup disables
+the temporary TOTP factor with a one-use recovery code and verifies session
+revocation. The child archives its synthetic Guest, but its encrypted artifact
+remains scheduled for expiry and its case history remains under the configured
+lifecycle.
 
 The Retention contribution captures a UTC lower bound before workspace
 creation, then uses only the public read contract to prove that both asserted
@@ -102,6 +114,11 @@ When selected, the AdapterHost contribution additionally stops and removes its
 container, disables its connection, revokes its credential, removes both
 runtime volumes, cancels its synthetic reservation, and retires its room before
 the parent property cleanup.
+
+When selected, the Data Rights contribution additionally archives its
+synthetic Guest before the parent retires the properties. It does not persist
+the downloaded plaintext export, its hash, any credentials, or Data Rights
+coordinates in either child or umbrella evidence.
 
 Join-source issuance retries only the explicit access-profile and property
 projection readiness conflicts, preserving the same source id. Any other

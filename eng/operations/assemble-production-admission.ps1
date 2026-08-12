@@ -27,6 +27,7 @@ param(
     [Parameter(Mandatory = $true)][string] $WorkspaceEnrollmentEvidencePath,
     [Parameter(Mandatory = $true)][string] $OperationsNotificationsEvidencePath,
     [Parameter(Mandatory = $true)][string] $ReservationsInventoryEvidencePath,
+    [Parameter(Mandatory = $true)][string] $DataRightsAccessExportEvidencePath,
     [Parameter(Mandatory = $true)][string] $AdapterHostEvidencePath,
     [Parameter(Mandatory = $true)][string] $RetentionEvidencePath,
     [Parameter(Mandatory = $true)][string] $BrowserRehearsalReference,
@@ -145,6 +146,12 @@ $reservationsInventory = Get-BunkFyVerifiedProductionAdmissionProbe `
     -ExpectedOrigin $origin `
     -ExpectedReleaseId $CandidateReleaseId `
     -AllowFixtureEvidence:$AllowFixtureEvidence
+$dataRightsAccessExport = Get-BunkFyVerifiedProductionAdmissionProbe `
+    -Path $DataRightsAccessExportEvidencePath `
+    -SpecificationName 'data-rights-access-export' `
+    -ExpectedOrigin $origin `
+    -ExpectedReleaseId $CandidateReleaseId `
+    -AllowFixtureEvidence:$AllowFixtureEvidence
 $adapterHost = Get-BunkFyVerifiedProductionAdmissionProbe `
     -Path $AdapterHostEvidencePath `
     -SpecificationName 'adapter-host' `
@@ -199,6 +206,7 @@ $sourceFiles = @(
     $enrollment.Path,
     $notifications.Path,
     $reservationsInventory.Path,
+    $dataRightsAccessExport.Path,
     $adapterHost.Path,
     $retention.Path)
 foreach ($path in $sourceFiles) {
@@ -243,6 +251,7 @@ foreach ($entry in @(
         [pscustomobject]@{ Name = 'deployed-workspace-enrollment'; Value = $enrollment },
         [pscustomobject]@{ Name = 'deployed-operations-notifications'; Value = $notifications },
         [pscustomobject]@{ Name = 'deployed-reservations-inventory'; Value = $reservationsInventory },
+        [pscustomobject]@{ Name = 'deployed-data-rights-access-export'; Value = $dataRightsAccessExport },
         [pscustomobject]@{ Name = 'deployed-adapter-host'; Value = $adapterHost },
         [pscustomobject]@{ Name = 'deployed-retention'; Value = $retention })) {
     $sourceEvidence.Add((New-BunkFyProductionAdmissionEvidenceSummary `

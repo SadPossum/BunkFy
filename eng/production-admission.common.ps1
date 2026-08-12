@@ -152,6 +152,7 @@ function Get-BunkFyProductionAdmissionProbeSpecification {
             'workspace-enrollment',
             'operations-notifications',
             'reservations-inventory',
+            'data-rights-access-export',
             'adapter-host',
             'retention')]
         [string] $Name
@@ -239,6 +240,19 @@ function Get-BunkFyProductionAdmissionProbeSpecification {
                 Properties = @('schemaVersion', 'evidenceKind', 'generatedAtUtc', 'origin', 'releaseId', 'transport', 'result', 'checks', 'limitations')
                 Checks = @('scoped-operator-and-property-preflight', 'inventory-available-before-create', 'reservation-allocation-confirmed', 'reservation-create-replay-stable', 'allocated-inventory-unavailable', 'reservation-check-in-recorded', 'reservation-check-in-replay-stable', 'reservation-checkout-converged', 'reservation-checkout-replay-current', 'inventory-released-after-checkout', 'release-identity-continuous')
                 Limitations = @('browser-workflow-not-exercised', 'durable-guest-record-not-created', 'concurrent-overbooking-contention-not-exercised', 'synthetic-checked-out-reservation-retained')
+                GuidProperties = @()
+            }
+        }
+        'data-rights-access-export' {
+            return [pscustomobject]@{
+                Name = $Name
+                EvidenceKind = 'bunkfy-deployed-data-rights-access-export-probe'
+                SchemaVersion = 1
+                OriginProperty = 'origin'
+                TransportProperty = 'transport'
+                Properties = @('schemaVersion', 'evidenceKind', 'generatedAtUtc', 'origin', 'releaseId', 'transport', 'result', 'workflow', 'artifact', 'cleanup', 'checks', 'limitations')
+                Checks = @('scoped-assured-operator-and-property-preflight', 'nonmember-case-access-denied', 'synthetic-guest-created', 'controller-initiated-case-entered-discovery', 'exact-guest-subject-discovered-and-selected', 'review-and-decision-approved', 'export-generation-requested', 'export-request-replay-stable', 'second-artifact-request-denied', 'worker-export-generation-converged', 'case-completed-with-approved-scope', 'unassured-export-download-denied', 'nonmember-export-download-denied', 'protected-download-headers-and-shape-verified', 'download-replay-stable', 'synthetic-guest-archived', 'artifact-expiry-bounded-and-scheduled', 'release-identity-continuous')
+                Limitations = @('browser-privacy-workflow-not-exercised', 'multi-subject-and-large-exports-not-exercised', 'independent-object-store-and-key-custody-not-inspected', 'case-history-and-encrypted-artifact-retained-until-configured-lifecycle')
                 GuidProperties = @()
             }
         }
@@ -442,6 +456,62 @@ function Assert-BunkFyRetentionAdmissionEvidence {
     }
 }
 
+function Assert-BunkFyDataRightsAccessExportAdmissionEvidence {
+    param([Parameter(Mandatory = $true)][object] $Record)
+
+    Assert-BunkFyCandidateProperties `
+        -Value $Record.workflow `
+        -ExpectedProperties @(
+            'caseType',
+            'requestedOperation',
+            'requesterRelationship',
+            'finalStatus',
+            'selectedSubjectCount') `
+        -Context 'Data Rights access export workflow'
+    if ([string]$Record.workflow.caseType -cne 'guest-rights' -or
+        [string]$Record.workflow.requestedOperation -cne 'access-export' -or
+        [string]$Record.workflow.requesterRelationship -cne 'controller-initiated' -or
+        [string]$Record.workflow.finalStatus -cne 'completed' -or
+        [int]$Record.workflow.selectedSubjectCount -ne 1) {
+        throw 'Data Rights access export evidence has an invalid workflow summary.'
+    }
+
+    Assert-BunkFyCandidateProperties `
+        -Value $Record.artifact `
+        -ExpectedProperties @(
+            'finalStatus',
+            'formatVersion',
+            'subjectCount',
+            'recordCount',
+            'byteCount',
+            'expiryHours') `
+        -Context 'Data Rights access export artifact'
+    $expiryHours = [double]$Record.artifact.expiryHours
+    if ([string]$Record.artifact.finalStatus -cne 'available' -or
+        [int]$Record.artifact.formatVersion -ne 1 -or
+        [int]$Record.artifact.subjectCount -ne 1 -or
+        [int]$Record.artifact.recordCount -lt 1 -or
+        [int]$Record.artifact.recordCount -gt 50000 -or
+        [long]$Record.artifact.byteCount -lt 1 -or
+        [long]$Record.artifact.byteCount -gt 1MB -or
+        [double]::IsNaN($expiryHours) -or
+        [double]::IsInfinity($expiryHours) -or
+        $expiryHours -lt (5.0 / 60.0) -or
+        $expiryHours -gt 168.0) {
+        throw 'Data Rights access export evidence has an invalid artifact summary.'
+    }
+
+    Assert-BunkFyCandidateProperties `
+        -Value $Record.cleanup `
+        -ExpectedProperties @('guestArchived', 'artifactDisposition') `
+        -Context 'Data Rights access export cleanup'
+    if ($Record.cleanup.guestArchived -isnot [bool] -or
+        -not [bool]$Record.cleanup.guestArchived -or
+        [string]$Record.cleanup.artifactDisposition -cne 'scheduled-expiry') {
+        throw 'Data Rights access export evidence has an invalid cleanup disposition.'
+    }
+}
+
 function Get-BunkFyVerifiedProductionAdmissionProbe {
     param(
         [Parameter(Mandatory = $true)][string] $Path,
@@ -517,6 +587,9 @@ function Get-BunkFyVerifiedProductionAdmissionProbe {
         Assert-BunkFyRetentionAdmissionEvidence `
             -Record $record `
             -GeneratedAt $generatedAt
+    }
+    elseif ($SpecificationName -ceq 'data-rights-access-export') {
+        Assert-BunkFyDataRightsAccessExportAdmissionEvidence -Record $record
     }
 
     if ($SpecificationName.StartsWith('admin-', [StringComparison]::Ordinal)) {
@@ -791,6 +864,7 @@ function Get-BunkFyProductionAdmissionExpectedEvidence {
         'deployed-adapter-host' = [pscustomobject]@{ Kind = 'bunkfy-deployed-adapter-host-probe'; ReleaseId = $CandidateReleaseId; Count = 8 }
         'deployed-admin-allowed' = [pscustomobject]@{ Kind = 'bunkfy-deployed-admin-boundary-probe'; ReleaseId = $CandidateReleaseId; Count = 5 }
         'deployed-admin-denied' = [pscustomobject]@{ Kind = 'bunkfy-deployed-admin-boundary-probe'; ReleaseId = $CandidateReleaseId; Count = 4 }
+        'deployed-data-rights-access-export' = [pscustomobject]@{ Kind = 'bunkfy-deployed-data-rights-access-export-probe'; ReleaseId = $CandidateReleaseId; Count = 18 }
         'deployed-operations-notifications' = [pscustomobject]@{ Kind = 'bunkfy-deployed-operations-notifications-probe'; ReleaseId = $CandidateReleaseId; Count = 10 }
         'deployed-public-edge' = [pscustomobject]@{ Kind = 'bunkfy-deployed-public-edge-probe'; ReleaseId = $CandidateReleaseId; Count = 6 }
         'deployed-reservations-inventory' = [pscustomobject]@{ Kind = 'bunkfy-deployed-reservations-inventory-probe'; ReleaseId = $CandidateReleaseId; Count = 11 }

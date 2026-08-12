@@ -34,6 +34,7 @@ Provide the exact retained files or directories for:
   [QR enrollment](deployed-workspace-enrollment-verification.md) results;
 - [Operations Notifications](deployed-operations-notifications-verification.md),
   [Reservations and Inventory lifecycle](deployed-reservations-inventory-verification.md),
+  [Data Rights Access Export](deployed-data-rights-access-export-verification.md),
   [AdapterHost](deployed-adapter-host-verification.md), and
   [Retention](deployed-retention-verification.md) results.
 
@@ -47,6 +48,14 @@ onboarding umbrella, for `OperationsNotificationsEvidencePath`.
 The matching opt-in `*.reservations-inventory.json` child is a standalone
 Reservations and Inventory lifecycle proof and may be supplied directly for
 `ReservationsInventoryEvidencePath`.
+The matching opt-in `*.data-rights-access-export.json` child is a standalone
+Data Rights proof and may be supplied directly for
+`DataRightsAccessExportEvidencePath`. It proves deployed protected export
+behavior but not browser privacy-request UX, independent object-store/key
+custody, or immediate artifact deletion.
+Loopback Preview output remains rehearsal evidence and is rejected by the
+production parser unless its test-only fixture allowance is explicitly used;
+it cannot satisfy the hosted admission input.
 Its Preview engineering/example country-policy binding proves runtime contract
 composition only. It cannot satisfy a production country approval, legal,
 transfer, or retention-policy evidence requirement.
@@ -92,6 +101,7 @@ $admission = @{
   WorkspaceEnrollmentEvidencePath = '/evidence/probes/workspace-enrollment.json'
   OperationsNotificationsEvidencePath = '/evidence/probes/notifications.json'
   ReservationsInventoryEvidencePath = '/evidence/probes/reservations-inventory.json'
+  DataRightsAccessExportEvidencePath = '/evidence/probes/data-rights-access-export.json'
   AdapterHostEvidencePath = '/evidence/probes/adapter-host.json'
   RetentionEvidencePath = '/evidence/probes/retention.json'
   BrowserRehearsalReference = 'record:BROWSER-123'
@@ -114,8 +124,9 @@ after the candidate has been probed.
 
 The admission record contains release and image identities, evidence kinds,
 timestamps, check counts, SHA-256 bindings, and the five private references. It
-does not copy workspace, property, Inventory, Reservation, Staff, guest,
-notification, adapter, or Retention coordinates from source evidence.
+does not copy workspace, property, Inventory, Reservation, Staff, guest, Data
+Rights case/artifact, notification, adapter, or Retention coordinates from
+source evidence.
 
 ## Verify And Approve
 

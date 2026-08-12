@@ -341,6 +341,18 @@ engineering/example policy through the public Properties API, provisions and
 retires a temporary sellable room, and binds the scrubbed child proof into the
 onboarding evidence.
 
+Use the mutation-bearing
+[deployed Data Rights Access Export verifier](deployed-data-rights-access-export-verification.md)
+to prove exact Guest discovery, approved immutable scope, Worker export
+generation, assurance-gated protected download, idempotent replay, and bounded
+artifact expiry against one candidate. For a self-contained Preview run, add
+`-IncludeDataRightsAccessExport` to the onboarding rehearsal. It performs a
+fresh owner login, temporarily enrolls TOTP for destructive assurance, uses an
+unjoined applicant as the nonmember, archives the synthetic Guest, disables the
+temporary factor, and binds only scrubbed child evidence into the umbrella. The
+encrypted artifact and case history remain under configured lifecycle and are
+not claimed as immediately deleted.
+
 For a provider-to-Ingestion proof through a target remote AdapterHost, use the
 [deployed AdapterHost verifier](deployed-adapter-host-verification.md). Start the
 read-only probe before placing one valid synthetic non-PII record in the real

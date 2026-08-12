@@ -1,6 +1,6 @@
 # Deployed Data Rights Access Export Proof Task
 
-Status: planned
+Status: implemented and exact-release Preview verified
 Date: 2026-08-12
 
 ## Goal
@@ -26,8 +26,8 @@ configured lifecycle policy.
 ## Ownership
 
 - GMA Auth, Security, Access Control, and Tasks retain their generic contracts.
-  They already provide password step-up, assurance metadata, scoped policy
-  evaluation, and durable task execution. GMA remains unchanged.
+  They already provide password and TOTP authentication, assurance metadata,
+  scoped policy evaluation, and durable task execution. GMA remains unchanged.
 - BunkFy Guests owns the synthetic subject lifecycle.
 - BunkFy Data Rights owns case progression, immutable selected scope, export
   generation, protected download, and artifact expiry.
@@ -68,7 +68,7 @@ disposition, checks, and fixed limitations.
 It must not retain credentials, refresh tokens, PII, plaintext export content,
 plaintext hashes, or workspace, property, Guest, case, subject, and artifact
 identifiers. Files are written atomically with private permissions and cannot
-overwrite an existing result.
+overwrite an existing result without explicit `-Force` approval.
 
 The fixed limitations will state that the proof does not exercise the browser
 privacy workflow, multi-subject or large exports, or independent object-store
@@ -79,10 +79,12 @@ their configured lifecycle completes.
 
 `rehearse-preview-onboarding.ps1` will expose an opt-in Data Rights switch. Only
 for that switch, it will retain the generated owner password in a `SecureString`,
-create a fresh owner session, perform password step-up, and pass assured and
-unassured tokens to the child verifier as `SecureString` values. No password or
-refresh token will cross the command line or evidence boundary. Existing final
-sign-out-all cleanup remains authoritative for rehearsal sessions.
+create a fresh password session for the negative assurance control, temporarily
+enroll TOTP for the destructive-assurance session, and pass both tokens to the
+child verifier as `SecureString` values. The parent disables the synthetic TOTP
+factor with a one-use recovery code during cleanup, which also revokes the
+owner's sessions. No password, TOTP secret, recovery code, or refresh token will
+cross the command line or evidence boundary.
 
 The Data Rights proof will run before invitation acceptance so the invitation
 applicant can serve as the nonmember identity. Property processing will be
@@ -123,3 +125,28 @@ MinIO.
 - An exact candidate Preview run produces passing minimized evidence.
 - Production admission requires the new exact-release evidence but does not
   present Preview evidence as hosted-production proof.
+
+## Outcome
+
+The focused TOTP, deployed-verifier, and production-admission fixtures pass.
+The complete root operations gate also passes with the new verifier and the
+14-source admission bundle.
+
+Exact release `preview-workspace-access-estate-651107f` passed the opt-in
+Preview rehearsal on 2026-08-12. The child passed all 18 checks with one Guest,
+one exported record, a 1,400-byte format-v1 artifact, and a 24-hour scheduled
+expiry. Its SHA-256 is
+`5e03d355f26436960daa2fa4ab4f1a7bb4e3b815fd6f87f99cf3145c7e417f72`.
+The 11-check umbrella SHA-256 is
+`987c87635a792b1f802133db23a525d9d5bcbe89a8ad79e63badeb61d69a7058`.
+
+Cleanup archived the Guest, disabled the temporary TOTP factor and revoked its
+sessions, removed both joined members, retired both properties, archived the
+workspace, revoked all remaining sessions, and purged the Mailpit window. The
+encrypted artifact remains scheduled for expiry and the case remains under its
+configured lifecycle, as declared before implementation.
+
+The retained files are ignored local Preview evidence with operator-only
+permissions. Their `loopback-http-fixture` transport is accepted only under the
+admission parser's explicit fixture allowance and cannot satisfy the mandatory
+hosted-production evidence input.

@@ -146,6 +146,31 @@ function New-TestProbeEvidence {
             $record['transport'] = 'loopback-http-fixture'
             $record['result'] = 'passed'
         }
+        'data-rights-access-export' {
+            $record['origin'] = $Origin.GetLeftPart([UriPartial]::Authority)
+            $record['releaseId'] = $ReleaseId
+            $record['transport'] = 'loopback-http-fixture'
+            $record['result'] = 'passed'
+            $record['workflow'] = [ordered]@{
+                caseType = 'guest-rights'
+                requestedOperation = 'access-export'
+                requesterRelationship = 'controller-initiated'
+                finalStatus = 'completed'
+                selectedSubjectCount = 1
+            }
+            $record['artifact'] = [ordered]@{
+                finalStatus = 'available'
+                formatVersion = 1
+                subjectCount = 1
+                recordCount = 2
+                byteCount = 2048
+                expiryHours = 24
+            }
+            $record['cleanup'] = [ordered]@{
+                guestArchived = $true
+                artifactDisposition = 'scheduled-expiry'
+            }
+        }
         'adapter-host' {
             $record['publicOrigin'] = $Origin.GetLeftPart([UriPartial]::Authority)
             $record['releaseId'] = $ReleaseId
@@ -378,6 +403,7 @@ try {
         Enrollment = Join-Path $temporaryRoot 'enrollment.json'
         Notifications = Join-Path $temporaryRoot 'notifications.json'
         ReservationsInventory = Join-Path $temporaryRoot 'reservations-inventory.json'
+        DataRightsAccessExport = Join-Path $temporaryRoot 'data-rights-access-export.json'
         AdapterHost = Join-Path $temporaryRoot 'adapter-host.json'
         Retention = Join-Path $temporaryRoot 'retention.json'
     }
@@ -388,6 +414,7 @@ try {
     New-TestProbeEvidence -Path $probePaths.Enrollment -SpecificationName workspace-enrollment -Origin $origin -ReleaseId $candidateRelease
     New-TestProbeEvidence -Path $probePaths.Notifications -SpecificationName operations-notifications -Origin $origin -ReleaseId $candidateRelease
     New-TestProbeEvidence -Path $probePaths.ReservationsInventory -SpecificationName reservations-inventory -Origin $origin -ReleaseId $candidateRelease
+    New-TestProbeEvidence -Path $probePaths.DataRightsAccessExport -SpecificationName data-rights-access-export -Origin $origin -ReleaseId $candidateRelease
     New-TestProbeEvidence -Path $probePaths.AdapterHost -SpecificationName adapter-host -Origin $origin -ReleaseId $candidateRelease
     New-TestProbeEvidence -Path $probePaths.Retention -SpecificationName retention -Origin $origin -ReleaseId $candidateRelease
 
@@ -410,6 +437,7 @@ try {
         WorkspaceEnrollmentEvidencePath = $probePaths.Enrollment
         OperationsNotificationsEvidencePath = $probePaths.Notifications
         ReservationsInventoryEvidencePath = $probePaths.ReservationsInventory
+        DataRightsAccessExportEvidencePath = $probePaths.DataRightsAccessExport
         AdapterHostEvidencePath = $probePaths.AdapterHost
         RetentionEvidencePath = $probePaths.Retention
         BrowserRehearsalReference = 'record:BROWSER-123'
@@ -437,7 +465,7 @@ try {
         $assembled.AdmissionEvidenceReference -cne $verified.AdmissionEvidenceReference -or
         $verified.AdmissionEvidenceReference -cne $admissionReference -or
         $verified.ReleaseId -cne $candidateRelease -or
-        @($verified.Record.evidence).Count -ne 13 -or
+        @($verified.Record.evidence).Count -ne 14 -or
         @($verified.Record.privateEvidence).Count -ne 5 -or
         @($verified.Record.checks).Count -ne 7) {
         throw 'Production admission fixture emitted invalid closed evidence.'
@@ -458,7 +486,7 @@ try {
     }
 
     $serialized = [IO.File]::ReadAllText((Join-Path $output 'production-admission.json'))
-    foreach ($forbidden in @('workspaceId', 'propertyId', 'inventoryUnitId', 'token', 'password', 'responseBody', 'rawHeaders')) {
+    foreach ($forbidden in @('workspaceId', 'propertyId', 'inventoryUnitId', 'guestId', 'caseId', 'artifactId', 'token', 'password', 'responseBody', 'rawHeaders')) {
         if ($serialized.Contains($forbidden, [StringComparison]::OrdinalIgnoreCase)) {
             throw "Production admission bundle retained forbidden source detail '$forbidden'."
         }
@@ -486,6 +514,23 @@ try {
     if ([IO.Directory]::Exists([string]$mismatchArguments.OutputDirectory)) {
         throw 'Rejected cross-release evidence left an admission bundle.'
     }
+
+    $invalidDataRightsPath = Join-Path $temporaryRoot 'invalid-data-rights-cleanup.json'
+    $invalidDataRights = Get-Content -LiteralPath $probePaths.DataRightsAccessExport -Raw |
+        ConvertFrom-Json -AsHashtable -DateKind String
+    $invalidDataRights.cleanup.artifactDisposition = 'deleted-immediately'
+    Write-BunkFyCandidateJson -Path $invalidDataRightsPath -Value $invalidDataRights
+    Assert-TestFailure `
+        -Operation {
+            Get-BunkFyVerifiedProductionAdmissionProbe `
+                -Path $invalidDataRightsPath `
+                -SpecificationName data-rights-access-export `
+                -ExpectedOrigin $origin `
+                -ExpectedReleaseId $candidateRelease `
+                -AllowFixtureEvidence | Out-Null
+        } `
+        -ExpectedMessage 'invalid cleanup disposition' `
+        -Context 'false immediate Data Rights artifact deletion claim'
 
     $duplicatePrivateArguments = $arguments.Clone()
     $duplicatePrivateArguments.WorkspaceAccessEstateReference =
