@@ -1,6 +1,6 @@
 # Production Workspace Access Estate Admission Task
 
-Status: in progress
+Status: implemented and verified
 Date: 2026-08-12
 
 ## Goal
@@ -76,3 +76,21 @@ database, broker, or container behavior, so no Docker rerun is required.
 - Importing private record contents into the public admission bundle.
 - Global retirement of the legacy role definition before every production
   deployment has its own accepted estate record.
+
+## Outcome
+
+Production admission now requires a mandatory
+`WorkspaceAccessEstateReference` and retains it under the dedicated
+`workspace-access-seed-estate` private control. The reference must be bounded,
+non-secret, and distinct from browser onboarding, recovery, deployment control,
+and runtime-operations evidence. The closed admission bundle still contains
+only references; it does not import tenant coordinates or private record
+contents.
+
+The public runbook defines the hosted record's exact release, catalog,
+convergence, migration, minimization, and review expectations, and explicitly
+rejects the Preview-only estate result as production evidence. The focused
+production-admission fixture passes, including duplicate-reference rejection
+without output. The complete operations gate also passes. No Docker or GMA
+verification was needed because this slice changes only release-evidence
+composition and documentation.

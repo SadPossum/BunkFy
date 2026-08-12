@@ -10,7 +10,8 @@ $script:BunkFyProductionAdmissionPrivateControls = @(
     'browser-workspace-onboarding',
     'deployment-approval-alerting-and-rollback',
     'hosted-backup-and-recovery',
-    'runtime-topology-restart-and-credential-rotation')
+    'runtime-topology-restart-and-credential-rotation',
+    'workspace-access-seed-estate')
 $script:BunkFyProductionAdmissionChecks = @(
     'candidate-and-rollback-promotions-verified',
     'deployed-rollback-rehearsal-verified',

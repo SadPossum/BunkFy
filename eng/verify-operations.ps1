@@ -1898,6 +1898,7 @@ foreach ($requiredToken in @(
         'HostedRecoveryReference',
         'DeploymentControlReference',
         'RuntimeOperationsReference',
+        'WorkspaceAccessEstateReference',
         'Get-BunkFyVerifiedProductionAdmission',
         '[IO.Directory]::Move')) {
     if (-not $productionAdmissionAssembler.Contains($requiredToken, [StringComparison]::Ordinal)) {

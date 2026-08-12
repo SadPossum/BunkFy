@@ -416,6 +416,7 @@ try {
         HostedRecoveryReference = 'record:RECOVERY-123'
         DeploymentControlReference = 'record:DEPLOY-123'
         RuntimeOperationsReference = 'record:RUNTIME-123'
+        WorkspaceAccessEstateReference = 'record:ACCESS-123'
         OutputDirectory = $output
         AllowFixtureEvidence = $true
         PassThru = $true
@@ -437,7 +438,7 @@ try {
         $verified.AdmissionEvidenceReference -cne $admissionReference -or
         $verified.ReleaseId -cne $candidateRelease -or
         @($verified.Record.evidence).Count -ne 13 -or
-        @($verified.Record.privateEvidence).Count -ne 4 -or
+        @($verified.Record.privateEvidence).Count -ne 5 -or
         @($verified.Record.checks).Count -ne 7) {
         throw 'Production admission fixture emitted invalid closed evidence.'
     }
@@ -484,6 +485,20 @@ try {
         -Context 'cross-release source evidence'
     if ([IO.Directory]::Exists([string]$mismatchArguments.OutputDirectory)) {
         throw 'Rejected cross-release evidence left an admission bundle.'
+    }
+
+    $duplicatePrivateArguments = $arguments.Clone()
+    $duplicatePrivateArguments.WorkspaceAccessEstateReference =
+        $duplicatePrivateArguments.BrowserRehearsalReference
+    $duplicatePrivateArguments.OutputDirectory =
+        Join-Path $temporaryRoot 'duplicate-private-reference-admission'
+    Assert-TestFailure `
+        -Operation { & $assembler @duplicatePrivateArguments } `
+        -ExpectedMessage 'distinct evidence reference' `
+        -Context 'duplicate private estate evidence reference'
+    if ([IO.Directory]::Exists(
+            [string]$duplicatePrivateArguments.OutputDirectory)) {
+        throw 'Rejected duplicate private reference left an admission bundle.'
     }
 
     $staleRetentionPath = Join-Path $temporaryRoot 'stale-retention.json'

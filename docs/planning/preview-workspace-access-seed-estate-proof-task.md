@@ -78,7 +78,8 @@ rehearsal while correcting failures.
 
 - A hosted scheduler or fleet-wide multi-deployment orchestrator.
 - Automatic bootstrap during application startup.
-- Production admission policy for deployment classes beyond Preview.
+- The first hosted estate execution and private approval record now required by
+  production admission.
 - Any product-domain work outside Workspace Access.
 
 ## Outcome
@@ -105,3 +106,7 @@ fixture subsequently caught and closed a PowerShell process-result leak before
 tenant mutation; it now proves a single closed result object and prompt child
 termination on timeout. Hosted fleet orchestration and production classes
 beyond Preview remain deferred rather than implied by this evidence.
+
+The follow-up production-admission slice now requires a distinct private
+hosted Workspace Access estate reference. This Preview evidence remains
+deliberately ineligible to satisfy that control.

@@ -51,12 +51,21 @@ Its Preview engineering/example country-policy binding proves runtime contract
 composition only. It cannot satisfy a production country approval, legal,
 transfer, or retention-policy evidence requirement.
 
-Also provide four non-secret references from the private release system:
+Also provide five non-secret references from the private release system:
 
 - completed browser workspace-onboarding and registration rehearsal;
 - hosted backup and recovery rehearsal;
 - deployment approval, alert ownership, traffic handling, and rollback control;
-- runtime topology, restart, and credential-rotation rehearsal.
+- runtime topology, restart, and credential-rotation rehearsal; and
+- the hosted Workspace Access seed estate for the exact candidate.
+
+The Workspace Access estate record must bind the exact candidate/backend
+artifact, complete authorized active-workspace enumeration, stable catalog
+fingerprint, expected seed version and protected-profile count, final
+convergence with zero legacy members, and any approved bootstrap outcome.
+Tenant identity should be retained only as approved one-way fingerprints. The
+Preview estate result explicitly marked `preview-deployment-only` cannot
+satisfy this hosted control.
 
 Use bounded references such as `record:OPS-123`; never pass a URL containing a
 token, credentials, personal data, or raw logs. The repository validates the
@@ -89,6 +98,7 @@ $admission = @{
   HostedRecoveryReference = 'record:RECOVERY-123'
   DeploymentControlReference = 'record:DEPLOY-123'
   RuntimeOperationsReference = 'record:RUNTIME-123'
+  WorkspaceAccessEstateReference = 'record:ACCESS-123'
   OutputDirectory = '/evidence/admission/release-20260806-02'
 }
 
@@ -103,7 +113,7 @@ retains the caller-supplied identity exactly; it never substitutes a new one
 after the candidate has been probed.
 
 The admission record contains release and image identities, evidence kinds,
-timestamps, check counts, SHA-256 bindings, and the four private references. It
+timestamps, check counts, SHA-256 bindings, and the five private references. It
 does not copy workspace, property, Inventory, Reservation, Staff, guest,
 notification, adapter, or Retention coordinates from source evidence.
 

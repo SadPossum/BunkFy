@@ -33,6 +33,7 @@ param(
     [Parameter(Mandatory = $true)][string] $HostedRecoveryReference,
     [Parameter(Mandatory = $true)][string] $DeploymentControlReference,
     [Parameter(Mandatory = $true)][string] $RuntimeOperationsReference,
+    [Parameter(Mandatory = $true)][string] $WorkspaceAccessEstateReference,
     [string] $OutputDirectory,
     [switch] $AllowFixtureEvidence,
     [switch] $PassThru
@@ -162,6 +163,7 @@ $privateReferences = [ordered]@{
     'deployment-approval-alerting-and-rollback' = Assert-BunkFyProductionAdmissionReference -Value $DeploymentControlReference -Name 'DeploymentControlReference'
     'hosted-backup-and-recovery' = Assert-BunkFyProductionAdmissionReference -Value $HostedRecoveryReference -Name 'HostedRecoveryReference'
     'runtime-topology-restart-and-credential-rotation' = Assert-BunkFyProductionAdmissionReference -Value $RuntimeOperationsReference -Name 'RuntimeOperationsReference'
+    'workspace-access-seed-estate' = Assert-BunkFyProductionAdmissionReference -Value $WorkspaceAccessEstateReference -Name 'WorkspaceAccessEstateReference'
 }
 if (@($privateReferences.Values | Sort-Object -Unique).Count -ne $privateReferences.Count) {
     throw 'Each private production control must use a distinct evidence reference.'
