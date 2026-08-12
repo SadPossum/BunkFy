@@ -292,6 +292,10 @@ try {
     }
 
     $evidence = Get-Content -LiteralPath $validOutput -Raw | ConvertFrom-Json -Depth 8
+    Assert-BunkFyLocalSensitivePath `
+        -Path $validOutput `
+        -PathType Leaf `
+        -Description 'Deployed public-edge fixture evidence'
     if ($evidence.schemaVersion -ne 3 -or
         $evidence.evidenceKind -cne 'bunkfy-deployed-public-edge-probe' -or
         $evidence.result -cne 'passed' -or

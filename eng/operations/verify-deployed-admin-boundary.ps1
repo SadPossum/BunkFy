@@ -402,20 +402,10 @@ $parent = Split-Path -Parent $OutputPath
 if (-not (Test-Path -LiteralPath $parent -PathType Container)) {
     [void](New-Item -ItemType Directory -Path $parent -Force)
 }
-$temporaryPath = "$OutputPath.$([Guid]::NewGuid().ToString('N')).tmp"
-try {
-    $json = $evidence | ConvertTo-Json -Depth 8
-    [IO.File]::WriteAllText(
-        $temporaryPath,
-        ($json.Replace("`r`n", "`n") + "`n"),
-        [Text.UTF8Encoding]::new($false))
-    Move-Item -LiteralPath $temporaryPath -Destination $OutputPath -Force:$Force
-}
-finally {
-    if (Test-Path -LiteralPath $temporaryPath) {
-        Remove-Item -LiteralPath $temporaryPath -Force
-    }
-}
+Write-BunkFyPrivateJsonEvidence `
+    -Path $OutputPath `
+    -Value $evidence `
+    -Overwrite:$Force
 
 Write-Host "BunkFy deployed Admin API boundary passed $($checks.Count) checks for the $ExpectedAdminReachability vantage point."
 Write-Host "Evidence set: $($EvidenceSetId.ToString('D'))"

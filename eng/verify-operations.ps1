@@ -66,6 +66,38 @@ foreach ($script in $scripts) {
 
 Write-Host 'BunkFy operations scripts are syntactically valid.'
 
+$deployedEvidenceCommon = Get-Content -LiteralPath (
+    Join-Path $PSScriptRoot 'operations\deployed-public-edge.common.ps1') -Raw
+foreach ($requiredToken in @(
+        'function Write-BunkFyPrivateJsonEvidence',
+        'Write-BunkFyLocalSensitiveTextFile',
+        '-Overwrite:$Overwrite')) {
+    if (-not $deployedEvidenceCommon.Contains(
+            $requiredToken,
+            [StringComparison]::Ordinal)) {
+        throw "Private deployed-evidence writer is missing '$requiredToken'."
+    }
+}
+$deployedEvidenceWriters = @(
+    'rehearse-preview-onboarding.ps1',
+    'verify-deployed-adapter-host.ps1',
+    'verify-deployed-admin-boundary.ps1',
+    'verify-deployed-operations-notifications.ps1',
+    'verify-deployed-public-edge.ps1',
+    'verify-deployed-reservations-inventory.ps1',
+    'verify-deployed-retention.ps1',
+    'verify-deployed-workspace-enrollment.ps1',
+    'verify-deployed-workspace-invitation.ps1')
+foreach ($scriptName in $deployedEvidenceWriters) {
+    $source = Get-Content -LiteralPath (
+        Join-Path $PSScriptRoot "operations\$scriptName") -Raw
+    if (-not $source.Contains(
+            'Write-BunkFyPrivateJsonEvidence',
+            [StringComparison]::Ordinal)) {
+        throw "Deployed evidence script '$scriptName' bypasses the private writer."
+    }
+}
+
 . (Join-Path $PSScriptRoot 'operations\admin-api.common.ps1')
 . (Join-Path $PSScriptRoot 'operations\local-sensitive-state.common.ps1')
 . (Join-Path $PSScriptRoot 'operations\preview-state.common.ps1')

@@ -1938,20 +1938,12 @@ $evidence = [ordered]@{
 if (-not (Test-Path -LiteralPath $outputDirectory -PathType Container)) {
     [void](New-Item -ItemType Directory -Path $outputDirectory -Force)
 }
-$temporaryPath = "$OutputPath.$([Guid]::NewGuid().ToString('N')).tmp"
-try {
-    $json = $evidence | ConvertTo-Json -Depth 10
-    [IO.File]::WriteAllText(
-        $temporaryPath,
-        ($json.Replace("`r`n", "`n") + "`n"),
-        [Text.UTF8Encoding]::new($false))
-    Move-Item -LiteralPath $temporaryPath -Destination $OutputPath -Force:$Force
-}
-finally {
-    if (Test-Path -LiteralPath $temporaryPath) {
-        Remove-Item -LiteralPath $temporaryPath -Force
-    }
-}
+Write-BunkFyPrivateJsonEvidence `
+    -Path $OutputPath `
+    -Value $evidence `
+    -Depth 10 `
+    -Overwrite:$Force `
+    -Description 'Preview onboarding rehearsal evidence'
 
 if ($null -ne $proofError) {
     throw $proofError

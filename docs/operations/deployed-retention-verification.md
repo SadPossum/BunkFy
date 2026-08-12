@@ -68,12 +68,14 @@ while paging fails closed rather than combining inconsistent snapshots.
 ## Evidence And Failure
 
 Passing JSON evidence is written atomically under `.tmp/deployment-probes` by
-default. It includes the public origin, release identity, workspace id, observed
-data class, catalogue count, the two expected schedule coordinates, run ids,
-timestamps, bounded counts, outcome codes, seven checks, explicit limitations,
-and a schema-v2 observation record. The observation identifies whether the
-proof advanced beyond a baseline or satisfied a supplied lower bound, including
-the baseline run identity and bounded clock-skew allowance.
+default with operator-only access (`0600` on Unix or a protected
+current-operator ACL on Windows). It includes the public origin, release
+identity, workspace id, observed data class, catalogue count, the two expected
+schedule coordinates, run ids, timestamps, bounded counts, outcome codes, seven
+checks, explicit limitations, and a schema-v2 observation record. The
+observation identifies whether the proof advanced beyond a baseline or
+satisfied a supplied lower bound, including the baseline run identity and
+bounded clock-skew allowance.
 
 It excludes the bearer token, request headers, owner records, property
 coordinates from future schedules, payloads, legal-hold details, and response

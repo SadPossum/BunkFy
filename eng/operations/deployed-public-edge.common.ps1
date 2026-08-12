@@ -1,7 +1,26 @@
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+. (Join-Path $PSScriptRoot 'local-sensitive-state.common.ps1')
+
 $script:BunkFyPublicEdgeMaximumBodyBytes = 64KB
+
+function Write-BunkFyPrivateJsonEvidence {
+    param(
+        [Parameter(Mandatory = $true)][string] $Path,
+        [Parameter(Mandatory = $true)][object] $Value,
+        [ValidateRange(2, 32)][int] $Depth = 8,
+        [switch] $Overwrite,
+        [string] $Description = 'Deployed verification evidence'
+    )
+
+    $json = $Value | ConvertTo-Json -Depth $Depth
+    Write-BunkFyLocalSensitiveTextFile `
+        -Path $Path `
+        -Content ($json.Replace("`r`n", "`n") + "`n") `
+        -Overwrite:$Overwrite `
+        -Description $Description
+}
 
 function Test-BunkFyLoopbackHost {
     param([Parameter(Mandatory = $true)][string] $HostName)

@@ -84,6 +84,8 @@ One umbrella evidence file and the selected child probe files are written under
 SHA-256 digests, identity fingerprints, stable product identifiers, check
 outcomes, and cleanup outcomes. It excludes email addresses, passwords, bearer
 tokens, verification codes, invitation or QR secrets, and captured bodies.
+All PowerShell probe files are written atomically with operator-only access
+(`0600` on Unix or a protected current-operator ACL on Windows).
 
 After proof, the rehearsal:
 
