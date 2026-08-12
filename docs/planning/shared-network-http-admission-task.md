@@ -1,6 +1,6 @@
 # Shared-Network HTTP Admission Task
 
-Status: in progress
+Status: completed
 Date: 2026-08-12
 
 ## Goal
@@ -39,6 +39,27 @@ consume the same narrow budget and strand an approved user on `/join`.
 - Focused host tests prove configuration startup.
 - One end-of-slice Preview browser run proves that polling, approval, projection
   convergence, and cleanup complete against the exact deployed release.
+
+## Outcome
+
+- GMA Framework `fa1afd9` provides bounded named, method-aware policies with
+  equivalent in-process chaining and atomic distributed admission. Its full
+  test suite passed with 1,133 tests.
+- GMA Skeleton `c99bc81` applies the policy model to generated hosts and passed
+  its architecture and complete generated-selection verification.
+- BunkFy Backend `c8d8b35` separates authentication writes from workspace-join
+  writes while read-only enrollment polling consumes only the global budget.
+  The 103-test host architecture suite passed.
+- Root release checkpoint `40a84d8` was deployed as
+  `preview-http-admission-40a84d8`. The non-disruptive Chromium rehearsal passed
+  all 18 invitation, Team QR, authorization, convergence, replay, release, and
+  cleanup checks without a `429` response. Scrubbed local evidence is retained
+  at `.tmp/deployment-probes/preview-http-admission-40a84d8-attempt2.json` with
+  mode `0600`.
+- Post-run inspection found no cleanup failures, no published Mailpit port, no
+  leftover management network, and a running Worker. The previous release's
+  full guarded Worker-restart rehearsal remains the restart-specific proof;
+  this policy-only slice did not repeat it.
 
 ## Deferred Capacity Evidence
 
