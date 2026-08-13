@@ -156,6 +156,7 @@ function Get-BunkFyProductionAdmissionProbeSpecification {
             'staff-employment',
             'properties-topology',
             'ingestion-connection-lifecycle',
+            'ingestion-conflict-proposal-lifecycle',
             'data-rights-access-export',
             'adapter-host',
             'retention')]
@@ -296,6 +297,19 @@ function Get-BunkFyProductionAdmissionProbeSpecification {
                 Properties = @('schemaVersion', 'evidenceKind', 'generatedAtUtc', 'origin', 'releaseId', 'transport', 'result', 'workflow', 'cleanup', 'checks', 'limitations')
                 Checks = @('scoped-operator-and-processing-preflight', 'nonmember-connections-denied', 'remote-capability-discovered', 'connection-created', 'connection-create-replay-stable', 'connection-create-conflict-rejected', 'connection-directory-detail-and-health-visible', 'connection-updated-with-secret-reference', 'connection-update-replay-stable', 'connection-update-conflict-and-stale-write-rejected', 'secret-reference-cleared', 'connection-disabled', 'connection-disable-replay-stable', 'connection-disable-conflict-and-stale-write-rejected', 'connection-enabled', 'connection-enable-replay-stable', 'connection-enable-conflict-and-stale-write-rejected', 'ingress-credential-issued-once', 'ingress-credential-replay-withholds-token', 'ingress-credential-create-conflict-rejected', 'ingress-credential-directory-visible', 'remote-lease-claimed-with-issued-credential', 'zero-observation-run-completed', 'terminal-run-and-health-visible', 'credential-authentication-telemetry-visible', 'ingress-credential-revoked', 'ingress-credential-revoke-replay-stable', 'ingress-credential-revoke-conflict-and-stale-write-rejected', 'revoked-credential-denied', 'connection-finally-disabled', 'terminal-projections-consistent', 'release-identity-continuous')
                 Limitations = @('provider-record-receipt-proposal-and-checkpoint-not-exercised', 'country-policy-activation-and-rebinding-not-exercised', 'production-secret-manager-and-orchestrator-rotation-not-exercised', 'synthetic-disabled-control-state-retained')
+                GuidProperties = @()
+            }
+        }
+        'ingestion-conflict-proposal-lifecycle' {
+            return [pscustomobject]@{
+                Name = $Name
+                EvidenceKind = 'bunkfy-deployed-ingestion-conflict-proposal-lifecycle-probe'
+                SchemaVersion = 1
+                OriginProperty = 'origin'
+                TransportProperty = 'transport'
+                Properties = @('schemaVersion', 'evidenceKind', 'generatedAtUtc', 'origin', 'releaseId', 'transport', 'result', 'adapterContract', 'authorityRevisions', 'proposalSummary', 'cleanup', 'checks', 'limitations')
+                Checks = @('scoped-operator-processing-and-inventory-preflight', 'nonmember-proposal-read-denied', 'push-capability-discovered', 'push-connection-and-credential-created', 'adapter-ingress-requires-independent-authentication', 'initial-observation-auto-created-reservation', 'observation-replay-is-stable', 'baseline-current-update-auto-applied', 'staff-edit-established-new-authority', 'staff-conflict-created-pending-proposal', 'pending-proposal-did-not-overwrite-staff-state', 'newer-source-proposal-superseded-older-pending', 'only-newest-proposal-remains-actionable', 'superseded-proposal-decision-rejected', 'newest-proposal-rejected-with-audit-reason', 'proposal-rejection-replay-and-conflict-safe', 'later-source-update-created-fresh-proposal', 'proposal-acceptance-started-versioned-operation', 'accepted-proposal-converged-in-reservations', 'proposal-acceptance-replay-and-conflict-safe', 'stale-source-input-created-no-actionable-work', 'reservation-history-preserved-authority-provenance', 'adapter-cancellation-completed-terminally', 'credential-revoked-and-connection-disabled', 'release-identity-continuous', 'terminal-proposal-projection-consistent')
+                Limitations = @('synthetic-reservation-data-only', 'loopback-preview-is-not-hosted-production-proof', 'provider-acquisition-and-parser-correctness-not-exercised', 'proposal-acceptance-race-to-stale-covered-by-focused-integration-tests', 'production-country-policy-and-provider-credential-approval-not-exercised')
                 GuidProperties = @()
             }
         }
@@ -721,6 +735,67 @@ function Assert-BunkFyIngestionConnectionLifecycleAdmissionEvidence {
     }
 }
 
+function Assert-BunkFyIngestionConflictProposalLifecycleAdmissionEvidence {
+    param([Parameter(Mandatory = $true)][object] $Record)
+
+    Assert-BunkFyCandidateProperties `
+        -Value $Record.adapterContract `
+        -ExpectedProperties @(
+            'executionMode',
+            'protocolVersion',
+            'configurationSchemaVersion') `
+        -Context 'Ingestion conflict proposal adapter contract'
+    if ([string]$Record.adapterContract.executionMode -cne 'push' -or
+        [int]$Record.adapterContract.protocolVersion -le 0 -or
+        [int]$Record.adapterContract.configurationSchemaVersion -le 0) {
+        throw 'Ingestion conflict proposal evidence has an invalid adapter contract.'
+    }
+
+    Assert-BunkFyCandidateProperties `
+        -Value $Record.authorityRevisions `
+        -ExpectedProperties @(
+            'initialAdapter',
+            'automaticAdapter',
+            'staff',
+            'acceptedAdapter') `
+        -Context 'Ingestion conflict proposal authority revisions'
+    if ([long]$Record.authorityRevisions.initialAdapter -ne 1 -or
+        [long]$Record.authorityRevisions.automaticAdapter -ne 2 -or
+        [long]$Record.authorityRevisions.staff -ne 3 -or
+        [long]$Record.authorityRevisions.acceptedAdapter -ne 4) {
+        throw 'Ingestion conflict proposal evidence has invalid authority revisions.'
+    }
+
+    Assert-BunkFyCandidateProperties `
+        -Value $Record.proposalSummary `
+        -ExpectedProperties @('total', 'superseded', 'rejected', 'applied', 'pending') `
+        -Context 'Ingestion conflict proposal terminal summary'
+    if ([int]$Record.proposalSummary.total -ne 3 -or
+        [int]$Record.proposalSummary.superseded -ne 1 -or
+        [int]$Record.proposalSummary.rejected -ne 1 -or
+        [int]$Record.proposalSummary.applied -ne 1 -or
+        [int]$Record.proposalSummary.pending -ne 0) {
+        throw 'Ingestion conflict proposal evidence has an invalid terminal proposal summary.'
+    }
+
+    Assert-BunkFyCandidateProperties `
+        -Value $Record.cleanup `
+        -ExpectedProperties @(
+            'reservation',
+            'credential',
+            'connection',
+            'credentialVersion',
+            'connectionVersion') `
+        -Context 'Ingestion conflict proposal cleanup'
+    if ([string]$Record.cleanup.reservation -cne 'cancelled' -or
+        [string]$Record.cleanup.credential -cne 'revoked' -or
+        [string]$Record.cleanup.connection -cne 'disabled' -or
+        [long]$Record.cleanup.credentialVersion -lt 2 -or
+        [long]$Record.cleanup.connectionVersion -lt 2) {
+        throw 'Ingestion conflict proposal evidence has an invalid cleanup disposition.'
+    }
+}
+
 function Assert-BunkFyDataRightsAccessExportAdmissionEvidence {
     param([Parameter(Mandatory = $true)][object] $Record)
 
@@ -864,6 +939,9 @@ function Get-BunkFyVerifiedProductionAdmissionProbe {
     }
     elseif ($SpecificationName -ceq 'ingestion-connection-lifecycle') {
         Assert-BunkFyIngestionConnectionLifecycleAdmissionEvidence -Record $record
+    }
+    elseif ($SpecificationName -ceq 'ingestion-conflict-proposal-lifecycle') {
+        Assert-BunkFyIngestionConflictProposalLifecycleAdmissionEvidence -Record $record
     }
     elseif ($SpecificationName -ceq 'data-rights-access-export') {
         Assert-BunkFyDataRightsAccessExportAdmissionEvidence -Record $record
@@ -1146,6 +1224,7 @@ function Get-BunkFyProductionAdmissionExpectedEvidence {
         'deployed-staff-employment' = [pscustomobject]@{ Kind = 'bunkfy-deployed-staff-employment-probe'; ReleaseId = $CandidateReleaseId; Count = 21 }
         'deployed-properties-topology' = [pscustomobject]@{ Kind = 'bunkfy-deployed-properties-topology-probe'; ReleaseId = $CandidateReleaseId; Count = 31 }
         'deployed-ingestion-connection-lifecycle' = [pscustomobject]@{ Kind = 'bunkfy-deployed-ingestion-connection-lifecycle-probe'; ReleaseId = $CandidateReleaseId; Count = 32 }
+        'deployed-ingestion-conflict-proposal-lifecycle' = [pscustomobject]@{ Kind = 'bunkfy-deployed-ingestion-conflict-proposal-lifecycle-probe'; ReleaseId = $CandidateReleaseId; Count = 26 }
         'deployed-operations-notifications' = [pscustomobject]@{ Kind = 'bunkfy-deployed-operations-notifications-probe'; ReleaseId = $CandidateReleaseId; Count = 10 }
         'deployed-public-edge' = [pscustomobject]@{ Kind = 'bunkfy-deployed-public-edge-probe'; ReleaseId = $CandidateReleaseId; Count = 6 }
         'deployed-reservations-inventory' = [pscustomobject]@{ Kind = 'bunkfy-deployed-reservations-inventory-probe'; ReleaseId = $CandidateReleaseId; Count = 11 }

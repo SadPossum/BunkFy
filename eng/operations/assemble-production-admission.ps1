@@ -31,6 +31,7 @@ param(
     [Parameter(Mandatory = $true)][string] $StaffEmploymentEvidencePath,
     [Parameter(Mandatory = $true)][string] $PropertiesTopologyEvidencePath,
     [Parameter(Mandatory = $true)][string] $IngestionConnectionLifecycleEvidencePath,
+    [Parameter(Mandatory = $true)][string] $IngestionConflictProposalLifecycleEvidencePath,
     [Parameter(Mandatory = $true)][string] $DataRightsAccessExportEvidencePath,
     [Parameter(Mandatory = $true)][string] $AdapterHostEvidencePath,
     [Parameter(Mandatory = $true)][string] $RetentionEvidencePath,
@@ -174,6 +175,12 @@ $ingestionConnectionLifecycle = Get-BunkFyVerifiedProductionAdmissionProbe `
     -ExpectedOrigin $origin `
     -ExpectedReleaseId $CandidateReleaseId `
     -AllowFixtureEvidence:$AllowFixtureEvidence
+$ingestionConflictProposalLifecycle = Get-BunkFyVerifiedProductionAdmissionProbe `
+    -Path $IngestionConflictProposalLifecycleEvidencePath `
+    -SpecificationName 'ingestion-conflict-proposal-lifecycle' `
+    -ExpectedOrigin $origin `
+    -ExpectedReleaseId $CandidateReleaseId `
+    -AllowFixtureEvidence:$AllowFixtureEvidence
 $dataRightsAccessExport = Get-BunkFyVerifiedProductionAdmissionProbe `
     -Path $DataRightsAccessExportEvidencePath `
     -SpecificationName 'data-rights-access-export' `
@@ -235,6 +242,10 @@ $sourceFiles = @(
     $notifications.Path,
     $reservationsInventory.Path,
     $guestsStayHistory.Path,
+    $staffEmployment.Path,
+    $propertiesTopology.Path,
+    $ingestionConnectionLifecycle.Path,
+    $ingestionConflictProposalLifecycle.Path,
     $dataRightsAccessExport.Path,
     $adapterHost.Path,
     $retention.Path)
@@ -284,6 +295,7 @@ foreach ($entry in @(
         [pscustomobject]@{ Name = 'deployed-staff-employment'; Value = $staffEmployment },
         [pscustomobject]@{ Name = 'deployed-properties-topology'; Value = $propertiesTopology },
         [pscustomobject]@{ Name = 'deployed-ingestion-connection-lifecycle'; Value = $ingestionConnectionLifecycle },
+        [pscustomobject]@{ Name = 'deployed-ingestion-conflict-proposal-lifecycle'; Value = $ingestionConflictProposalLifecycle },
         [pscustomobject]@{ Name = 'deployed-data-rights-access-export'; Value = $dataRightsAccessExport },
         [pscustomobject]@{ Name = 'deployed-adapter-host'; Value = $adapterHost },
         [pscustomobject]@{ Name = 'deployed-retention'; Value = $retention })) {

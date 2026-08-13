@@ -18,6 +18,7 @@ param(
     [switch] $IncludeStaffEmployment,
     [switch] $IncludePropertiesTopology,
     [switch] $IncludeIngestionConnectionLifecycle,
+    [switch] $IncludeIngestionConflictProposalLifecycle,
     [switch] $IncludeRetention,
     [switch] $IncludeDataRightsAccessExport,
     [switch] $IncludeAdapterHost,
@@ -99,6 +100,9 @@ $propertiesTopologyEvidencePath = Join-Path `
 $ingestionConnectionLifecycleEvidencePath = Join-Path `
     $outputDirectory `
     "$outputBaseName.ingestion-connection-lifecycle.json"
+$ingestionConflictProposalLifecycleEvidencePath = Join-Path `
+    $outputDirectory `
+    "$outputBaseName.ingestion-conflict-proposal-lifecycle.json"
 $retentionEvidencePath = Join-Path `
     $outputDirectory `
     "$outputBaseName.retention.json"
@@ -146,6 +150,9 @@ if ($IncludePropertiesTopology) {
 }
 if ($IncludeIngestionConnectionLifecycle) {
     $evidencePaths += $ingestionConnectionLifecycleEvidencePath
+}
+if ($IncludeIngestionConflictProposalLifecycle) {
+    $evidencePaths += $ingestionConflictProposalLifecycleEvidencePath
 }
 if ($IncludeRetention) {
     $evidencePaths += $retentionEvidencePath
@@ -285,6 +292,18 @@ $cleanup = [ordered]@{
     else {
         'not-requested'
     }
+    ingestionConflictProposalLifecycle = if ($IncludeIngestionConflictProposalLifecycle) {
+        'not-started'
+    }
+    else {
+        'not-requested'
+    }
+    ingestionConflictProposalFixture = if ($IncludeIngestionConflictProposalLifecycle) {
+        'not-created'
+    }
+    else {
+        'not-requested'
+    }
     dataRightsAccessExport = if ($IncludeDataRightsAccessExport) {
         'not-started'
     }
@@ -326,6 +345,7 @@ $enrollmentEvidence = $null
 $operationsNotificationsFixture = $null
 $reservationsInventoryFixture = $null
 $guestsStayHistoryFixture = $null
+$ingestionConflictProposalFixture = $null
 $adapterHostFixture = $null
 $dataRightsAssuredToken = $null
 $dataRightsUnassuredToken = $null
@@ -1495,6 +1515,9 @@ if ($IncludePropertiesTopology) {
 if ($IncludeIngestionConnectionLifecycle) {
     $rehearsalAction += ', exercise Ingestion connection and credential lifecycle'
 }
+if ($IncludeIngestionConflictProposalLifecycle) {
+    $rehearsalAction += ', exercise Ingestion conflict and proposal authority lifecycle'
+}
 if ($IncludeRetention) {
     $rehearsalAction += ', exercise automatic Retention'
 }
@@ -1677,6 +1700,7 @@ try {
             $IncludeReservationsInventory -or
             $IncludeGuestsStayHistory -or
             $IncludeIngestionConnectionLifecycle -or
+            $IncludeIngestionConflictProposalLifecycle -or
             $IncludeAdapterHost) {
             $proofStage = 'room-backed-domain-processing'
             [void](Enable-BunkFyPreviewEngineeringPropertyProcessing `
@@ -1754,6 +1778,84 @@ try {
             catch {
                 $cleanup['ingestionConnectionLifecycle'] = 'child-failed-review-required'
                 throw
+            }
+        }
+
+        if ($IncludeIngestionConflictProposalLifecycle) {
+            $ingestionProposalProofError = $null
+            try {
+                $proofStage = 'ingestion-conflict-proposal-fixture'
+                $ingestionConflictProposalFixture = `
+                    New-BunkFyPreviewSellableRoomFixture `
+                        -InvokeApi $invokeSellableRoomFixtureApi `
+                        -PropertyId $allowedPropertyId `
+                        -RoomName "Preview ingestion proposal room $batchId" `
+                        -State ([ref]$ingestionConflictProposalFixture) `
+                        -ConvergenceTimeoutSeconds $ConvergenceTimeoutSeconds `
+                        -PollIntervalMilliseconds $PollIntervalMilliseconds
+                $cleanup['ingestionConflictProposalFixture'] = 'active-room'
+
+                $proofStage = 'ingestion-conflict-proposal-lifecycle-proof'
+                $cleanup['ingestionConflictProposalLifecycle'] =
+                    'child-running-cleanup-authoritative'
+                $arrival = [DateTime]::UtcNow.Date.AddDays(165)
+                $departure = $arrival.AddDays(2)
+                & (Join-Path $PSScriptRoot 'verify-deployed-ingestion-conflict-proposal-lifecycle.ps1') `
+                    -PublicOrigin $origin `
+                    -ExpectedReleaseId $ExpectedReleaseId `
+                    -WorkspaceId $workspaceId `
+                    -PropertyId $allowedPropertyId `
+                    -InventoryUnitId ([Guid]$ingestionConflictProposalFixture.InventoryUnitId) `
+                    -Arrival $arrival `
+                    -Departure $departure `
+                    -OperatorAccessToken $ownerToken `
+                    -DeniedAccessToken $invitationToken `
+                    -RequestTimeoutSeconds $RequestTimeoutSeconds `
+                    -ConvergenceTimeoutSeconds ([Math]::Min($ConvergenceTimeoutSeconds, 300)) `
+                    -PollIntervalMilliseconds $PollIntervalMilliseconds `
+                    -OutputPath $ingestionConflictProposalLifecycleEvidencePath `
+                    -AllowLoopbackHttp:$AllowLoopbackHttp `
+                    -Force `
+                    -Confirm:$false
+                [void](Read-RehearsalChildEvidence `
+                        -Path $ingestionConflictProposalLifecycleEvidencePath `
+                        -ExpectedKind 'bunkfy-deployed-ingestion-conflict-proposal-lifecycle-probe' `
+                        -WorkspaceBinding Forbidden)
+                $cleanup['ingestionConflictProposalLifecycle'] =
+                    'reservation-cancelled-credential-revoked-connection-disabled'
+                $checks.Add([ordered]@{
+                        name = 'ingestion-conflict-proposal-lifecycle-child-proof-passed'
+                        status = 'passed'
+                    })
+            }
+            catch {
+                $cleanup['ingestionConflictProposalLifecycle'] =
+                    'child-failed-review-required'
+                $ingestionProposalProofError = $_.Exception
+            }
+            finally {
+                if ($null -ne $ingestionConflictProposalFixture) {
+                    try {
+                        [void](Remove-BunkFyPreviewSellableRoomFixture `
+                                -InvokeApi $invokeSellableRoomFixtureApi `
+                                -Fixture $ingestionConflictProposalFixture `
+                                -ConvergenceTimeoutSeconds $ConvergenceTimeoutSeconds `
+                                -PollIntervalMilliseconds $PollIntervalMilliseconds)
+                        $cleanup['ingestionConflictProposalFixture'] = 'room-retired'
+                    }
+                    catch {
+                        $cleanup['ingestionConflictProposalFixture'] = 'failed'
+                        Add-RehearsalCleanupFailure `
+                            -Name 'ingestion-conflict-proposal-fixture' `
+                            -Message 'The synthetic Ingestion proposal room could not be retired.'
+                        if ($null -eq $ingestionProposalProofError) {
+                            $ingestionProposalProofError = $_.Exception
+                        }
+                    }
+                }
+            }
+            if ($null -ne $ingestionProposalProofError) {
+                throw $ingestionProposalProofError
             }
         }
 
@@ -2437,6 +2539,12 @@ if ($IncludeIngestionConnectionLifecycle) {
     $childRecords += [pscustomobject]@{
         Name = 'ingestionConnectionLifecycle'
         Path = $ingestionConnectionLifecycleEvidencePath
+    }
+}
+if ($IncludeIngestionConflictProposalLifecycle) {
+    $childRecords += [pscustomobject]@{
+        Name = 'ingestionConflictProposalLifecycle'
+        Path = $ingestionConflictProposalLifecycleEvidencePath
     }
 }
 if ($IncludeRetention) {

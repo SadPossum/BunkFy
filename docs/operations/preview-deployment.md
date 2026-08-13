@@ -385,6 +385,16 @@ AdapterHost verifier still owns the real provider-record, receipt, and
 checkpoint path.
 
 Use the mutation-bearing
+[deployed Ingestion conflict and proposal lifecycle verifier](deployed-ingestion-conflict-proposal-lifecycle-verification.md)
+to prove automatic adapter authority, staff-conflict preservation, newer-source
+proposal supersession, replay-safe operator decisions, Reservations convergence,
+and terminal cleanup. For a self-contained Preview run, add
+`-IncludeIngestionConflictProposalLifecycle` to the onboarding rehearsal. The
+parent owns a dedicated sellable-room fixture; the child cancels its synthetic
+reservation, revokes its credential, disables its connection, and binds only
+scrubbed authority and terminal-count evidence into the umbrella.
+
+Use the mutation-bearing
 [deployed Data Rights Access Export verifier](deployed-data-rights-access-export-verification.md)
 to prove exact Guest discovery, approved immutable scope, Worker export
 generation, assurance-gated protected download, idempotent replay, and bounded

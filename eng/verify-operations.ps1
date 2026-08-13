@@ -39,6 +39,7 @@ $scripts = @(
     (Join-Path $PSScriptRoot 'operations\verify-deployed-staff-employment.ps1'),
     (Join-Path $PSScriptRoot 'operations\verify-deployed-properties-topology.ps1'),
     (Join-Path $PSScriptRoot 'operations\verify-deployed-ingestion-connection-lifecycle.ps1'),
+    (Join-Path $PSScriptRoot 'operations\verify-deployed-ingestion-conflict-proposal-lifecycle.ps1'),
     (Join-Path $PSScriptRoot 'operations\verify-deployed-data-rights-access-export.ps1'),
     (Join-Path $PSScriptRoot 'operations\verify-deployed-workspace-enrollment.ps1'),
     (Join-Path $PSScriptRoot 'operations\verify-deployed-workspace-invitation.ps1'),
@@ -53,6 +54,7 @@ $scripts = @(
     (Join-Path $PSScriptRoot 'test-deployed-staff-employment.ps1'),
     (Join-Path $PSScriptRoot 'test-deployed-properties-topology.ps1'),
     (Join-Path $PSScriptRoot 'test-deployed-ingestion-connection-lifecycle.ps1'),
+    (Join-Path $PSScriptRoot 'test-deployed-ingestion-conflict-proposal-lifecycle.ps1'),
     (Join-Path $PSScriptRoot 'test-deployed-data-rights-access-export.ps1'),
     (Join-Path $PSScriptRoot 'test-deployed-workspace-enrollment.ps1'),
     (Join-Path $PSScriptRoot 'test-deployed-workspace-invitation.ps1'),
@@ -105,6 +107,7 @@ $deployedEvidenceWriters = @(
     'verify-deployed-staff-employment.ps1',
     'verify-deployed-properties-topology.ps1',
     'verify-deployed-ingestion-connection-lifecycle.ps1',
+    'verify-deployed-ingestion-conflict-proposal-lifecycle.ps1',
     'verify-deployed-data-rights-access-export.ps1',
     'verify-deployed-retention.ps1',
     'verify-deployed-workspace-enrollment.ps1',
@@ -1559,6 +1562,11 @@ foreach ($requiredToken in @(
         'ingestion-connection-lifecycle-child-proof-passed',
         'ingestionConnectionLifecycleEvidencePath',
         "`$cleanup['ingestionConnectionLifecycle'] = 'synthetic-connection-disabled-credential-revoked-run-terminal'",
+        'IncludeIngestionConflictProposalLifecycle',
+        'verify-deployed-ingestion-conflict-proposal-lifecycle.ps1',
+        'ingestion-conflict-proposal-lifecycle-child-proof-passed',
+        'ingestionConflictProposalLifecycleEvidencePath',
+        "`$cleanup['ingestionConflictProposalFixture'] = 'room-retired'",
         'IncludeDataRightsAccessExport',
         'New-RehearsalDataRightsSessions',
         'preview-totp.common.ps1',
@@ -2000,6 +2008,60 @@ foreach ($forbiddenToken in @(
 & (Join-Path $PSScriptRoot 'test-deployed-ingestion-connection-lifecycle.ps1')
 Write-Host 'BunkFy deployed Ingestion connection lifecycle probe policy is valid.'
 
+$ingestionConflictProposalProbe = Get-Content -LiteralPath (
+    Join-Path $PSScriptRoot 'operations\verify-deployed-ingestion-conflict-proposal-lifecycle.ps1') -Raw
+foreach ($requiredToken in @(
+        "SupportsShouldProcess = `$true",
+        '$handler.AllowAutoRedirect = $false',
+        'ExpectedReleaseId',
+        'release-identity-continuous',
+        'BUNKFY_SMOKE_INGESTION_PROPOSAL_OPERATOR_TOKEN',
+        'BUNKFY_SMOKE_INGESTION_PROPOSAL_DENIED_TOKEN',
+        '/api/ingestion/properties/',
+        '/api/ingestion/adapter-ingress/connections/',
+        '/api/reservations/properties/',
+        "'BunkFy-Adapter'",
+        'Ingestion.ProposalDecisionConflict',
+        'Ingestion.CountryPolicyDenied.MissingBinding',
+        'newer-source-proposal-superseded-older-pending',
+        'proposal-acceptance-replay-and-conflict-safe',
+        'reservation-history-preserved-authority-provenance',
+        'Reject-PendingProposalsForCleanup',
+        'Cancel-SmokeReservationForCleanup',
+        'Revoke-SmokeCredentialForCleanup',
+        'Disable-SmokeConnectionForCleanup',
+        'Write-BunkFyPrivateJsonEvidence',
+        "evidenceKind = 'bunkfy-deployed-ingestion-conflict-proposal-lifecycle-probe'",
+        "'proposal-acceptance-race-to-stale-covered-by-focused-integration-tests'",
+        "'production-country-policy-and-provider-credential-approval-not-exercised'")) {
+    if (-not $ingestionConflictProposalProbe.Contains(
+            $requiredToken,
+            [StringComparison]::Ordinal)) {
+        throw "Deployed Ingestion conflict proposal probe policy is missing '$requiredToken'."
+    }
+}
+foreach ($forbiddenToken in @(
+        'DangerousAcceptAnyServerCertificateValidator',
+        'ServerCertificateCustomValidationCallback',
+        '-SkipCertificateCheck',
+        '$handler.AllowAutoRedirect = $true',
+        'WriteAllBytes',
+        'Set-Content',
+        'Out-File',
+        '/api/admin/',
+        '/processing/activate',
+        '/country-policies',
+        'json.file-drop')) {
+    if ($ingestionConflictProposalProbe.Contains(
+            $forbiddenToken,
+            [StringComparison]::OrdinalIgnoreCase)) {
+        throw "Deployed Ingestion conflict proposal probe contains forbidden token '$forbiddenToken'."
+    }
+}
+
+& (Join-Path $PSScriptRoot 'test-deployed-ingestion-conflict-proposal-lifecycle.ps1')
+Write-Host 'BunkFy deployed Ingestion conflict proposal probe policy is valid.'
+
 $dataRightsAccessExportProbe = Get-Content -LiteralPath (
     Join-Path $PSScriptRoot 'operations\verify-deployed-data-rights-access-export.ps1') -Raw
 foreach ($requiredToken in @(
@@ -2184,6 +2246,7 @@ foreach ($requiredToken in @(
         'Assert-BunkFyStaffEmploymentAdmissionEvidence',
         'Assert-BunkFyPropertiesTopologyAdmissionEvidence',
         'Assert-BunkFyIngestionConnectionLifecycleAdmissionEvidence',
+        'Assert-BunkFyIngestionConflictProposalLifecycleAdmissionEvidence',
         'Assert-BunkFyDataRightsAccessExportAdmissionEvidence',
         "'guests-stay-history'",
         "'bunkfy-deployed-guests-stay-history-probe'",
@@ -2193,6 +2256,8 @@ foreach ($requiredToken in @(
         "'bunkfy-deployed-properties-topology-probe'",
         "'ingestion-connection-lifecycle'",
         "'bunkfy-deployed-ingestion-connection-lifecycle-probe'",
+        "'ingestion-conflict-proposal-lifecycle'",
+        "'bunkfy-deployed-ingestion-conflict-proposal-lifecycle-probe'",
         "'data-rights-access-export'",
         "'bunkfy-deployed-data-rights-access-export-probe'",
         "'completed-after-lower-bound'",
@@ -2225,6 +2290,8 @@ foreach ($requiredToken in @(
         "'deployed-properties-topology'",
         'IngestionConnectionLifecycleEvidencePath',
         "'deployed-ingestion-connection-lifecycle'",
+        'IngestionConflictProposalLifecycleEvidencePath',
+        "'deployed-ingestion-conflict-proposal-lifecycle'",
         'DataRightsAccessExportEvidencePath',
         "'deployed-data-rights-access-export'",
         'BrowserRehearsalReference',

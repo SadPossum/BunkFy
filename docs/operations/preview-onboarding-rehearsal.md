@@ -41,12 +41,13 @@ Deploy the exact candidate with `BUNKFY_EMAIL_CAPTURE_ENABLED=true`, then run:
 Add `-IncludeOperationsNotifications`, `-IncludeReservationsInventory`,
 `-IncludeGuestsStayHistory`, `-IncludeStaffEmployment`,
 `-IncludePropertiesTopology`, `-IncludeIngestionConnectionLifecycle`,
+`-IncludeIngestionConflictProposalLifecycle`,
 `-IncludeDataRightsAccessExport`, `-IncludeRetention`, or
 `-IncludeAdapterHost` to bind the corresponding deployed child proof into the
 umbrella. Contributions may be selected together; room-backed contributions
 own separate fixtures and coordinated cleanup. When Guests, Data Rights,
-Reservations/Inventory, Ingestion connection lifecycle, or AdapterHost is
-selected, the umbrella first
+Reservations/Inventory, either Ingestion lifecycle, or AdapterHost is selected,
+the umbrella first
 discovers the single current engineering/example country policy exposed by
 Preview, activates it once through the public Properties contract, and verifies
 the exact effective binding. The contributors share this synthetic processing
@@ -91,6 +92,15 @@ revokes that credential, proves the retired token is denied, and leaves the
 connection disabled. The applicant remains a genuine authenticated nonmember
 for its tenant-denial assertion. Provider records, receipts, proposals, and
 checkpoints remain in the separate AdapterHost contribution.
+
+The Ingestion conflict and proposal lifecycle contribution provisions a
+dedicated sellable room after the shared Preview engineering policy is active.
+It proves automatic adapter authority, staff takeover, safe proposal creation,
+newer-source supersession, replay-safe rejection and acceptance, Reservation
+history provenance, and terminal cancellation. The child cancels its
+reservation, revokes its credential, and disables its connection; the parent
+then retires the room. Provider acquisition and parser correctness remain
+outside this proof.
 
 The Retention contribution captures a UTC lower bound before workspace
 creation, then uses only the public read contract to prove that both asserted
@@ -172,6 +182,12 @@ synthetic connection disabled, credential revoked, and zero-observation run
 terminal before property cleanup. Neither child nor umbrella evidence retains
 tenant or domain identifiers, adapter or source names, operation ids, labels,
 opaque references, credentials, policy values, or checkpoints.
+
+When selected, the Ingestion conflict and proposal lifecycle contribution
+leaves its reservation cancelled, credential revoked, connection disabled, and
+proposal history terminal before the parent retires its dedicated room. Neither
+child nor umbrella evidence retains tenant or domain identifiers, guest data,
+source records, adapter names, operation ids, credentials, or policy values.
 
 Join-source issuance retries only the explicit access-profile and property
 projection readiness conflicts, preserving the same source id. Any other

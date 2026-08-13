@@ -38,6 +38,7 @@ Provide the exact retained files or directories for:
   [Staff employment](deployed-staff-employment-verification.md),
   [Properties topology](deployed-properties-topology-verification.md),
   [Ingestion connection lifecycle](deployed-ingestion-connection-lifecycle-verification.md),
+  [Ingestion conflict and proposal lifecycle](deployed-ingestion-conflict-proposal-lifecycle-verification.md),
   [Data Rights Access Export](deployed-data-rights-access-export-verification.md),
   [AdapterHost](deployed-adapter-host-verification.md), and
   [Retention](deployed-retention-verification.md) results.
@@ -68,6 +69,11 @@ authentication, revocation, and terminal-disable proof and may be supplied
 directly for `IngestionConnectionLifecycleEvidencePath`. It requires an already
 approved processing policy and does not prove that policy decision or a real
 provider record.
+The matching opt-in `*.ingestion-conflict-proposal-lifecycle.json` child is a
+standalone Ingestion reservation-authority, proposal-supersession, decision,
+and terminal-cleanup proof and may be supplied directly for
+`IngestionConflictProposalLifecycleEvidencePath`. It does not prove provider
+acquisition, parser correctness, or a production country-policy decision.
 The matching opt-in `*.data-rights-access-export.json` child is a standalone
 Data Rights proof and may be supplied directly for
 `DataRightsAccessExportEvidencePath`. It proves deployed protected export
@@ -125,6 +131,7 @@ $admission = @{
   StaffEmploymentEvidencePath = '/evidence/probes/staff-employment.json'
   PropertiesTopologyEvidencePath = '/evidence/probes/properties-topology.json'
   IngestionConnectionLifecycleEvidencePath = '/evidence/probes/ingestion-connection-lifecycle.json'
+  IngestionConflictProposalLifecycleEvidencePath = '/evidence/probes/ingestion-conflict-proposal-lifecycle.json'
   DataRightsAccessExportEvidencePath = '/evidence/probes/data-rights-access-export.json'
   AdapterHostEvidencePath = '/evidence/probes/adapter-host.json'
   RetentionEvidencePath = '/evidence/probes/retention.json'
