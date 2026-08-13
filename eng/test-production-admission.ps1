@@ -158,6 +158,21 @@ function New-TestProbeEvidence {
             $record['releaseId'] = $ReleaseId
             $record['transport'] = 'loopback-http-fixture'
             $record['result'] = 'passed'
+            $record['workflow'] = [ordered]@{
+                bookingSource = 'direct'
+                allocationLifecycle = 'available-confirmed-released'
+                occupancyLifecycle = 'confirmed-checked-in-checked-out'
+                createReplay = 'stable-current'
+                checkInReplay = 'stable-current'
+                checkOutReplay = 'stable-current'
+                durableGuestRecordCreated = $false
+            }
+            $record['cleanup'] = [ordered]@{
+                reservationDisposition = 'synthetic-checked-out-retained'
+                selectedInventoryUnit = 'available'
+                activeAllocationCount = 0
+                topologyMutated = $false
+            }
         }
         'guests-stay-history' {
             $record['origin'] = $Origin.GetLeftPart([UriPartial]::Authority)
@@ -686,6 +701,29 @@ try {
     if ([IO.Directory]::Exists(
             [string]$invalidNotificationsArguments.OutputDirectory)) {
         throw 'Rejected Operations Notifications evidence left an admission bundle.'
+    }
+
+    $invalidReservationsInventoryPath = Join-Path $temporaryRoot 'invalid-reservations-inventory-cleanup.json'
+    $invalidReservationsInventory = Get-Content `
+        -LiteralPath $probePaths.ReservationsInventory `
+        -Raw |
+        ConvertFrom-Json -AsHashtable -DateKind String
+    $invalidReservationsInventory.cleanup.activeAllocationCount = 1
+    Write-BunkFyCandidateJson `
+        -Path $invalidReservationsInventoryPath `
+        -Value $invalidReservationsInventory
+    $invalidReservationsInventoryArguments = $arguments.Clone()
+    $invalidReservationsInventoryArguments.ReservationsInventoryEvidencePath =
+        $invalidReservationsInventoryPath
+    $invalidReservationsInventoryArguments.OutputDirectory =
+        Join-Path $temporaryRoot 'invalid-reservations-inventory-admission'
+    Assert-TestFailure `
+        -Operation { & $assembler @invalidReservationsInventoryArguments } `
+        -ExpectedMessage 'invalid cleanup disposition' `
+        -Context 'Reservations and Inventory active-allocation drift'
+    if ([IO.Directory]::Exists(
+            [string]$invalidReservationsInventoryArguments.OutputDirectory)) {
+        throw 'Rejected Reservations and Inventory evidence left an admission bundle.'
     }
 
     $invalidDataRightsPath = Join-Path $temporaryRoot 'invalid-data-rights-cleanup.json'

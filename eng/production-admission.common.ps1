@@ -239,11 +239,11 @@ function Get-BunkFyProductionAdmissionProbeSpecification {
             return [pscustomobject]@{
                 Name = $Name
                 EvidenceKind = 'bunkfy-deployed-reservations-inventory-probe'
-                SchemaVersion = 1
+                SchemaVersion = 2
                 OriginProperty = 'origin'
                 TransportProperty = 'transport'
-                Properties = @('schemaVersion', 'evidenceKind', 'generatedAtUtc', 'origin', 'releaseId', 'transport', 'result', 'checks', 'limitations')
-                Checks = @('scoped-operator-and-property-preflight', 'inventory-available-before-create', 'reservation-allocation-confirmed', 'reservation-create-replay-stable', 'allocated-inventory-unavailable', 'reservation-check-in-recorded', 'reservation-check-in-replay-stable', 'reservation-checkout-converged', 'reservation-checkout-replay-current', 'inventory-released-after-checkout', 'release-identity-continuous')
+                Properties = @('schemaVersion', 'evidenceKind', 'generatedAtUtc', 'origin', 'releaseId', 'transport', 'result', 'workflow', 'cleanup', 'checks', 'limitations')
+                Checks = @('cross-workspace-inventory-read-denied', 'scoped-operator-and-property-preflight', 'inventory-available-before-create', 'reservation-allocation-confirmed', 'reservation-create-replay-stable', 'allocated-inventory-unavailable', 'reservation-check-in-recorded', 'reservation-check-in-replay-stable', 'reservation-checkout-converged', 'reservation-checkout-replay-current', 'inventory-released-after-checkout', 'release-identity-continuous')
                 Limitations = @('browser-workflow-not-exercised', 'durable-guest-record-not-created', 'concurrent-overbooking-contention-not-exercised', 'synthetic-checked-out-reservation-retained')
                 GuidProperties = @()
             }
@@ -727,6 +727,51 @@ function Assert-BunkFyOperationsNotificationsAdmissionEvidence {
     }
 }
 
+function Assert-BunkFyReservationsInventoryAdmissionEvidence {
+    param([Parameter(Mandatory = $true)][object] $Record)
+
+    Assert-BunkFyCandidateProperties `
+        -Value $Record.workflow `
+        -ExpectedProperties @(
+            'bookingSource',
+            'allocationLifecycle',
+            'occupancyLifecycle',
+            'createReplay',
+            'checkInReplay',
+            'checkOutReplay',
+            'durableGuestRecordCreated') `
+        -Context 'Reservations and Inventory workflow'
+    if ([string]$Record.workflow.bookingSource -cne 'direct' -or
+        [string]$Record.workflow.allocationLifecycle -cne
+            'available-confirmed-released' -or
+        [string]$Record.workflow.occupancyLifecycle -cne
+            'confirmed-checked-in-checked-out' -or
+        [string]$Record.workflow.createReplay -cne 'stable-current' -or
+        [string]$Record.workflow.checkInReplay -cne 'stable-current' -or
+        [string]$Record.workflow.checkOutReplay -cne 'stable-current' -or
+        $Record.workflow.durableGuestRecordCreated -isnot [bool] -or
+        [bool]$Record.workflow.durableGuestRecordCreated) {
+        throw 'Reservations and Inventory evidence has an invalid workflow summary.'
+    }
+
+    Assert-BunkFyCandidateProperties `
+        -Value $Record.cleanup `
+        -ExpectedProperties @(
+            'reservationDisposition',
+            'selectedInventoryUnit',
+            'activeAllocationCount',
+            'topologyMutated') `
+        -Context 'Reservations and Inventory cleanup'
+    if ([string]$Record.cleanup.reservationDisposition -cne
+            'synthetic-checked-out-retained' -or
+        [string]$Record.cleanup.selectedInventoryUnit -cne 'available' -or
+        [int]$Record.cleanup.activeAllocationCount -ne 0 -or
+        $Record.cleanup.topologyMutated -isnot [bool] -or
+        [bool]$Record.cleanup.topologyMutated) {
+        throw 'Reservations and Inventory evidence has an invalid cleanup disposition.'
+    }
+}
+
 function Assert-BunkFyIngestionConnectionLifecycleAdmissionEvidence {
     param([Parameter(Mandatory = $true)][object] $Record)
 
@@ -984,6 +1029,9 @@ function Get-BunkFyVerifiedProductionAdmissionProbe {
     }
     elseif ($SpecificationName -ceq 'operations-notifications') {
         Assert-BunkFyOperationsNotificationsAdmissionEvidence -Record $record
+    }
+    elseif ($SpecificationName -ceq 'reservations-inventory') {
+        Assert-BunkFyReservationsInventoryAdmissionEvidence -Record $record
     }
     elseif ($SpecificationName -ceq 'guests-stay-history') {
         Assert-BunkFyGuestsStayHistoryAdmissionEvidence -Record $record
@@ -1284,7 +1332,7 @@ function Get-BunkFyProductionAdmissionExpectedEvidence {
         'deployed-ingestion-conflict-proposal-lifecycle' = [pscustomobject]@{ Kind = 'bunkfy-deployed-ingestion-conflict-proposal-lifecycle-probe'; ReleaseId = $CandidateReleaseId; Count = 26 }
         'deployed-operations-notifications' = [pscustomobject]@{ Kind = 'bunkfy-deployed-operations-notifications-probe'; ReleaseId = $CandidateReleaseId; Count = 10 }
         'deployed-public-edge' = [pscustomobject]@{ Kind = 'bunkfy-deployed-public-edge-probe'; ReleaseId = $CandidateReleaseId; Count = 6 }
-        'deployed-reservations-inventory' = [pscustomobject]@{ Kind = 'bunkfy-deployed-reservations-inventory-probe'; ReleaseId = $CandidateReleaseId; Count = 11 }
+        'deployed-reservations-inventory' = [pscustomobject]@{ Kind = 'bunkfy-deployed-reservations-inventory-probe'; ReleaseId = $CandidateReleaseId; Count = 12 }
         'deployed-release-rollback' = [pscustomobject]@{ Kind = 'bunkfy-deployed-release-rollback-rehearsal'; ReleaseId = $CandidateReleaseId; Count = 3 }
         'deployed-retention' = [pscustomobject]@{ Kind = 'bunkfy-deployed-retention-probe'; ReleaseId = $CandidateReleaseId; Count = 7 }
         'deployed-workspace-enrollment' = [pscustomobject]@{ Kind = 'bunkfy-deployed-workspace-enrollment-probe'; ReleaseId = $CandidateReleaseId; Count = 9 }

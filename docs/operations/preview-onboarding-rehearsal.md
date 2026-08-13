@@ -61,6 +61,14 @@ and released block cleanup without retaining workspace or domain identifiers,
 dates, stream coordinates, content, or credentials. The parent retires the
 dedicated room and binds the child only by SHA-256.
 
+The Reservations and Inventory contribution proves that the authenticated
+owner is denied when the same public Inventory read is issued under an
+unrelated workspace scope. Its schema-v2 child then records only the fixed
+direct-booking, allocation, occupancy, replay, and terminal-cleanup facts; it
+does not retain tenant or domain coordinates, identities, dates, labels,
+payloads, or credentials. The parent retires the released room and binds the
+child only by SHA-256.
+
 The Data Rights contribution retains the generated owner password only as a
 disposable `SecureString`, creates a fresh unassured login, completes password
 authentication for the negative assurance control, temporarily enrolls TOTP

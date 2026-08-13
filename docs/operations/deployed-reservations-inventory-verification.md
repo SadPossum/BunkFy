@@ -1,7 +1,7 @@
 # Deployed Reservations And Inventory Verification
 
-Status: implemented, fixture verified, and VPS-preview verified
-Date: 2026-08-11
+Status: schema-v2 implementation and fixture verified; exact-release Preview pending
+Date: 2026-08-13
 
 Use this mutation-bearing probe to verify one deployed BunkFy release through
 the direct staff reservation lifecycle. The probe uses a caller-selected smoke
@@ -11,6 +11,8 @@ The operator token must belong to one active member of the target workspace and
 must be allowed to read the property and Inventory and to create, read, cancel,
 check in, and check out Reservations for that property. Supply it as a secure
 parameter or through `BUNKFY_SMOKE_RESERVATION_OPERATOR_TOKEN`.
+Before mutation, the verifier reuses that authenticated token under a fresh,
+unrelated workspace scope and requires Inventory availability to return 403.
 
 The target property must have an effective country-policy binding accepted by
 the running API and Worker. Reservation creation retries only
@@ -57,19 +59,21 @@ $token = Read-Host 'Reservation smoke operator access token' -AsSecureString
 The selected unit must be uniquely available for the range before the probe.
 The probe then verifies:
 
-1. the token has one active workspace membership and can read the selected
+1. the authenticated token cannot read Inventory under an unrelated workspace
+   scope;
+2. the token has one active workspace membership and can read the selected
    property;
-2. the unit is available before creation;
-3. asynchronous Inventory allocation converges to `Confirmed`;
-4. an exact create retry resolves to the current stable reservation receipt;
-5. availability reports the allocated unit as unavailable;
-6. check-in is recorded for the arrival business date;
-7. an exact check-in retry returns the current receipt without a second action;
-8. checkout and allocation release converge to `CheckedOut`;
-9. an exact checkout retry returns the current terminal receipt without a
+3. the unit is available before creation;
+4. asynchronous Inventory allocation converges to `Confirmed`;
+5. an exact create retry resolves to the current stable reservation receipt;
+6. availability reports the allocated unit as unavailable;
+7. check-in is recorded for the arrival business date;
+8. an exact check-in retry returns the current receipt without a second action;
+9. checkout and allocation release converge to `CheckedOut`;
+10. an exact checkout retry returns the current terminal receipt without a
    second release;
-10. the unit becomes available again; and
-11. the public API release identity does not change during the workflow.
+11. the unit becomes available again; and
+12. the public API release identity does not change during the workflow.
 
 The create request uses a generated operation id as the reservation id, and
 each lifecycle action uses its own generated operation id. Retries preserve the
@@ -81,18 +85,29 @@ active allocation. If the run fails after creation, it best-effort cancels an
 unoccupied reservation or checks out an occupied one.
 
 Passing JSON is written atomically under `.tmp/deployment-probes` by default.
-It contains the origin, release identity, transport, named checks, and explicit
-limitations only. It does not retain workspace, property, inventory,
-reservation, staff, guest, date, token, or raw-response values. Keep this
-release-bound evidence with the candidate's other production-admission proofs.
+Schema v2 contains the origin, release identity, transport, named checks,
+explicit limitations, and closed workflow and cleanup summaries. It records a
+direct booking that moved through confirmed, checked-in, and checked-out state;
+stable create/check-in/checkout replay; available-confirmed-released allocation;
+no durable Guest Record; one retained terminal synthetic Reservation; zero
+active allocations; an available selected unit; and no topology mutation. It
+does not retain workspace, property, room, inventory, allocation, reservation,
+membership, subject, actor, operation, Guest, date, token, label, payload,
+header, or raw-response values. The file is private and non-overwriting by
+default.
+
+Trusted HTTPS is the only production-admission transport. A real local Preview
+run reports `loopback-http-preview`; the production-admission test fixture uses
+`loopback-http-fixture`. Keep the release-bound child with the candidate's
+other production-admission proofs.
 
 The probe exercises API behavior and asynchronous module integration. It does
 not exercise browser rendering, Guest Record creation, or concurrent
 overbooking contention.
 
-## VPS Preview Evidence
+## Superseded VPS Preview Evidence
 
-On 2026-08-11, the probe passed all eleven checks through the VPS Preview's
+On 2026-08-11, the schema-v1 probe passed all eleven checks through the VPS Preview's
 trusted HTTPS origin for release `preview-runtime-hardening-20260811`. The
 production-admission parser independently accepted the child record with
 SHA-256
@@ -104,5 +119,5 @@ the workspace, revoked all three sessions, and purged and closed the Mailpit
 operator window. The terminal synthetic reservation remains inside the
 archived smoke workspace as declared by the verifier. The evidence is retained
 only in ignored VPS working state and does not admit the final `f27ce996`
-candidate, prove browser behavior or durable Guest creation, or exercise
-concurrent overbooking contention.
+candidate, satisfy the schema-v2 admission contract, prove browser behavior or
+durable Guest creation, or exercise concurrent overbooking contention.

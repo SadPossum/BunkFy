@@ -330,16 +330,17 @@ retires the room before the onboarding cleanup continues.
 
 Use the mutation-bearing
 [deployed Reservations and Inventory verifier](deployed-reservations-inventory-verification.md)
-to prove direct reservation creation, exact retry stability, asynchronous
-allocation, check-in, checkout, and inventory release against one candidate.
+to prove cross-workspace denial, direct reservation creation, exact retry
+stability, asynchronous allocation, check-in, checkout, and inventory release
+against one candidate.
 Use a future range and a dedicated available unit. A passing run retains one
 checked-out synthetic reservation but no active allocation or durable Guest
 Record.
 For a self-contained Preview run, add `-IncludeReservationsInventory` to the
 Preview onboarding rehearsal. It discovers and activates the one mounted
 engineering/example policy through the public Properties API, provisions and
-retires a temporary sellable room, and binds the scrubbed child proof into the
-onboarding evidence.
+retires a temporary sellable room, and binds the identifier-free schema-v2
+child proof into the onboarding evidence.
 
 Use the mutation-bearing
 [deployed Guests stay-history verifier](deployed-guests-stay-history-verification.md)

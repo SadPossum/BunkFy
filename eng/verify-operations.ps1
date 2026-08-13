@@ -1542,6 +1542,8 @@ foreach ($requiredToken in @(
         'IncludeReservationsInventory',
         'verify-deployed-reservations-inventory.ps1',
         'reservations-inventory-child-proof-passed',
+        'reservationsInventoryEvidencePath',
+        "`$cleanup['reservationsInventoryFixture'] = 'room-retired'",
         'IncludeGuestsStayHistory',
         'verify-deployed-guests-stay-history.ps1',
         'guests-stay-history-child-proof-passed',
@@ -1799,12 +1801,17 @@ foreach ($requiredToken in @(
         '/api/inventory/properties/',
         '/api/reservations/properties/',
         'Reservations.CountryPolicyDenied.MissingBinding',
+        'cross-workspace-inventory-read-denied',
         'reservation-create-replay-stable',
         'reservation-check-in-replay-stable',
         'reservation-checkout-converged',
         'reservation-checkout-replay-current',
         'inventory-released-after-checkout',
         'Complete-SmokeReservationBestEffort',
+        'schemaVersion = 2',
+        "'loopback-http-preview'",
+        'workflow = [ordered]',
+        'cleanup = [ordered]',
         "evidenceKind = 'bunkfy-deployed-reservations-inventory-probe'",
         "'durable-guest-record-not-created'",
         "'synthetic-checked-out-reservation-retained'")) {
@@ -1818,7 +1825,11 @@ foreach ($forbiddenToken in @(
         '-SkipCertificateCheck',
         '$handler.AllowAutoRedirect = $true',
         '/api/admin/',
-        '/api/guests')) {
+        '/api/guests',
+        'workspaceId = $WorkspaceId.ToString(''D'')',
+        'propertyId = $PropertyId.ToString(''D'')',
+        'inventoryUnitId = $InventoryUnitId.ToString(''D'')',
+        'reservationId = $reservationId.ToString(''D'')')) {
     if ($reservationsInventoryProbe.Contains($forbiddenToken, [StringComparison]::OrdinalIgnoreCase)) {
         throw "Deployed Reservations and Inventory probe contains forbidden token '$forbiddenToken'."
     }

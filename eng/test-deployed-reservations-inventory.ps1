@@ -246,6 +246,21 @@ function Start-BunkFyReservationsInventoryFixtureServer {
                         "Bearer $($Fixture.OperatorToken)") {
                         throw 'Fixture request used the wrong bearer token.'
                     }
+                    $availabilityPath = "/api/inventory/properties/$($Fixture.PropertyId)/availability?arrival=$($Fixture.Arrival)&departure=$($Fixture.Departure)"
+                    if ($method -ceq 'GET' -and
+                        $path -ceq $availabilityPath -and
+                        [string]$headers['X-Tenant-Id'] -cne $Fixture.WorkspaceId) {
+                        Write-FixtureResponse `
+                            -Stream $stream `
+                            -Status 403 `
+                            -Reason Forbidden `
+                            -Body ([ordered]@{
+                                type = 'about:blank'
+                                title = 'Authorization denied'
+                                status = 403
+                            })
+                        continue
+                    }
                     $expectedTenant = if ($path.StartsWith('/api/organizations?', [StringComparison]::Ordinal)) {
                         'global'
                     }
@@ -270,7 +285,6 @@ function Start-BunkFyReservationsInventoryFixtureServer {
                         continue
                     }
 
-                    $availabilityPath = "/api/inventory/properties/$($Fixture.PropertyId)/availability?arrival=$($Fixture.Arrival)&departure=$($Fixture.Departure)"
                     if ($method -ceq 'GET' -and $path -ceq $availabilityPath) {
                         $allocated = $script:status -in @(1, 2, 6, 9)
                         $available = $script:status -in @(0, 5, 10)
@@ -535,6 +549,21 @@ function Invoke-BunkFyReservationsInventoryFixtureProbe {
     }
 }
 
+function Assert-BunkFyExactPropertyNames {
+    param(
+        [Parameter(Mandatory = $true)][object] $Value,
+        [Parameter(Mandatory = $true)][string[]] $Expected,
+        [Parameter(Mandatory = $true)][string] $Context
+    )
+
+    $actual = @($Value.PSObject.Properties.Name | Sort-Object)
+    $expectedSorted = @($Expected | Sort-Object)
+    if ($actual.Count -ne $expectedSorted.Count -or
+        (Compare-Object -ReferenceObject $expectedSorted -DifferenceObject $actual)) {
+        throw "$Context has an invalid property set."
+    }
+}
+
 try {
     $validOutput = Join-Path $fixtureRoot 'valid-evidence.json'
     $server = $null
@@ -566,13 +595,67 @@ try {
 
     $evidence = Get-Content -LiteralPath $validOutput -Raw |
         ConvertFrom-Json -Depth 12
-    if ($evidence.schemaVersion -ne 1 -or
+    if ($evidence.schemaVersion -ne 2 -or
         $evidence.evidenceKind -cne 'bunkfy-deployed-reservations-inventory-probe' -or
         $evidence.result -cne 'passed' -or
         $evidence.releaseId -cne $fixture.ReleaseId -or
-        @($evidence.checks).Count -ne 11 -or
+        $evidence.transport -cne 'loopback-http-preview' -or
+        @($evidence.checks).Count -ne 12 -or
+        [string]$evidence.workflow.bookingSource -cne 'direct' -or
+        [string]$evidence.workflow.allocationLifecycle -cne
+            'available-confirmed-released' -or
+        [string]$evidence.workflow.occupancyLifecycle -cne
+            'confirmed-checked-in-checked-out' -or
+        [string]$evidence.workflow.createReplay -cne 'stable-current' -or
+        [string]$evidence.workflow.checkInReplay -cne 'stable-current' -or
+        [string]$evidence.workflow.checkOutReplay -cne 'stable-current' -or
+        $evidence.workflow.durableGuestRecordCreated -isnot [bool] -or
+        [bool]$evidence.workflow.durableGuestRecordCreated -or
+        [string]$evidence.cleanup.reservationDisposition -cne
+            'synthetic-checked-out-retained' -or
+        [string]$evidence.cleanup.selectedInventoryUnit -cne 'available' -or
+        [int]$evidence.cleanup.activeAllocationCount -ne 0 -or
+        $evidence.cleanup.topologyMutated -isnot [bool] -or
+        [bool]$evidence.cleanup.topologyMutated -or
         @($evidence.limitations).Count -ne 4) {
         throw 'The valid Reservations and Inventory fixture produced invalid evidence.'
+    }
+    Assert-BunkFyExactPropertyNames `
+        -Value $evidence `
+        -Expected @(
+            'schemaVersion', 'evidenceKind', 'generatedAtUtc', 'origin',
+            'releaseId', 'transport', 'result', 'workflow', 'cleanup',
+            'checks', 'limitations') `
+        -Context 'Reservations and Inventory evidence'
+    Assert-BunkFyExactPropertyNames `
+        -Value $evidence.workflow `
+        -Expected @(
+            'bookingSource', 'allocationLifecycle', 'occupancyLifecycle',
+            'createReplay', 'checkInReplay', 'checkOutReplay',
+            'durableGuestRecordCreated') `
+        -Context 'Reservations and Inventory workflow evidence'
+    Assert-BunkFyExactPropertyNames `
+        -Value $evidence.cleanup `
+        -Expected @(
+            'reservationDisposition', 'selectedInventoryUnit',
+            'activeAllocationCount', 'topologyMutated') `
+        -Context 'Reservations and Inventory cleanup evidence'
+    $expectedChecks = @(
+        'cross-workspace-inventory-read-denied',
+        'scoped-operator-and-property-preflight',
+        'inventory-available-before-create',
+        'reservation-allocation-confirmed',
+        'reservation-create-replay-stable',
+        'allocated-inventory-unavailable',
+        'reservation-check-in-recorded',
+        'reservation-check-in-replay-stable',
+        'reservation-checkout-converged',
+        'reservation-checkout-replay-current',
+        'inventory-released-after-checkout',
+        'release-identity-continuous')
+    $actualChecks = @($evidence.checks | ForEach-Object { [string]$_.name })
+    if (Compare-Object -ReferenceObject $expectedChecks -DifferenceObject $actualChecks) {
+        throw 'The Reservations and Inventory fixture produced an invalid check set.'
     }
     $evidenceText = Get-Content -LiteralPath $validOutput -Raw
     foreach ($sensitive in @(
@@ -586,6 +669,9 @@ try {
             $fixture.OperatorToken,
             $fixture.GuestLabel,
             $reservationId,
+            'Fixture workspace',
+            'Fixture property',
+            'Fixture room',
             'Authorization',
             'X-Tenant-Id')) {
         if ($evidenceText.Contains($sensitive, [StringComparison]::OrdinalIgnoreCase)) {
@@ -597,6 +683,41 @@ try {
         if ($evidenceText.Contains($jsonDateLiteral, [StringComparison]::OrdinalIgnoreCase)) {
             throw 'Reservations and Inventory evidence retained a stay date.'
         }
+    }
+    if ($evidenceText -match
+        '(?i)\b[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\b') {
+        throw 'Reservations and Inventory evidence retained an identifier.'
+    }
+    if (-not $IsWindows) {
+        $mode = (& stat -c '%a' -- $validOutput).Trim()
+        if ($LASTEXITCODE -ne 0 -or $mode -cne '600') {
+            throw "Reservations and Inventory evidence mode is '$mode' instead of '600'."
+        }
+    }
+
+    $overwriteRejected = $false
+    try {
+        $token = ConvertTo-SecureString $fixture.OperatorToken -AsPlainText -Force
+        & $probeScript `
+            -PublicOrigin ([Uri]'http://127.0.0.1:65530') `
+            -ExpectedReleaseId $fixture.ReleaseId `
+            -WorkspaceId $fixture.WorkspaceId `
+            -PropertyId $fixture.PropertyId `
+            -InventoryUnitId $fixture.InventoryUnitId `
+            -Arrival $fixture.Arrival `
+            -Departure $fixture.Departure `
+            -OperatorAccessToken $token `
+            -OutputPath $validOutput `
+            -AllowLoopbackHttp `
+            -Confirm:$false
+    }
+    catch {
+        $overwriteRejected = $_.Exception.Message.Contains(
+            'already exists',
+            [StringComparison]::OrdinalIgnoreCase)
+    }
+    if (-not $overwriteRejected) {
+        throw 'The Reservations and Inventory probe overwrote or contacted the network for existing evidence.'
     }
 
     $driftOutput = Join-Path $fixtureRoot 'replay-drift-evidence.json'
@@ -613,6 +734,41 @@ try {
     }
     if (-not $driftRejected -or (Test-Path -LiteralPath $driftOutput)) {
         throw 'The Reservations and Inventory probe accepted replay drift or wrote passing evidence.'
+    }
+
+    $releaseMismatchOutput = Join-Path $fixtureRoot 'release-mismatch-evidence.json'
+    $releaseMismatchServer = $null
+    $releaseMismatchRejected = $false
+    try {
+        $releaseMismatchServer = Start-BunkFyReservationsInventoryFixtureServer -Mode valid
+        $token = ConvertTo-SecureString $fixture.OperatorToken -AsPlainText -Force
+        & $probeScript `
+            -PublicOrigin $releaseMismatchServer.Origin `
+            -ExpectedReleaseId 'release-fixture-other' `
+            -WorkspaceId $fixture.WorkspaceId `
+            -PropertyId $fixture.PropertyId `
+            -InventoryUnitId $fixture.InventoryUnitId `
+            -Arrival $fixture.Arrival `
+            -Departure $fixture.Departure `
+            -OperatorAccessToken $token `
+            -RequestTimeoutSeconds 5 `
+            -ConvergenceTimeoutSeconds 15 `
+            -PollIntervalMilliseconds 250 `
+            -OutputPath $releaseMismatchOutput `
+            -AllowLoopbackHttp `
+            -Confirm:$false
+    }
+    catch {
+        $releaseMismatchRejected = $_.Exception.Message.Contains(
+            'does not match',
+            [StringComparison]::OrdinalIgnoreCase)
+    }
+    finally {
+        Stop-BunkFyReservationsInventoryFixtureServer -Server $releaseMismatchServer
+    }
+    if (-not $releaseMismatchRejected -or
+        (Test-Path -LiteralPath $releaseMismatchOutput)) {
+        throw 'The Reservations and Inventory probe accepted a different deployed release or wrote passing evidence.'
     }
 
     $insecureOriginRejected = $false

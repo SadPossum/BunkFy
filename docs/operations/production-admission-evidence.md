@@ -54,7 +54,10 @@ closed delivery and cleanup semantics. A trusted-HTTPS child may be supplied
 directly; use the child file, not the onboarding umbrella, for
 `OperationsNotificationsEvidencePath`.
 The matching opt-in `*.reservations-inventory.json` child is a standalone
-Reservations and Inventory lifecycle proof and may be supplied directly for
+Reservations and Inventory lifecycle proof. Schema v2 omits tenant and domain
+coordinates, dates, identities, labels, and payloads while retaining closed
+direct-booking, allocation, occupancy, replay, and terminal-cleanup semantics.
+A trusted-HTTPS child may be supplied directly for
 `ReservationsInventoryEvidencePath`.
 The matching opt-in `*.guests-stay-history.json` child is a standalone durable
 Guest, Reservation link, and Guests-owned stay-history proof and may be supplied
