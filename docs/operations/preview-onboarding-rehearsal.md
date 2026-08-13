@@ -39,11 +39,12 @@ Deploy the exact candidate with `BUNKFY_EMAIL_CAPTURE_ENABLED=true`, then run:
 ```
 
 Add `-IncludeOperationsNotifications`, `-IncludeReservationsInventory`,
-`-IncludeGuestsStayHistory`, `-IncludeDataRightsAccessExport`,
-`-IncludeRetention`, or `-IncludeAdapterHost` to bind the corresponding
-deployed child proof into the umbrella. Contributions may be selected together;
-room-backed contributions own separate fixtures and coordinated cleanup. When
-Guests, Data Rights, Reservations/Inventory, or AdapterHost is selected, the umbrella first
+`-IncludeGuestsStayHistory`, `-IncludeStaffEmployment`,
+`-IncludeDataRightsAccessExport`, `-IncludeRetention`, or
+`-IncludeAdapterHost` to bind the corresponding deployed child proof into the
+umbrella. Contributions may be selected together; room-backed contributions
+own separate fixtures and coordinated cleanup. When Guests, Data Rights,
+Reservations/Inventory, or AdapterHost is selected, the umbrella first
 discovers the single current engineering/example country policy exposed by
 Preview, activates it once through the public Properties contract, and verifies
 the exact effective binding. The contributors share this synthetic processing
@@ -66,6 +67,12 @@ It creates one minimal canonical Guest and one Reservation against a dedicated
 room, proves idempotent management and linking plus monotonic stay projection,
 then retains the archived Guest and checked-out Reservation while the parent
 retires the released room.
+
+The Staff employment contribution also runs before invitation acceptance. It
+creates one minimal unlinked profile, proves optimistic and idempotent profile
+and assignment mutations, retains the assignment across suspension and resume,
+then departs the profile and proves the current assignment closed. The child
+owns that terminal Staff cleanup; the parent can then retire the property.
 
 The Retention contribution captures a UTC lower bound before workspace
 creation, then uses only the public read contract to prove that both asserted
@@ -131,6 +138,11 @@ When selected, the Guests stay-history contribution additionally reaches its
 own terminal Guest, Reservation, and Inventory state before the parent retires
 its dedicated room. Neither child nor umbrella evidence retains Guest,
 Reservation, Inventory, or synthetic stay-date coordinates.
+
+When selected, the Staff employment contribution additionally leaves its
+synthetic unlinked profile departed with no current assignment before property
+cleanup. Neither child nor umbrella evidence retains Staff, property,
+operation, label, reason, or effective-date coordinates.
 
 Join-source issuance retries only the explicit access-profile and property
 projection readiness conflicts, preserving the same source id. Any other

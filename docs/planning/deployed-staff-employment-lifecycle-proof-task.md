@@ -1,6 +1,6 @@
 # Deployed Staff Employment Lifecycle Proof Task
 
-Status: planned
+Status: complete
 Date: 2026-08-13
 
 ## Goal
@@ -125,3 +125,19 @@ edge, API, Worker, PostgreSQL, NATS, and module-owned databases.
   its synthetic Staff record departed with no current assignment.
 - Production admission requires the new exact-release evidence while refusing to
   present loopback Preview evidence as hosted-production proof.
+
+## Outcome
+
+Implemented the 21-check deployed Staff verifier, its deterministic valid and
+replay-drift fixture, opt-in Preview composition, terminal cleanup accounting,
+and the closed production-admission evidence specification. Focused Staff and
+admission fixtures passed, followed by the complete root operations gate.
+
+Exact-release Preview verification passed on 2026-08-13 for
+`preview-workspace-access-estate-651107f`. The Staff child finished departed
+with one closed historical assignment and zero current assignments; its
+minimized SHA-256 is
+`1ddecd9a9e699855c554b7d72813dd4a8208aa0ee0dacfe3762f08954485c54a`.
+The enclosing 10-check onboarding rehearsal completed cleanup with SHA-256
+`fd776514b5d593b37609ccb33dc88f23471406aac8f7ee21b26f2ea29bb44a11`.
+This remains loopback Preview evidence, not hosted-production approval.

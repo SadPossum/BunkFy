@@ -36,6 +36,7 @@ $scripts = @(
     (Join-Path $PSScriptRoot 'operations\verify-deployed-operations-notifications.ps1'),
     (Join-Path $PSScriptRoot 'operations\verify-deployed-reservations-inventory.ps1'),
     (Join-Path $PSScriptRoot 'operations\verify-deployed-guests-stay-history.ps1'),
+    (Join-Path $PSScriptRoot 'operations\verify-deployed-staff-employment.ps1'),
     (Join-Path $PSScriptRoot 'operations\verify-deployed-data-rights-access-export.ps1'),
     (Join-Path $PSScriptRoot 'operations\verify-deployed-workspace-enrollment.ps1'),
     (Join-Path $PSScriptRoot 'operations\verify-deployed-workspace-invitation.ps1'),
@@ -47,6 +48,7 @@ $scripts = @(
     (Join-Path $PSScriptRoot 'test-deployed-operations-notifications.ps1'),
     (Join-Path $PSScriptRoot 'test-deployed-reservations-inventory.ps1'),
     (Join-Path $PSScriptRoot 'test-deployed-guests-stay-history.ps1'),
+    (Join-Path $PSScriptRoot 'test-deployed-staff-employment.ps1'),
     (Join-Path $PSScriptRoot 'test-deployed-data-rights-access-export.ps1'),
     (Join-Path $PSScriptRoot 'test-deployed-workspace-enrollment.ps1'),
     (Join-Path $PSScriptRoot 'test-deployed-workspace-invitation.ps1'),
@@ -96,6 +98,7 @@ $deployedEvidenceWriters = @(
     'verify-deployed-public-edge.ps1',
     'verify-deployed-reservations-inventory.ps1',
     'verify-deployed-guests-stay-history.ps1',
+    'verify-deployed-staff-employment.ps1',
     'verify-deployed-data-rights-access-export.ps1',
     'verify-deployed-retention.ps1',
     'verify-deployed-workspace-enrollment.ps1',
@@ -1535,6 +1538,11 @@ foreach ($requiredToken in @(
         'guests-stay-history-child-proof-passed',
         'guestsStayHistoryEvidencePath',
         "`$cleanup['guestsStayHistoryFixture'] = 'room-retired'",
+        'IncludeStaffEmployment',
+        'verify-deployed-staff-employment.ps1',
+        'staff-employment-child-proof-passed',
+        'staffEmploymentEvidencePath',
+        "`$cleanup['staffEmployment'] = 'synthetic-departed-retained'",
         'IncludeDataRightsAccessExport',
         'New-RehearsalDataRightsSessions',
         'preview-totp.common.ps1',
@@ -1827,6 +1835,51 @@ foreach ($forbiddenToken in @(
 & (Join-Path $PSScriptRoot 'test-deployed-guests-stay-history.ps1')
 Write-Host 'BunkFy deployed Guests stay-history probe policy is valid.'
 
+$staffEmploymentProbe = Get-Content -LiteralPath (
+    Join-Path $PSScriptRoot 'operations\verify-deployed-staff-employment.ps1') -Raw
+foreach ($requiredToken in @(
+        "SupportsShouldProcess = `$true",
+        '$handler.AllowAutoRedirect = $false',
+        'ExpectedReleaseId',
+        'release-identity-continuous',
+        'BUNKFY_SMOKE_STAFF_OPERATOR_TOKEN',
+        'BUNKFY_SMOKE_STAFF_DENIED_TOKEN',
+        '/api/staff/members',
+        '/api/staff/properties/',
+        'Staff.PropertyUnavailable',
+        'Staff.CreationOperationConflict',
+        'Staff.ProfileUpdateOperationConflict',
+        'Staff.AssignmentOperationConflict',
+        'Staff.VersionConflict',
+        'staff-suspension-replay-stable-and-assignment-retained',
+        'staff-departure-closes-current-assignment',
+        'Complete-SmokeStaffCleanup',
+        'Write-BunkFyPrivateJsonEvidence',
+        "evidenceKind = 'bunkfy-deployed-staff-employment-probe'",
+        "'account-link-membership-and-role-lifecycle-not-exercised'",
+        "'synthetic-departed-staff-record-retained'")) {
+    if (-not $staffEmploymentProbe.Contains($requiredToken, [StringComparison]::Ordinal)) {
+        throw "Deployed Staff employment probe policy is missing '$requiredToken'."
+    }
+}
+foreach ($forbiddenToken in @(
+        'DangerousAcceptAnyServerCertificateValidator',
+        'ServerCertificateCustomValidationCallback',
+        '-SkipCertificateCheck',
+        '$handler.AllowAutoRedirect = $true',
+        'WriteAllBytes',
+        'Set-Content',
+        'Out-File',
+        '/api/admin/',
+        '/auth-subject')) {
+    if ($staffEmploymentProbe.Contains($forbiddenToken, [StringComparison]::OrdinalIgnoreCase)) {
+        throw "Deployed Staff employment probe contains forbidden token '$forbiddenToken'."
+    }
+}
+
+& (Join-Path $PSScriptRoot 'test-deployed-staff-employment.ps1')
+Write-Host 'BunkFy deployed Staff employment probe policy is valid.'
+
 $dataRightsAccessExportProbe = Get-Content -LiteralPath (
     Join-Path $PSScriptRoot 'operations\verify-deployed-data-rights-access-export.ps1') -Raw
 foreach ($requiredToken in @(
@@ -2008,9 +2061,12 @@ foreach ($requiredToken in @(
         'Get-BunkFyVerifiedProductionAdmissionProbe',
         'Assert-BunkFyRetentionAdmissionEvidence',
         'Assert-BunkFyGuestsStayHistoryAdmissionEvidence',
+        'Assert-BunkFyStaffEmploymentAdmissionEvidence',
         'Assert-BunkFyDataRightsAccessExportAdmissionEvidence',
         "'guests-stay-history'",
         "'bunkfy-deployed-guests-stay-history-probe'",
+        "'staff-employment'",
+        "'bunkfy-deployed-staff-employment-probe'",
         "'data-rights-access-export'",
         "'bunkfy-deployed-data-rights-access-export-probe'",
         "'completed-after-lower-bound'",
@@ -2037,6 +2093,8 @@ foreach ($requiredToken in @(
         'AdminDeniedEvidencePath',
         'GuestsStayHistoryEvidencePath',
         "'deployed-guests-stay-history'",
+        'StaffEmploymentEvidencePath',
+        "'deployed-staff-employment'",
         'DataRightsAccessExportEvidencePath',
         "'deployed-data-rights-access-export'",
         'BrowserRehearsalReference',

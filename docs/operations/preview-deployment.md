@@ -353,6 +353,16 @@ archived Guest and checked-out Reservation, retires the released room, and binds
 only scrubbed child evidence into the umbrella.
 
 Use the mutation-bearing
+[deployed Staff employment verifier](deployed-staff-employment-verification.md)
+to prove minimal unlinked profile management, optimistic and idempotent
+mutations, property assignment, suspension and resume, and terminal departure
+with assignment closure against one candidate. For a self-contained Preview
+run, add `-IncludeStaffEmployment` to the onboarding rehearsal. It runs before
+invitation acceptance so the applicant is a genuine authenticated nonmember,
+retains one departed synthetic Staff record with closed assignment history, and
+binds only scrubbed child evidence into the umbrella.
+
+Use the mutation-bearing
 [deployed Data Rights Access Export verifier](deployed-data-rights-access-export-verification.md)
 to prove exact Guest discovery, approved immutable scope, Worker export
 generation, assurance-gated protected download, idempotent replay, and bounded

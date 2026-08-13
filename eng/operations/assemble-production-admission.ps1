@@ -28,6 +28,7 @@ param(
     [Parameter(Mandatory = $true)][string] $OperationsNotificationsEvidencePath,
     [Parameter(Mandatory = $true)][string] $ReservationsInventoryEvidencePath,
     [Parameter(Mandatory = $true)][string] $GuestsStayHistoryEvidencePath,
+    [Parameter(Mandatory = $true)][string] $StaffEmploymentEvidencePath,
     [Parameter(Mandatory = $true)][string] $DataRightsAccessExportEvidencePath,
     [Parameter(Mandatory = $true)][string] $AdapterHostEvidencePath,
     [Parameter(Mandatory = $true)][string] $RetentionEvidencePath,
@@ -153,6 +154,12 @@ $guestsStayHistory = Get-BunkFyVerifiedProductionAdmissionProbe `
     -ExpectedOrigin $origin `
     -ExpectedReleaseId $CandidateReleaseId `
     -AllowFixtureEvidence:$AllowFixtureEvidence
+$staffEmployment = Get-BunkFyVerifiedProductionAdmissionProbe `
+    -Path $StaffEmploymentEvidencePath `
+    -SpecificationName 'staff-employment' `
+    -ExpectedOrigin $origin `
+    -ExpectedReleaseId $CandidateReleaseId `
+    -AllowFixtureEvidence:$AllowFixtureEvidence
 $dataRightsAccessExport = Get-BunkFyVerifiedProductionAdmissionProbe `
     -Path $DataRightsAccessExportEvidencePath `
     -SpecificationName 'data-rights-access-export' `
@@ -260,6 +267,7 @@ foreach ($entry in @(
         [pscustomobject]@{ Name = 'deployed-operations-notifications'; Value = $notifications },
         [pscustomobject]@{ Name = 'deployed-reservations-inventory'; Value = $reservationsInventory },
         [pscustomobject]@{ Name = 'deployed-guests-stay-history'; Value = $guestsStayHistory },
+        [pscustomobject]@{ Name = 'deployed-staff-employment'; Value = $staffEmployment },
         [pscustomobject]@{ Name = 'deployed-data-rights-access-export'; Value = $dataRightsAccessExport },
         [pscustomobject]@{ Name = 'deployed-adapter-host'; Value = $adapterHost },
         [pscustomobject]@{ Name = 'deployed-retention'; Value = $retention })) {

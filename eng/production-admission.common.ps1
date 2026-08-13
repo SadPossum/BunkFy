@@ -153,6 +153,7 @@ function Get-BunkFyProductionAdmissionProbeSpecification {
             'operations-notifications',
             'reservations-inventory',
             'guests-stay-history',
+            'staff-employment',
             'data-rights-access-export',
             'adapter-host',
             'retention')]
@@ -254,6 +255,19 @@ function Get-BunkFyProductionAdmissionProbeSpecification {
                 Properties = @('schemaVersion', 'evidenceKind', 'generatedAtUtc', 'origin', 'releaseId', 'transport', 'result', 'workflow', 'cleanup', 'checks', 'limitations')
                 Checks = @('scoped-operator-property-and-inventory-preflight', 'nonmember-guest-directory-denied', 'guest-created-with-minimal-profile', 'guest-create-replay-stable', 'guest-create-conflict-rejected', 'guest-detail-and-active-directory-visible', 'guest-versioned-update-recorded', 'guest-update-replay-stable', 'guest-conflicting-and-stale-updates-rejected', 'guest-update-visible', 'reservation-allocation-confirmed', 'reservation-primary-guest-link-replay-stable', 'guest-stay-confirmed-projection-converged', 'guest-stay-check-in-projection-converged', 'guest-stay-checkout-projection-converged', 'terminal-reservation-retained-and-inventory-released', 'guest-archive-replay-stable', 'archived-guest-directory-and-history-consistent', 'release-identity-continuous')
                 Limitations = @('browser-guest-workflow-not-exercised', 'guest-deduplication-merge-and-consent-not-exercised', 'concurrent-participant-and-overbooking-contention-not-exercised', 'synthetic-archived-guest-and-checked-out-reservation-retained')
+                GuidProperties = @()
+            }
+        }
+        'staff-employment' {
+            return [pscustomobject]@{
+                Name = $Name
+                EvidenceKind = 'bunkfy-deployed-staff-employment-probe'
+                SchemaVersion = 1
+                OriginProperty = 'origin'
+                TransportProperty = 'transport'
+                Properties = @('schemaVersion', 'evidenceKind', 'generatedAtUtc', 'origin', 'releaseId', 'transport', 'result', 'workflow', 'cleanup', 'checks', 'limitations')
+                Checks = @('scoped-operator-and-property-preflight', 'nonmember-staff-directory-denied', 'staff-created-with-minimal-unlinked-profile', 'staff-create-replay-stable', 'staff-create-conflict-rejected', 'staff-directory-and-sensitive-profile-coherent', 'staff-versioned-update-recorded', 'staff-update-replay-stable', 'staff-update-conflict-rejected', 'staff-stale-update-rejected', 'staff-update-visible', 'staff-property-assignment-recorded', 'staff-assignment-replay-stable', 'staff-assignment-conflict-rejected', 'staff-canonical-and-property-assignment-visible', 'staff-suspension-replay-stable-and-assignment-retained', 'staff-resume-replay-stable', 'staff-departure-replay-stable', 'staff-departure-closes-current-assignment', 'staff-active-and-departed-filters-coherent', 'release-identity-continuous')
+                Limitations = @('browser-staff-workflow-not-exercised', 'account-link-membership-and-role-lifecycle-not-exercised', 'governance-data-rights-and-retention-not-exercised', 'synthetic-departed-staff-record-retained')
                 GuidProperties = @()
             }
         }
@@ -515,6 +529,50 @@ function Assert-BunkFyGuestsStayHistoryAdmissionEvidence {
     }
 }
 
+function Assert-BunkFyStaffEmploymentAdmissionEvidence {
+    param([Parameter(Mandatory = $true)][object] $Record)
+
+    Assert-BunkFyCandidateProperties `
+        -Value $Record.workflow `
+        -ExpectedProperties @(
+            'finalStatus',
+            'authSubjectLinked',
+            'profileVersionAdvanced',
+            'assignmentLifecycle',
+            'currentAssignmentCount',
+            'historicalAssignmentCount',
+            'suspensionRetainedAssignment') `
+        -Context 'Staff employment workflow'
+    if ([string]$Record.workflow.finalStatus -cne 'departed' -or
+        $Record.workflow.authSubjectLinked -isnot [bool] -or
+        [bool]$Record.workflow.authSubjectLinked -or
+        $Record.workflow.profileVersionAdvanced -isnot [bool] -or
+        -not [bool]$Record.workflow.profileVersionAdvanced -or
+        [string]$Record.workflow.assignmentLifecycle -cne 'assigned-then-closed' -or
+        [int]$Record.workflow.currentAssignmentCount -ne 0 -or
+        [int]$Record.workflow.historicalAssignmentCount -ne 1 -or
+        $Record.workflow.suspensionRetainedAssignment -isnot [bool] -or
+        -not [bool]$Record.workflow.suspensionRetainedAssignment) {
+        throw 'Staff employment evidence has an invalid workflow summary.'
+    }
+
+    Assert-BunkFyCandidateProperties `
+        -Value $Record.cleanup `
+        -ExpectedProperties @(
+            'staffDisposition',
+            'currentAssignmentsClosed',
+            'propertyDisposition') `
+        -Context 'Staff employment cleanup'
+    if ([string]$Record.cleanup.staffDisposition -cne
+            'synthetic-departed-retained' -or
+        $Record.cleanup.currentAssignmentsClosed -isnot [bool] -or
+        -not [bool]$Record.cleanup.currentAssignmentsClosed -or
+        [string]$Record.cleanup.propertyDisposition -cne
+            'parent-rehearsal-owned') {
+        throw 'Staff employment evidence has an invalid cleanup disposition.'
+    }
+}
+
 function Assert-BunkFyDataRightsAccessExportAdmissionEvidence {
     param([Parameter(Mandatory = $true)][object] $Record)
 
@@ -649,6 +707,9 @@ function Get-BunkFyVerifiedProductionAdmissionProbe {
     }
     elseif ($SpecificationName -ceq 'guests-stay-history') {
         Assert-BunkFyGuestsStayHistoryAdmissionEvidence -Record $record
+    }
+    elseif ($SpecificationName -ceq 'staff-employment') {
+        Assert-BunkFyStaffEmploymentAdmissionEvidence -Record $record
     }
     elseif ($SpecificationName -ceq 'data-rights-access-export') {
         Assert-BunkFyDataRightsAccessExportAdmissionEvidence -Record $record
@@ -928,6 +989,7 @@ function Get-BunkFyProductionAdmissionExpectedEvidence {
         'deployed-admin-denied' = [pscustomobject]@{ Kind = 'bunkfy-deployed-admin-boundary-probe'; ReleaseId = $CandidateReleaseId; Count = 4 }
         'deployed-data-rights-access-export' = [pscustomobject]@{ Kind = 'bunkfy-deployed-data-rights-access-export-probe'; ReleaseId = $CandidateReleaseId; Count = 18 }
         'deployed-guests-stay-history' = [pscustomobject]@{ Kind = 'bunkfy-deployed-guests-stay-history-probe'; ReleaseId = $CandidateReleaseId; Count = 19 }
+        'deployed-staff-employment' = [pscustomobject]@{ Kind = 'bunkfy-deployed-staff-employment-probe'; ReleaseId = $CandidateReleaseId; Count = 21 }
         'deployed-operations-notifications' = [pscustomobject]@{ Kind = 'bunkfy-deployed-operations-notifications-probe'; ReleaseId = $CandidateReleaseId; Count = 10 }
         'deployed-public-edge' = [pscustomobject]@{ Kind = 'bunkfy-deployed-public-edge-probe'; ReleaseId = $CandidateReleaseId; Count = 6 }
         'deployed-reservations-inventory' = [pscustomobject]@{ Kind = 'bunkfy-deployed-reservations-inventory-probe'; ReleaseId = $CandidateReleaseId; Count = 11 }

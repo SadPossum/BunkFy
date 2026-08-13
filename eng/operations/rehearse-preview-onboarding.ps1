@@ -15,6 +15,7 @@ param(
     [switch] $IncludeOperationsNotifications,
     [switch] $IncludeReservationsInventory,
     [switch] $IncludeGuestsStayHistory,
+    [switch] $IncludeStaffEmployment,
     [switch] $IncludeRetention,
     [switch] $IncludeDataRightsAccessExport,
     [switch] $IncludeAdapterHost,
@@ -87,6 +88,9 @@ $reservationsInventoryEvidencePath = Join-Path `
 $guestsStayHistoryEvidencePath = Join-Path `
     $outputDirectory `
     "$outputBaseName.guests-stay-history.json"
+$staffEmploymentEvidencePath = Join-Path `
+    $outputDirectory `
+    "$outputBaseName.staff-employment.json"
 $retentionEvidencePath = Join-Path `
     $outputDirectory `
     "$outputBaseName.retention.json"
@@ -125,6 +129,9 @@ if ($IncludeReservationsInventory) {
 }
 if ($IncludeGuestsStayHistory) {
     $evidencePaths += $guestsStayHistoryEvidencePath
+}
+if ($IncludeStaffEmployment) {
+    $evidencePaths += $staffEmploymentEvidencePath
 }
 if ($IncludeRetention) {
     $evidencePaths += $retentionEvidencePath
@@ -242,6 +249,12 @@ $cleanup = [ordered]@{
     }
     guestsStayHistoryFixture = if ($IncludeGuestsStayHistory) {
         'not-created'
+    }
+    else {
+        'not-requested'
+    }
+    staffEmployment = if ($IncludeStaffEmployment) {
+        'not-started'
     }
     else {
         'not-requested'
@@ -1447,6 +1460,9 @@ if ($IncludeReservationsInventory) {
 if ($IncludeGuestsStayHistory) {
     $rehearsalAction += ', exercise durable Guests and stay history'
 }
+if ($IncludeStaffEmployment) {
+    $rehearsalAction += ', exercise Staff employment and assignment lifecycle'
+}
 if ($IncludeRetention) {
     $rehearsalAction += ', exercise automatic Retention'
 }
@@ -1781,6 +1797,40 @@ try {
                     name = 'retention-child-proof-passed'
                     status = 'passed'
                 })
+        }
+
+        if ($IncludeStaffEmployment) {
+            $proofStage = 'staff-employment-proof'
+            $cleanup['staffEmployment'] = 'child-running-cleanup-authoritative'
+            try {
+                & (Join-Path $PSScriptRoot 'verify-deployed-staff-employment.ps1') `
+                    -PublicOrigin $origin `
+                    -ExpectedReleaseId $ExpectedReleaseId `
+                    -WorkspaceId $workspaceId `
+                    -PropertyId $allowedPropertyId `
+                    -OperatorAccessToken $ownerToken `
+                    -DeniedAccessToken $invitationToken `
+                    -RequestTimeoutSeconds $RequestTimeoutSeconds `
+                    -ConvergenceTimeoutSeconds ([Math]::Min($ConvergenceTimeoutSeconds, 300)) `
+                    -PollIntervalMilliseconds $PollIntervalMilliseconds `
+                    -OutputPath $staffEmploymentEvidencePath `
+                    -AllowLoopbackHttp:$AllowLoopbackHttp `
+                    -Force `
+                    -Confirm:$false
+                [void](Read-RehearsalChildEvidence `
+                        -Path $staffEmploymentEvidencePath `
+                        -ExpectedKind 'bunkfy-deployed-staff-employment-probe' `
+                        -WorkspaceBinding Forbidden)
+                $cleanup['staffEmployment'] = 'synthetic-departed-retained'
+                $checks.Add([ordered]@{
+                        name = 'staff-employment-child-proof-passed'
+                        status = 'passed'
+                    })
+            }
+            catch {
+                $cleanup['staffEmployment'] = 'child-failed-review-required'
+                throw
+            }
         }
 
         $proofStage = 'invitation-proof'
@@ -2269,6 +2319,12 @@ if ($IncludeGuestsStayHistory) {
     $childRecords += [pscustomobject]@{
         Name = 'guestsStayHistory'
         Path = $guestsStayHistoryEvidencePath
+    }
+}
+if ($IncludeStaffEmployment) {
+    $childRecords += [pscustomobject]@{
+        Name = 'staffEmployment'
+        Path = $staffEmploymentEvidencePath
     }
 }
 if ($IncludeRetention) {
