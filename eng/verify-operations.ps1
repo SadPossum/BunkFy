@@ -37,6 +37,7 @@ $scripts = @(
     (Join-Path $PSScriptRoot 'operations\verify-deployed-reservations-inventory.ps1'),
     (Join-Path $PSScriptRoot 'operations\verify-deployed-guests-stay-history.ps1'),
     (Join-Path $PSScriptRoot 'operations\verify-deployed-staff-employment.ps1'),
+    (Join-Path $PSScriptRoot 'operations\verify-deployed-properties-topology.ps1'),
     (Join-Path $PSScriptRoot 'operations\verify-deployed-data-rights-access-export.ps1'),
     (Join-Path $PSScriptRoot 'operations\verify-deployed-workspace-enrollment.ps1'),
     (Join-Path $PSScriptRoot 'operations\verify-deployed-workspace-invitation.ps1'),
@@ -49,6 +50,7 @@ $scripts = @(
     (Join-Path $PSScriptRoot 'test-deployed-reservations-inventory.ps1'),
     (Join-Path $PSScriptRoot 'test-deployed-guests-stay-history.ps1'),
     (Join-Path $PSScriptRoot 'test-deployed-staff-employment.ps1'),
+    (Join-Path $PSScriptRoot 'test-deployed-properties-topology.ps1'),
     (Join-Path $PSScriptRoot 'test-deployed-data-rights-access-export.ps1'),
     (Join-Path $PSScriptRoot 'test-deployed-workspace-enrollment.ps1'),
     (Join-Path $PSScriptRoot 'test-deployed-workspace-invitation.ps1'),
@@ -99,6 +101,7 @@ $deployedEvidenceWriters = @(
     'verify-deployed-reservations-inventory.ps1',
     'verify-deployed-guests-stay-history.ps1',
     'verify-deployed-staff-employment.ps1',
+    'verify-deployed-properties-topology.ps1',
     'verify-deployed-data-rights-access-export.ps1',
     'verify-deployed-retention.ps1',
     'verify-deployed-workspace-enrollment.ps1',
@@ -1543,6 +1546,11 @@ foreach ($requiredToken in @(
         'staff-employment-child-proof-passed',
         'staffEmploymentEvidencePath',
         "`$cleanup['staffEmployment'] = 'synthetic-departed-retained'",
+        'IncludePropertiesTopology',
+        'verify-deployed-properties-topology.ps1',
+        'properties-topology-child-proof-passed',
+        'propertiesTopologyEvidencePath',
+        "`$cleanup['propertiesTopology'] = 'synthetic-topology-retired-retained'",
         'IncludeDataRightsAccessExport',
         'New-RehearsalDataRightsSessions',
         'preview-totp.common.ps1',
@@ -1880,6 +1888,57 @@ foreach ($forbiddenToken in @(
 & (Join-Path $PSScriptRoot 'test-deployed-staff-employment.ps1')
 Write-Host 'BunkFy deployed Staff employment probe policy is valid.'
 
+$propertiesTopologyProbe = Get-Content -LiteralPath (
+    Join-Path $PSScriptRoot 'operations\verify-deployed-properties-topology.ps1') -Raw
+foreach ($requiredToken in @(
+        "SupportsShouldProcess = `$true",
+        '$handler.AllowAutoRedirect = $false',
+        'ExpectedReleaseId',
+        'release-identity-continuous',
+        'BUNKFY_SMOKE_PROPERTIES_OPERATOR_TOKEN',
+        'BUNKFY_SMOKE_PROPERTIES_DENIED_TOKEN',
+        '/api/properties',
+        '/api/inventory/properties/',
+        'Properties.CreationOperationConflict',
+        'Properties.ManagementOperationConflict',
+        'Properties.VersionConflict',
+        'Properties.PropertyHasActiveRooms',
+        'Properties.BedRetirementRequiresInventory',
+        'Properties.RoomRetirementRequiresInventory',
+        'Inventory.InventoryUnitNotFound',
+        'Inventory.RoomNotFound',
+        'Inventory.BedRetirementInProgress',
+        'bed-batch-created-atomically',
+        'room-and-beds-retirement-completed',
+        'retired-topology-directories-and-processing-consistent',
+        'Complete-SmokePropertiesCleanup',
+        'Write-BunkFyPrivateJsonEvidence',
+        "evidenceKind = 'bunkfy-deployed-properties-topology-probe'",
+        "'country-policy-activation-suspension-and-rebinding-not-exercised'",
+        "'synthetic-retired-topology-retained'")) {
+    if (-not $propertiesTopologyProbe.Contains($requiredToken, [StringComparison]::Ordinal)) {
+        throw "Deployed Properties topology probe policy is missing '$requiredToken'."
+    }
+}
+foreach ($forbiddenToken in @(
+        'DangerousAcceptAnyServerCertificateValidator',
+        'ServerCertificateCustomValidationCallback',
+        '-SkipCertificateCheck',
+        '$handler.AllowAutoRedirect = $true',
+        'WriteAllBytes',
+        'Set-Content',
+        'Out-File',
+        '/api/admin/',
+        '/processing/activate',
+        '/country-policies')) {
+    if ($propertiesTopologyProbe.Contains($forbiddenToken, [StringComparison]::OrdinalIgnoreCase)) {
+        throw "Deployed Properties topology probe contains forbidden token '$forbiddenToken'."
+    }
+}
+
+& (Join-Path $PSScriptRoot 'test-deployed-properties-topology.ps1')
+Write-Host 'BunkFy deployed Properties topology probe policy is valid.'
+
 $dataRightsAccessExportProbe = Get-Content -LiteralPath (
     Join-Path $PSScriptRoot 'operations\verify-deployed-data-rights-access-export.ps1') -Raw
 foreach ($requiredToken in @(
@@ -2062,11 +2121,14 @@ foreach ($requiredToken in @(
         'Assert-BunkFyRetentionAdmissionEvidence',
         'Assert-BunkFyGuestsStayHistoryAdmissionEvidence',
         'Assert-BunkFyStaffEmploymentAdmissionEvidence',
+        'Assert-BunkFyPropertiesTopologyAdmissionEvidence',
         'Assert-BunkFyDataRightsAccessExportAdmissionEvidence',
         "'guests-stay-history'",
         "'bunkfy-deployed-guests-stay-history-probe'",
         "'staff-employment'",
         "'bunkfy-deployed-staff-employment-probe'",
+        "'properties-topology'",
+        "'bunkfy-deployed-properties-topology-probe'",
         "'data-rights-access-export'",
         "'bunkfy-deployed-data-rights-access-export-probe'",
         "'completed-after-lower-bound'",
@@ -2095,6 +2157,8 @@ foreach ($requiredToken in @(
         "'deployed-guests-stay-history'",
         'StaffEmploymentEvidencePath',
         "'deployed-staff-employment'",
+        'PropertiesTopologyEvidencePath',
+        "'deployed-properties-topology'",
         'DataRightsAccessExportEvidencePath',
         "'deployed-data-rights-access-export'",
         'BrowserRehearsalReference',

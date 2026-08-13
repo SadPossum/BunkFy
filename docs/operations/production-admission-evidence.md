@@ -36,6 +36,7 @@ Provide the exact retained files or directories for:
   [Reservations and Inventory lifecycle](deployed-reservations-inventory-verification.md),
   [Guests stay history](deployed-guests-stay-history-verification.md),
   [Staff employment](deployed-staff-employment-verification.md),
+  [Properties topology](deployed-properties-topology-verification.md),
   [Data Rights Access Export](deployed-data-rights-access-export-verification.md),
   [AdapterHost](deployed-adapter-host-verification.md), and
   [Retention](deployed-retention-verification.md) results.
@@ -56,6 +57,10 @@ directly for `GuestsStayHistoryEvidencePath`.
 The matching opt-in `*.staff-employment.json` child is a standalone unlinked
 Staff profile, assignment, and lifecycle proof and may be supplied directly for
 `StaffEmploymentEvidencePath`.
+The matching opt-in `*.properties-topology.json` child is a standalone
+Properties mutation, topology, and coordinated-retirement proof and may be
+supplied directly for `PropertiesTopologyEvidencePath`. It does not prove a
+country-policy choice or approval.
 The matching opt-in `*.data-rights-access-export.json` child is a standalone
 Data Rights proof and may be supplied directly for
 `DataRightsAccessExportEvidencePath`. It proves deployed protected export
@@ -111,6 +116,7 @@ $admission = @{
   ReservationsInventoryEvidencePath = '/evidence/probes/reservations-inventory.json'
   GuestsStayHistoryEvidencePath = '/evidence/probes/guests-stay-history.json'
   StaffEmploymentEvidencePath = '/evidence/probes/staff-employment.json'
+  PropertiesTopologyEvidencePath = '/evidence/probes/properties-topology.json'
   DataRightsAccessExportEvidencePath = '/evidence/probes/data-rights-access-export.json'
   AdapterHostEvidencePath = '/evidence/probes/adapter-host.json'
   RetentionEvidencePath = '/evidence/probes/retention.json'

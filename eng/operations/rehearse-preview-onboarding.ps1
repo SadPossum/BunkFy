@@ -16,6 +16,7 @@ param(
     [switch] $IncludeReservationsInventory,
     [switch] $IncludeGuestsStayHistory,
     [switch] $IncludeStaffEmployment,
+    [switch] $IncludePropertiesTopology,
     [switch] $IncludeRetention,
     [switch] $IncludeDataRightsAccessExport,
     [switch] $IncludeAdapterHost,
@@ -91,6 +92,9 @@ $guestsStayHistoryEvidencePath = Join-Path `
 $staffEmploymentEvidencePath = Join-Path `
     $outputDirectory `
     "$outputBaseName.staff-employment.json"
+$propertiesTopologyEvidencePath = Join-Path `
+    $outputDirectory `
+    "$outputBaseName.properties-topology.json"
 $retentionEvidencePath = Join-Path `
     $outputDirectory `
     "$outputBaseName.retention.json"
@@ -132,6 +136,9 @@ if ($IncludeGuestsStayHistory) {
 }
 if ($IncludeStaffEmployment) {
     $evidencePaths += $staffEmploymentEvidencePath
+}
+if ($IncludePropertiesTopology) {
+    $evidencePaths += $propertiesTopologyEvidencePath
 }
 if ($IncludeRetention) {
     $evidencePaths += $retentionEvidencePath
@@ -254,6 +261,12 @@ $cleanup = [ordered]@{
         'not-requested'
     }
     staffEmployment = if ($IncludeStaffEmployment) {
+        'not-started'
+    }
+    else {
+        'not-requested'
+    }
+    propertiesTopology = if ($IncludePropertiesTopology) {
         'not-started'
     }
     else {
@@ -1463,6 +1476,9 @@ if ($IncludeGuestsStayHistory) {
 if ($IncludeStaffEmployment) {
     $rehearsalAction += ', exercise Staff employment and assignment lifecycle'
 }
+if ($IncludePropertiesTopology) {
+    $rehearsalAction += ', exercise Properties topology and coordinated retirement'
+}
 if ($IncludeRetention) {
     $rehearsalAction += ', exercise automatic Retention'
 }
@@ -1655,6 +1671,39 @@ try {
                     name = 'preview-engineering-country-policy-activated'
                     status = 'passed'
                 })
+        }
+
+        if ($IncludePropertiesTopology) {
+            $proofStage = 'properties-topology-proof'
+            $cleanup['propertiesTopology'] = 'child-running-cleanup-authoritative'
+            try {
+                & (Join-Path $PSScriptRoot 'verify-deployed-properties-topology.ps1') `
+                    -PublicOrigin $origin `
+                    -ExpectedReleaseId $ExpectedReleaseId `
+                    -WorkspaceId $workspaceId `
+                    -OperatorAccessToken $ownerToken `
+                    -DeniedAccessToken $invitationToken `
+                    -RequestTimeoutSeconds $RequestTimeoutSeconds `
+                    -ConvergenceTimeoutSeconds ([Math]::Min($ConvergenceTimeoutSeconds, 300)) `
+                    -PollIntervalMilliseconds $PollIntervalMilliseconds `
+                    -OutputPath $propertiesTopologyEvidencePath `
+                    -AllowLoopbackHttp:$AllowLoopbackHttp `
+                    -Force `
+                    -Confirm:$false
+                [void](Read-RehearsalChildEvidence `
+                        -Path $propertiesTopologyEvidencePath `
+                        -ExpectedKind 'bunkfy-deployed-properties-topology-probe' `
+                        -WorkspaceBinding Forbidden)
+                $cleanup['propertiesTopology'] = 'synthetic-topology-retired-retained'
+                $checks.Add([ordered]@{
+                        name = 'properties-topology-child-proof-passed'
+                        status = 'passed'
+                    })
+            }
+            catch {
+                $cleanup['propertiesTopology'] = 'child-failed-review-required'
+                throw
+            }
         }
 
         if ($IncludeDataRightsAccessExport) {
@@ -2325,6 +2374,12 @@ if ($IncludeStaffEmployment) {
     $childRecords += [pscustomobject]@{
         Name = 'staffEmployment'
         Path = $staffEmploymentEvidencePath
+    }
+}
+if ($IncludePropertiesTopology) {
+    $childRecords += [pscustomobject]@{
+        Name = 'propertiesTopology'
+        Path = $propertiesTopologyEvidencePath
     }
 }
 if ($IncludeRetention) {

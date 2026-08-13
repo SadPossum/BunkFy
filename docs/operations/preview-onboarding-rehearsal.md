@@ -40,6 +40,7 @@ Deploy the exact candidate with `BUNKFY_EMAIL_CAPTURE_ENABLED=true`, then run:
 
 Add `-IncludeOperationsNotifications`, `-IncludeReservationsInventory`,
 `-IncludeGuestsStayHistory`, `-IncludeStaffEmployment`,
+`-IncludePropertiesTopology`,
 `-IncludeDataRightsAccessExport`, `-IncludeRetention`, or
 `-IncludeAdapterHost` to bind the corresponding deployed child proof into the
 umbrella. Contributions may be selected together; room-backed contributions
@@ -73,6 +74,13 @@ creates one minimal unlinked profile, proves optimistic and idempotent profile
 and assignment mutations, retains the assignment across suspension and resume,
 then departs the profile and proves the current assignment closed. The child
 owns that terminal Staff cleanup; the parent can then retire the property.
+
+The Properties topology contribution runs immediately after workspace and
+parent-property setup, while the owner session is fresh and the invitation
+applicant is still a nonmember. It creates and retires a separate third
+property, one room, and two beds. Inventory owns room and bed retirement; the
+child owns terminal cleanup and does not modify either parent property or
+activate a country policy.
 
 The Retention contribution captures a UTC lower bound before workspace
 creation, then uses only the public read contract to prove that both asserted
@@ -143,6 +151,11 @@ When selected, the Staff employment contribution additionally leaves its
 synthetic unlinked profile departed with no current assignment before property
 cleanup. Neither child nor umbrella evidence retains Staff, property,
 operation, label, reason, or effective-date coordinates.
+
+When selected, the Properties topology contribution leaves its own property,
+room, and both beds retired before invitation acceptance. Neither child nor
+umbrella evidence retains workspace, property, room, bed, topology-change,
+operation, label, reason, time-zone, or policy coordinates.
 
 Join-source issuance retries only the explicit access-profile and property
 projection readiness conflicts, preserving the same source id. Any other

@@ -1,6 +1,6 @@
 # Deployed Properties Topology Lifecycle Proof Task
 
-Status: planned
+Status: implemented, fixture verified, operations-gate verified, and exact-release Preview verified
 Date: 2026-08-13
 
 ## Goal
@@ -142,3 +142,21 @@ edge, API, Worker, PostgreSQL, NATS, Properties, and Inventory-owned databases.
   the synthetic property, room, and both beds retired with no active topology.
 - Production admission requires the new exact-release evidence while refusing to
   present loopback Preview evidence as hosted-production proof.
+
+## Completion
+
+Implemented the 31-check deployed Properties verifier, deterministic valid and
+room-retirement replay-drift fixture, Preview opt-in composition, production
+admission specification and semantic validation, static guards, and operator
+documentation. No BunkFy module or GMA runtime source changed: source review and
+the deployed proof confirmed that the existing Properties and Inventory public
+contracts already preserve the intended ownership boundary.
+
+The focused verifier and admission fixtures passed. One exact Preview rehearsal
+passed for `preview-workspace-access-estate-651107f`; child SHA-256 is
+`d83da9843778138fdef851a52e99583455b230f7971190cf95e30c8ba7241b45`
+and umbrella SHA-256 is
+`38b16660bfa54c03caee7dca1dd2b20cab04332a98fba954ce6ecadcf734dceb`.
+All retained files use mode `0600`, the minimization scan was clean, the
+production-admission parser accepted the child, and the full operations gate
+passed once in 189.3 seconds.

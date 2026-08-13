@@ -363,6 +363,16 @@ retains one departed synthetic Staff record with closed assignment history, and
 binds only scrubbed child evidence into the umbrella.
 
 Use the mutation-bearing
+[deployed Properties topology verifier](deployed-properties-topology-verification.md)
+to prove property, room, and bed mutation idempotency, optimistic concurrency,
+directory visibility, and Inventory-coordinated terminal retirement against one
+candidate. For a self-contained Preview run, add
+`-IncludePropertiesTopology` to the onboarding rehearsal. The child creates and
+fully retires its own third property before invitation acceptance, retains only
+the retired synthetic topology, and binds scrubbed evidence into the umbrella.
+It deliberately does not activate or select a country policy.
+
+Use the mutation-bearing
 [deployed Data Rights Access Export verifier](deployed-data-rights-access-export-verification.md)
 to prove exact Guest discovery, approved immutable scope, Worker export
 generation, assurance-gated protected download, idempotent replay, and bounded
