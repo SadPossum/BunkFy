@@ -104,3 +104,14 @@ against a deterministic loopback server. It proves the valid path, rejects a
 fixture that leaves the older proposal pending while still requiring terminal
 cleanup, scans evidence for scoped and sensitive values, verifies private file
 mode, and rejects insecure non-loopback HTTP.
+
+## Current Preview Evidence
+
+Exact release `preview-ingestion-proposal-844f4c4` passed the public 26-check
+workflow on 2026-08-13. The child SHA-256 is
+`628e14a00a3325b8acbb8747f68a8edf118737dc652bb75f4a5c464528b959f6`;
+the onboarding umbrella SHA-256 is
+`796f9a048a9a795e5403a8f16d19a501449334a4e15f3006ad0c0d1b402d67b4`.
+All retained files are mode `0600`, the minimized child contains no scoped
+identifiers or secret material, and cleanup completed. This is loopback Preview
+composition evidence and cannot be used as trusted-HTTPS production evidence.

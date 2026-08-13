@@ -1,6 +1,6 @@
 # Deployed Ingestion Conflict And Proposal Lifecycle Proof Task
 
-Status: in progress
+Status: implemented, gates verified, and exact-release Preview verified
 Date: 2026-08-13
 
 ## Goal
@@ -143,3 +143,30 @@ that same slice before rerunning the smallest failed boundary.
 - One exact-release Preview run produces minimized passing evidence and leaves
   the reservation terminal, credential revoked, and connection disabled.
 - No BunkFy-specific reservation or adapter semantics leak into GMA.
+
+## Completion
+
+Implemented newest-source proposal supersession in Ingestion, the superseded
+web history filter, the 26-check deployed verifier, deterministic valid and
+supersession-drift fixtures, Preview composition, production-admission schema
+and semantic validation, static guards, and operator documentation. The runtime
+change stays inside Ingestion's existing source-graph transaction and exact
+source identity; Reservations and Inventory remain authoritative through their
+public contracts, and no GMA source changed.
+
+Focused Ingestion dispatch tests passed 14/14. The full Ingestion suite passed
+339/339, Architecture passed 103/103, and web verification passed 277 tests plus
+type checking, lint, and production build. The complete operations gate passed
+once in 188.8 seconds.
+
+One exact Preview rehearsal passed for
+`preview-ingestion-proposal-844f4c4`. Child SHA-256 is
+`628e14a00a3325b8acbb8747f68a8edf118737dc652bb75f4a5c464528b959f6`
+and umbrella SHA-256 is
+`796f9a048a9a795e5403a8f16d19a501449334a4e15f3006ad0c0d1b402d67b4`.
+The closed admission parser accepted the child shape and semantics, the
+minimization scan was clean, and all four retained files use mode `0600`.
+Cleanup left the synthetic reservation cancelled, credential revoked,
+connection disabled, room retired, workspace archived, sessions revoked, and
+captured mail purged. Loopback Preview remains composition proof rather than
+hosted-production admission.
