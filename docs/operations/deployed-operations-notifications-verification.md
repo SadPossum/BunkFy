@@ -1,6 +1,6 @@
 # Deployed Operations Notifications Verification
 
-Status: v2 implemented and fixture verified; fresh exact-release Preview proof pending
+Status: v2 implemented, fixture verified, and exact-release Preview verified
 Date: 2026-08-13
 
 Use this mutation-bearing probe to verify BunkFy's product notification path
@@ -141,6 +141,23 @@ supersedes its scoped evidence shape, so it cannot satisfy current production
 admission. It also does not admit the current candidate, prove browser attention
 behavior, exercise external delivery adapters, or replace the private
 notification-retention approval required for Production activation.
+
+## Current V2 Preview Evidence
+
+On 2026-08-13, exact release
+`preview-operations-notifications-3ea29b6` passed all ten public workflow checks.
+The schema-v2 child SHA-256 is
+`a2b0a8ffa1c2664078516526112dd03b667d209a2128a05b8c94f2842d0f1acc`;
+the onboarding umbrella SHA-256 is
+`c3c445e2dc5fa21d7a65b9d03b67fe8e36c096957e6944fe5a5c43b6b94a671b`.
+
+All four retained files are mode `0600`. The child matches the closed admission
+shape and semantics and contains no scoped identifiers, date ranges, stream
+coordinates, personal content, or secret material. Parent cleanup retired the
+dedicated room and both properties, removed both non-owner memberships,
+archived the workspace, revoked all sessions, and purged Mailpit. The child is
+`loopback-http-preview`, so production admission correctly rejects it despite
+its exact release and passing semantics.
 
 ## Repository Fixture
 

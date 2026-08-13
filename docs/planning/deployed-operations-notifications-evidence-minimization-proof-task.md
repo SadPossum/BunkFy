@@ -1,6 +1,6 @@
 # Deployed Operations Notifications Evidence Minimization Proof Task
 
-Status: in progress
+Status: implemented, operations-gate verified, and exact-release Preview verified
 Date: 2026-08-13
 
 ## Goal
@@ -99,3 +99,33 @@ workspace binding and bind it only by SHA-256.
   membership, session, and mail cleanup.
 - No backend, database, web, or GMA runtime change is introduced unless the
   deployed proof reveals a concrete defect.
+
+## Completion
+
+The deployed Operations Notifications proof now emits schema v2 with closed
+workflow, delivery, and cleanup summaries. It retains no tenant or domain
+coordinates, dates, absolute stream positions, identities, content, payloads,
+or secrets. Preview rejects a workspace-bound child and reports
+`loopback-http-preview`; production admission requires the exact v2 shape and
+semantics over trusted HTTPS. Its test-only admission fixture remains explicitly
+`loopback-http-fixture`.
+
+The deterministic verifier fixture passed its valid path, exact property-set
+and minimization checks, private mode, overwrite refusal, release mismatch,
+same-token and insecure-HTTP controls, and actor-leak failure with terminal
+Inventory release. The production-admission fixture passed and rejects a
+nonzero actor delivery count. The complete Operations gate passed once in
+206.7 seconds. Backend, web, database, and GMA runtime source did not change.
+
+One exact Preview rehearsal passed for
+`preview-operations-notifications-3ea29b6`. The schema-v2 child passed all ten
+checks with SHA-256
+`a2b0a8ffa1c2664078516526112dd03b667d209a2128a05b8c94f2842d0f1acc`;
+the ten-check onboarding umbrella SHA-256 is
+`c3c445e2dc5fa21d7a65b9d03b67fe8e36c096957e6944fe5a5c43b6b94a671b`.
+All four retained files use mode `0600`, the child minimization scan was clean,
+and the closed admission parser accepted its shape and semantics. Cleanup
+released the Inventory block, retired the room and both properties, removed
+both non-owner memberships, archived the workspace, revoked all sessions, and
+purged Mailpit. Loopback Preview remains composition evidence, not hosted
+production admission or notification-retention approval.
