@@ -152,6 +152,7 @@ function Get-BunkFyProductionAdmissionProbeSpecification {
             'workspace-enrollment',
             'operations-notifications',
             'reservations-inventory',
+            'guests-stay-history',
             'data-rights-access-export',
             'adapter-host',
             'retention')]
@@ -240,6 +241,19 @@ function Get-BunkFyProductionAdmissionProbeSpecification {
                 Properties = @('schemaVersion', 'evidenceKind', 'generatedAtUtc', 'origin', 'releaseId', 'transport', 'result', 'checks', 'limitations')
                 Checks = @('scoped-operator-and-property-preflight', 'inventory-available-before-create', 'reservation-allocation-confirmed', 'reservation-create-replay-stable', 'allocated-inventory-unavailable', 'reservation-check-in-recorded', 'reservation-check-in-replay-stable', 'reservation-checkout-converged', 'reservation-checkout-replay-current', 'inventory-released-after-checkout', 'release-identity-continuous')
                 Limitations = @('browser-workflow-not-exercised', 'durable-guest-record-not-created', 'concurrent-overbooking-contention-not-exercised', 'synthetic-checked-out-reservation-retained')
+                GuidProperties = @()
+            }
+        }
+        'guests-stay-history' {
+            return [pscustomobject]@{
+                Name = $Name
+                EvidenceKind = 'bunkfy-deployed-guests-stay-history-probe'
+                SchemaVersion = 1
+                OriginProperty = 'origin'
+                TransportProperty = 'transport'
+                Properties = @('schemaVersion', 'evidenceKind', 'generatedAtUtc', 'origin', 'releaseId', 'transport', 'result', 'workflow', 'cleanup', 'checks', 'limitations')
+                Checks = @('scoped-operator-property-and-inventory-preflight', 'nonmember-guest-directory-denied', 'guest-created-with-minimal-profile', 'guest-create-replay-stable', 'guest-create-conflict-rejected', 'guest-detail-and-active-directory-visible', 'guest-versioned-update-recorded', 'guest-update-replay-stable', 'guest-conflicting-and-stale-updates-rejected', 'guest-update-visible', 'reservation-allocation-confirmed', 'reservation-primary-guest-link-replay-stable', 'guest-stay-confirmed-projection-converged', 'guest-stay-check-in-projection-converged', 'guest-stay-checkout-projection-converged', 'terminal-reservation-retained-and-inventory-released', 'guest-archive-replay-stable', 'archived-guest-directory-and-history-consistent', 'release-identity-continuous')
+                Limitations = @('browser-guest-workflow-not-exercised', 'guest-deduplication-merge-and-consent-not-exercised', 'concurrent-participant-and-overbooking-contention-not-exercised', 'synthetic-archived-guest-and-checked-out-reservation-retained')
                 GuidProperties = @()
             }
         }
@@ -456,6 +470,51 @@ function Assert-BunkFyRetentionAdmissionEvidence {
     }
 }
 
+function Assert-BunkFyGuestsStayHistoryAdmissionEvidence {
+    param([Parameter(Mandatory = $true)][object] $Record)
+
+    Assert-BunkFyCandidateProperties `
+        -Value $Record.workflow `
+        -ExpectedProperties @(
+            'guestFinalStatus',
+            'reservationFinalStatus',
+            'participantRole',
+            'stayFinalStatus',
+            'stayCount',
+            'guestVersionAdvanced',
+            'reservationVersionsMonotonic') `
+        -Context 'Guests stay-history workflow'
+    if ([string]$Record.workflow.guestFinalStatus -cne 'archived' -or
+        [string]$Record.workflow.reservationFinalStatus -cne 'checked-out' -or
+        [string]$Record.workflow.participantRole -cne 'primary' -or
+        [string]$Record.workflow.stayFinalStatus -cne 'checked-out' -or
+        [int]$Record.workflow.stayCount -ne 1 -or
+        $Record.workflow.guestVersionAdvanced -isnot [bool] -or
+        -not [bool]$Record.workflow.guestVersionAdvanced -or
+        $Record.workflow.reservationVersionsMonotonic -isnot [bool] -or
+        -not [bool]$Record.workflow.reservationVersionsMonotonic) {
+        throw 'Guests stay-history evidence has an invalid workflow summary.'
+    }
+
+    Assert-BunkFyCandidateProperties `
+        -Value $Record.cleanup `
+        -ExpectedProperties @(
+            'guestArchived',
+            'reservationDisposition',
+            'inventoryReleased',
+            'roomDisposition') `
+        -Context 'Guests stay-history cleanup'
+    if ($Record.cleanup.guestArchived -isnot [bool] -or
+        -not [bool]$Record.cleanup.guestArchived -or
+        [string]$Record.cleanup.reservationDisposition -cne
+            'synthetic-checked-out-retained' -or
+        $Record.cleanup.inventoryReleased -isnot [bool] -or
+        -not [bool]$Record.cleanup.inventoryReleased -or
+        [string]$Record.cleanup.roomDisposition -cne 'parent-rehearsal-owned') {
+        throw 'Guests stay-history evidence has an invalid cleanup disposition.'
+    }
+}
+
 function Assert-BunkFyDataRightsAccessExportAdmissionEvidence {
     param([Parameter(Mandatory = $true)][object] $Record)
 
@@ -587,6 +646,9 @@ function Get-BunkFyVerifiedProductionAdmissionProbe {
         Assert-BunkFyRetentionAdmissionEvidence `
             -Record $record `
             -GeneratedAt $generatedAt
+    }
+    elseif ($SpecificationName -ceq 'guests-stay-history') {
+        Assert-BunkFyGuestsStayHistoryAdmissionEvidence -Record $record
     }
     elseif ($SpecificationName -ceq 'data-rights-access-export') {
         Assert-BunkFyDataRightsAccessExportAdmissionEvidence -Record $record
@@ -865,6 +927,7 @@ function Get-BunkFyProductionAdmissionExpectedEvidence {
         'deployed-admin-allowed' = [pscustomobject]@{ Kind = 'bunkfy-deployed-admin-boundary-probe'; ReleaseId = $CandidateReleaseId; Count = 5 }
         'deployed-admin-denied' = [pscustomobject]@{ Kind = 'bunkfy-deployed-admin-boundary-probe'; ReleaseId = $CandidateReleaseId; Count = 4 }
         'deployed-data-rights-access-export' = [pscustomobject]@{ Kind = 'bunkfy-deployed-data-rights-access-export-probe'; ReleaseId = $CandidateReleaseId; Count = 18 }
+        'deployed-guests-stay-history' = [pscustomobject]@{ Kind = 'bunkfy-deployed-guests-stay-history-probe'; ReleaseId = $CandidateReleaseId; Count = 19 }
         'deployed-operations-notifications' = [pscustomobject]@{ Kind = 'bunkfy-deployed-operations-notifications-probe'; ReleaseId = $CandidateReleaseId; Count = 10 }
         'deployed-public-edge' = [pscustomobject]@{ Kind = 'bunkfy-deployed-public-edge-probe'; ReleaseId = $CandidateReleaseId; Count = 6 }
         'deployed-reservations-inventory' = [pscustomobject]@{ Kind = 'bunkfy-deployed-reservations-inventory-probe'; ReleaseId = $CandidateReleaseId; Count = 11 }

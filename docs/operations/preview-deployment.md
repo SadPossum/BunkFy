@@ -342,6 +342,17 @@ retires a temporary sellable room, and binds the scrubbed child proof into the
 onboarding evidence.
 
 Use the mutation-bearing
+[deployed Guests stay-history verifier](deployed-guests-stay-history-verification.md)
+to prove minimal canonical Guest management, optimistic and idempotent replay,
+the Reservation primary-participant link, monotonic Guests-owned stay-history
+projection, check-in, checkout, archive, and Inventory release against one
+candidate. For a self-contained Preview run, add `-IncludeGuestsStayHistory` to
+the onboarding rehearsal. It runs before invitation acceptance so the applicant
+is a genuine authenticated nonmember, provisions a dedicated room, retains the
+archived Guest and checked-out Reservation, retires the released room, and binds
+only scrubbed child evidence into the umbrella.
+
+Use the mutation-bearing
 [deployed Data Rights Access Export verifier](deployed-data-rights-access-export-verification.md)
 to prove exact Guest discovery, approved immutable scope, Worker export
 generation, assurance-gated protected download, idempotent replay, and bounded

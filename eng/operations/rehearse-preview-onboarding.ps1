@@ -14,6 +14,7 @@ param(
     [switch] $AllowLoopbackHttp,
     [switch] $IncludeOperationsNotifications,
     [switch] $IncludeReservationsInventory,
+    [switch] $IncludeGuestsStayHistory,
     [switch] $IncludeRetention,
     [switch] $IncludeDataRightsAccessExport,
     [switch] $IncludeAdapterHost,
@@ -83,6 +84,9 @@ $operationsNotificationsEvidencePath = Join-Path `
 $reservationsInventoryEvidencePath = Join-Path `
     $outputDirectory `
     "$outputBaseName.reservations-inventory.json"
+$guestsStayHistoryEvidencePath = Join-Path `
+    $outputDirectory `
+    "$outputBaseName.guests-stay-history.json"
 $retentionEvidencePath = Join-Path `
     $outputDirectory `
     "$outputBaseName.retention.json"
@@ -118,6 +122,9 @@ if ($IncludeOperationsNotifications) {
 }
 if ($IncludeReservationsInventory) {
     $evidencePaths += $reservationsInventoryEvidencePath
+}
+if ($IncludeGuestsStayHistory) {
+    $evidencePaths += $guestsStayHistoryEvidencePath
 }
 if ($IncludeRetention) {
     $evidencePaths += $retentionEvidencePath
@@ -233,6 +240,12 @@ $cleanup = [ordered]@{
     else {
         'not-requested'
     }
+    guestsStayHistoryFixture = if ($IncludeGuestsStayHistory) {
+        'not-created'
+    }
+    else {
+        'not-requested'
+    }
     dataRightsAccessExport = if ($IncludeDataRightsAccessExport) {
         'not-started'
     }
@@ -273,6 +286,7 @@ $invitationEvidence = $null
 $enrollmentEvidence = $null
 $operationsNotificationsFixture = $null
 $reservationsInventoryFixture = $null
+$guestsStayHistoryFixture = $null
 $adapterHostFixture = $null
 $dataRightsAssuredToken = $null
 $dataRightsUnassuredToken = $null
@@ -1430,6 +1444,9 @@ if ($IncludeOperationsNotifications) {
 if ($IncludeReservationsInventory) {
     $rehearsalAction += ', exercise Reservations and Inventory'
 }
+if ($IncludeGuestsStayHistory) {
+    $rehearsalAction += ', exercise durable Guests and stay history'
+}
 if ($IncludeRetention) {
     $rehearsalAction += ', exercise automatic Retention'
 }
@@ -1587,22 +1604,30 @@ try {
             [Parameter(Mandatory = $true)][string] $Path,
             [Parameter(Mandatory = $true)][string] $Method,
             [AllowNull()][object] $Body,
-            [Parameter(Mandatory = $true)][string] $Operation
+            [Parameter(Mandatory = $true)][string] $Operation,
+            [switch] $AllowNotFound
         )
 
-        return Read-RehearsalJson `
-            -Response (Invoke-RehearsalApi `
+        $response = Invoke-RehearsalApi `
                 -Path $Path `
                 -Method $Method `
                 -TenantId $workspaceId.ToString('D') `
                 -Token ([string]$owner.AccessToken) `
-                -Body $Body) `
+                -Body $Body
+        if ($AllowNotFound -and $response.StatusCode -eq 404) {
+            Clear-RehearsalResponseBody -Response $response
+            return $null
+        }
+
+        return Read-RehearsalJson `
+            -Response $response `
             -ExpectedStatus 200 `
             -Operation $Operation
     }
     try {
         if ($IncludeDataRightsAccessExport -or
             $IncludeReservationsInventory -or
+            $IncludeGuestsStayHistory -or
             $IncludeAdapterHost) {
             $proofStage = 'room-backed-domain-processing'
             [void](Enable-BunkFyPreviewEngineeringPropertyProcessing `
@@ -1659,6 +1684,78 @@ try {
             catch {
                 $cleanup['dataRightsAccessExport'] = 'child-failed-review-required'
                 throw
+            }
+        }
+
+        if ($IncludeGuestsStayHistory) {
+            $guestsProofError = $null
+            try {
+                $proofStage = 'guests-stay-history-fixture'
+                $guestsStayHistoryFixture = `
+                    New-BunkFyPreviewSellableRoomFixture `
+                        -InvokeApi $invokeSellableRoomFixtureApi `
+                        -PropertyId $allowedPropertyId `
+                        -RoomName "Preview guest room $batchId" `
+                        -State ([ref]$guestsStayHistoryFixture) `
+                        -ConvergenceTimeoutSeconds $ConvergenceTimeoutSeconds `
+                        -PollIntervalMilliseconds $PollIntervalMilliseconds
+                $cleanup['guestsStayHistoryFixture'] = 'active-room'
+
+                $proofStage = 'guests-stay-history-proof'
+                $arrival = [DateTime]::UtcNow.Date.AddDays(75)
+                $departure = $arrival.AddDays(2)
+                & (Join-Path $PSScriptRoot 'verify-deployed-guests-stay-history.ps1') `
+                    -PublicOrigin $origin `
+                    -ExpectedReleaseId $ExpectedReleaseId `
+                    -WorkspaceId $workspaceId `
+                    -PropertyId $allowedPropertyId `
+                    -InventoryUnitId ([Guid]$guestsStayHistoryFixture.InventoryUnitId) `
+                    -Arrival $arrival `
+                    -Departure $departure `
+                    -OperatorAccessToken $ownerToken `
+                    -DeniedAccessToken $invitationToken `
+                    -RequestTimeoutSeconds $RequestTimeoutSeconds `
+                    -ConvergenceTimeoutSeconds ([Math]::Min($ConvergenceTimeoutSeconds, 300)) `
+                    -PollIntervalMilliseconds $PollIntervalMilliseconds `
+                    -OutputPath $guestsStayHistoryEvidencePath `
+                    -AllowLoopbackHttp:$AllowLoopbackHttp `
+                    -Force `
+                    -Confirm:$false
+                [void](Read-RehearsalChildEvidence `
+                        -Path $guestsStayHistoryEvidencePath `
+                        -ExpectedKind 'bunkfy-deployed-guests-stay-history-probe' `
+                        -WorkspaceBinding Forbidden)
+                $checks.Add([ordered]@{
+                        name = 'guests-stay-history-child-proof-passed'
+                        status = 'passed'
+                    })
+            }
+            catch {
+                $guestsProofError = $_.Exception
+            }
+            finally {
+                if ($null -ne $guestsStayHistoryFixture) {
+                    try {
+                        [void](Remove-BunkFyPreviewSellableRoomFixture `
+                                -InvokeApi $invokeSellableRoomFixtureApi `
+                                -Fixture $guestsStayHistoryFixture `
+                                -ConvergenceTimeoutSeconds $ConvergenceTimeoutSeconds `
+                                -PollIntervalMilliseconds $PollIntervalMilliseconds)
+                        $cleanup['guestsStayHistoryFixture'] = 'room-retired'
+                    }
+                    catch {
+                        $cleanup['guestsStayHistoryFixture'] = 'failed'
+                        Add-RehearsalCleanupFailure `
+                            -Name 'guests-stay-history-fixture' `
+                            -Message 'The synthetic Guests stay-history room could not be retired.'
+                        if ($null -eq $guestsProofError) {
+                            $guestsProofError = $_.Exception
+                        }
+                    }
+                }
+            }
+            if ($null -ne $guestsProofError) {
+                throw $guestsProofError
             }
         }
 
@@ -2166,6 +2263,12 @@ if ($IncludeReservationsInventory) {
     $childRecords += [pscustomobject]@{
         Name = 'reservationsInventory'
         Path = $reservationsInventoryEvidencePath
+    }
+}
+if ($IncludeGuestsStayHistory) {
+    $childRecords += [pscustomobject]@{
+        Name = 'guestsStayHistory'
+        Path = $guestsStayHistoryEvidencePath
     }
 }
 if ($IncludeRetention) {

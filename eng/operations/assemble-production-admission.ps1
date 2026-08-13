@@ -27,6 +27,7 @@ param(
     [Parameter(Mandatory = $true)][string] $WorkspaceEnrollmentEvidencePath,
     [Parameter(Mandatory = $true)][string] $OperationsNotificationsEvidencePath,
     [Parameter(Mandatory = $true)][string] $ReservationsInventoryEvidencePath,
+    [Parameter(Mandatory = $true)][string] $GuestsStayHistoryEvidencePath,
     [Parameter(Mandatory = $true)][string] $DataRightsAccessExportEvidencePath,
     [Parameter(Mandatory = $true)][string] $AdapterHostEvidencePath,
     [Parameter(Mandatory = $true)][string] $RetentionEvidencePath,
@@ -146,6 +147,12 @@ $reservationsInventory = Get-BunkFyVerifiedProductionAdmissionProbe `
     -ExpectedOrigin $origin `
     -ExpectedReleaseId $CandidateReleaseId `
     -AllowFixtureEvidence:$AllowFixtureEvidence
+$guestsStayHistory = Get-BunkFyVerifiedProductionAdmissionProbe `
+    -Path $GuestsStayHistoryEvidencePath `
+    -SpecificationName 'guests-stay-history' `
+    -ExpectedOrigin $origin `
+    -ExpectedReleaseId $CandidateReleaseId `
+    -AllowFixtureEvidence:$AllowFixtureEvidence
 $dataRightsAccessExport = Get-BunkFyVerifiedProductionAdmissionProbe `
     -Path $DataRightsAccessExportEvidencePath `
     -SpecificationName 'data-rights-access-export' `
@@ -206,6 +213,7 @@ $sourceFiles = @(
     $enrollment.Path,
     $notifications.Path,
     $reservationsInventory.Path,
+    $guestsStayHistory.Path,
     $dataRightsAccessExport.Path,
     $adapterHost.Path,
     $retention.Path)
@@ -251,6 +259,7 @@ foreach ($entry in @(
         [pscustomobject]@{ Name = 'deployed-workspace-enrollment'; Value = $enrollment },
         [pscustomobject]@{ Name = 'deployed-operations-notifications'; Value = $notifications },
         [pscustomobject]@{ Name = 'deployed-reservations-inventory'; Value = $reservationsInventory },
+        [pscustomobject]@{ Name = 'deployed-guests-stay-history'; Value = $guestsStayHistory },
         [pscustomobject]@{ Name = 'deployed-data-rights-access-export'; Value = $dataRightsAccessExport },
         [pscustomobject]@{ Name = 'deployed-adapter-host'; Value = $adapterHost },
         [pscustomobject]@{ Name = 'deployed-retention'; Value = $retention })) {

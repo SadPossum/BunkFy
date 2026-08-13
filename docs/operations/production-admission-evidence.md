@@ -34,6 +34,7 @@ Provide the exact retained files or directories for:
   [QR enrollment](deployed-workspace-enrollment-verification.md) results;
 - [Operations Notifications](deployed-operations-notifications-verification.md),
   [Reservations and Inventory lifecycle](deployed-reservations-inventory-verification.md),
+  [Guests stay history](deployed-guests-stay-history-verification.md),
   [Data Rights Access Export](deployed-data-rights-access-export-verification.md),
   [AdapterHost](deployed-adapter-host-verification.md), and
   [Retention](deployed-retention-verification.md) results.
@@ -48,6 +49,9 @@ onboarding umbrella, for `OperationsNotificationsEvidencePath`.
 The matching opt-in `*.reservations-inventory.json` child is a standalone
 Reservations and Inventory lifecycle proof and may be supplied directly for
 `ReservationsInventoryEvidencePath`.
+The matching opt-in `*.guests-stay-history.json` child is a standalone durable
+Guest, Reservation link, and Guests-owned stay-history proof and may be supplied
+directly for `GuestsStayHistoryEvidencePath`.
 The matching opt-in `*.data-rights-access-export.json` child is a standalone
 Data Rights proof and may be supplied directly for
 `DataRightsAccessExportEvidencePath`. It proves deployed protected export
@@ -101,6 +105,7 @@ $admission = @{
   WorkspaceEnrollmentEvidencePath = '/evidence/probes/workspace-enrollment.json'
   OperationsNotificationsEvidencePath = '/evidence/probes/notifications.json'
   ReservationsInventoryEvidencePath = '/evidence/probes/reservations-inventory.json'
+  GuestsStayHistoryEvidencePath = '/evidence/probes/guests-stay-history.json'
   DataRightsAccessExportEvidencePath = '/evidence/probes/data-rights-access-export.json'
   AdapterHostEvidencePath = '/evidence/probes/adapter-host.json'
   RetentionEvidencePath = '/evidence/probes/retention.json'

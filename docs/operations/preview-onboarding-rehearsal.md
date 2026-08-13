@@ -39,11 +39,11 @@ Deploy the exact candidate with `BUNKFY_EMAIL_CAPTURE_ENABLED=true`, then run:
 ```
 
 Add `-IncludeOperationsNotifications`, `-IncludeReservationsInventory`,
-`-IncludeDataRightsAccessExport`, `-IncludeRetention`, or
-`-IncludeAdapterHost` to bind the corresponding deployed child proof into the
-umbrella. Contributions may be selected together; room-backed contributions
-own separate fixtures and coordinated cleanup. When Data Rights,
-Reservations/Inventory, or AdapterHost is selected, the umbrella first
+`-IncludeGuestsStayHistory`, `-IncludeDataRightsAccessExport`,
+`-IncludeRetention`, or `-IncludeAdapterHost` to bind the corresponding
+deployed child proof into the umbrella. Contributions may be selected together;
+room-backed contributions own separate fixtures and coordinated cleanup. When
+Guests, Data Rights, Reservations/Inventory, or AdapterHost is selected, the umbrella first
 discovers the single current engineering/example country policy exposed by
 Preview, activates it once through the public Properties contract, and verifies
 the exact effective binding. The contributors share this synthetic processing
@@ -59,6 +59,13 @@ the temporary TOTP factor with a one-use recovery code and verifies session
 revocation. The child archives its synthetic Guest, but its encrypted artifact
 remains scheduled for expiry and its case history remains under the configured
 lifecycle.
+
+The Guests stay-history contribution also runs before invitation acceptance, so
+the invitation applicant supplies its authenticated nonmember denial control.
+It creates one minimal canonical Guest and one Reservation against a dedicated
+room, proves idempotent management and linking plus monotonic stay projection,
+then retains the archived Guest and checked-out Reservation while the parent
+retires the released room.
 
 The Retention contribution captures a UTC lower bound before workspace
 creation, then uses only the public read contract to prove that both asserted
@@ -119,6 +126,11 @@ When selected, the Data Rights contribution additionally archives its
 synthetic Guest before the parent retires the properties. It does not persist
 the downloaded plaintext export, its hash, any credentials, or Data Rights
 coordinates in either child or umbrella evidence.
+
+When selected, the Guests stay-history contribution additionally reaches its
+own terminal Guest, Reservation, and Inventory state before the parent retires
+its dedicated room. Neither child nor umbrella evidence retains Guest,
+Reservation, Inventory, or synthetic stay-date coordinates.
 
 Join-source issuance retries only the explicit access-profile and property
 projection readiness conflicts, preserving the same source id. Any other

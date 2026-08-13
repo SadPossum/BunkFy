@@ -35,6 +35,7 @@ $scripts = @(
     (Join-Path $PSScriptRoot 'operations\rehearse-deployed-release-rollback.ps1'),
     (Join-Path $PSScriptRoot 'operations\verify-deployed-operations-notifications.ps1'),
     (Join-Path $PSScriptRoot 'operations\verify-deployed-reservations-inventory.ps1'),
+    (Join-Path $PSScriptRoot 'operations\verify-deployed-guests-stay-history.ps1'),
     (Join-Path $PSScriptRoot 'operations\verify-deployed-data-rights-access-export.ps1'),
     (Join-Path $PSScriptRoot 'operations\verify-deployed-workspace-enrollment.ps1'),
     (Join-Path $PSScriptRoot 'operations\verify-deployed-workspace-invitation.ps1'),
@@ -45,6 +46,7 @@ $scripts = @(
     (Join-Path $PSScriptRoot 'test-deployed-release-rollback.ps1'),
     (Join-Path $PSScriptRoot 'test-deployed-operations-notifications.ps1'),
     (Join-Path $PSScriptRoot 'test-deployed-reservations-inventory.ps1'),
+    (Join-Path $PSScriptRoot 'test-deployed-guests-stay-history.ps1'),
     (Join-Path $PSScriptRoot 'test-deployed-data-rights-access-export.ps1'),
     (Join-Path $PSScriptRoot 'test-deployed-workspace-enrollment.ps1'),
     (Join-Path $PSScriptRoot 'test-deployed-workspace-invitation.ps1'),
@@ -93,6 +95,7 @@ $deployedEvidenceWriters = @(
     'verify-deployed-operations-notifications.ps1',
     'verify-deployed-public-edge.ps1',
     'verify-deployed-reservations-inventory.ps1',
+    'verify-deployed-guests-stay-history.ps1',
     'verify-deployed-data-rights-access-export.ps1',
     'verify-deployed-retention.ps1',
     'verify-deployed-workspace-enrollment.ps1',
@@ -1527,6 +1530,11 @@ foreach ($requiredToken in @(
         'IncludeReservationsInventory',
         'verify-deployed-reservations-inventory.ps1',
         'reservations-inventory-child-proof-passed',
+        'IncludeGuestsStayHistory',
+        'verify-deployed-guests-stay-history.ps1',
+        'guests-stay-history-child-proof-passed',
+        'guestsStayHistoryEvidencePath',
+        "`$cleanup['guestsStayHistoryFixture'] = 'room-retired'",
         'IncludeDataRightsAccessExport',
         'New-RehearsalDataRightsSessions',
         'preview-totp.common.ps1',
@@ -1772,6 +1780,53 @@ foreach ($forbiddenToken in @(
 & (Join-Path $PSScriptRoot 'test-deployed-reservations-inventory.ps1')
 Write-Host 'BunkFy deployed Reservations and Inventory probe policy is valid.'
 
+$guestsStayHistoryProbe = Get-Content -LiteralPath (
+    Join-Path $PSScriptRoot 'operations\verify-deployed-guests-stay-history.ps1') -Raw
+foreach ($requiredToken in @(
+        "SupportsShouldProcess = `$true",
+        '$handler.AllowAutoRedirect = $false',
+        'ExpectedReleaseId',
+        'release-identity-continuous',
+        'BUNKFY_SMOKE_GUESTS_OPERATOR_TOKEN',
+        'BUNKFY_SMOKE_GUESTS_DENIED_TOKEN',
+        '/api/guests/properties/',
+        '/api/reservations/properties/',
+        '/api/inventory/properties/',
+        'Guests.CreationOperationConflict',
+        'Guests.ManagementOperationConflict',
+        'Guests.VersionConflict',
+        'Reservations.GuestNotLinkable',
+        'guest-create-replay-stable',
+        'guest-update-replay-stable',
+        'guest-stay-checkout-projection-converged',
+        'guest-archive-replay-stable',
+        'Complete-SmokeReservationCleanup',
+        'Archive-SmokeGuestCleanup',
+        'Write-BunkFyPrivateJsonEvidence',
+        "evidenceKind = 'bunkfy-deployed-guests-stay-history-probe'",
+        "'guest-deduplication-merge-and-consent-not-exercised'",
+        "'synthetic-archived-guest-and-checked-out-reservation-retained'")) {
+    if (-not $guestsStayHistoryProbe.Contains($requiredToken, [StringComparison]::Ordinal)) {
+        throw "Deployed Guests stay-history probe policy is missing '$requiredToken'."
+    }
+}
+foreach ($forbiddenToken in @(
+        'DangerousAcceptAnyServerCertificateValidator',
+        'ServerCertificateCustomValidationCallback',
+        '-SkipCertificateCheck',
+        '$handler.AllowAutoRedirect = $true',
+        'WriteAllBytes',
+        'Set-Content',
+        'Out-File',
+        '/api/admin/')) {
+    if ($guestsStayHistoryProbe.Contains($forbiddenToken, [StringComparison]::OrdinalIgnoreCase)) {
+        throw "Deployed Guests stay-history probe contains forbidden token '$forbiddenToken'."
+    }
+}
+
+& (Join-Path $PSScriptRoot 'test-deployed-guests-stay-history.ps1')
+Write-Host 'BunkFy deployed Guests stay-history probe policy is valid.'
+
 $dataRightsAccessExportProbe = Get-Content -LiteralPath (
     Join-Path $PSScriptRoot 'operations\verify-deployed-data-rights-access-export.ps1') -Raw
 foreach ($requiredToken in @(
@@ -1952,7 +2007,10 @@ $productionAdmissionVerifier = Get-Content -LiteralPath (
 foreach ($requiredToken in @(
         'Get-BunkFyVerifiedProductionAdmissionProbe',
         'Assert-BunkFyRetentionAdmissionEvidence',
+        'Assert-BunkFyGuestsStayHistoryAdmissionEvidence',
         'Assert-BunkFyDataRightsAccessExportAdmissionEvidence',
+        "'guests-stay-history'",
+        "'bunkfy-deployed-guests-stay-history-probe'",
         "'data-rights-access-export'",
         "'bunkfy-deployed-data-rights-access-export-probe'",
         "'completed-after-lower-bound'",
@@ -1977,6 +2035,8 @@ foreach ($requiredToken in @(
         'MigrationRehearsalPath',
         'AdminAllowedEvidencePath',
         'AdminDeniedEvidencePath',
+        'GuestsStayHistoryEvidencePath',
+        "'deployed-guests-stay-history'",
         'DataRightsAccessExportEvidencePath',
         "'deployed-data-rights-access-export'",
         'BrowserRehearsalReference',
