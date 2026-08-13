@@ -373,6 +373,18 @@ the retired synthetic topology, and binds scrubbed evidence into the umbrella.
 It deliberately does not activate or select a country policy.
 
 Use the mutation-bearing
+[deployed Ingestion connection lifecycle verifier](deployed-ingestion-connection-lifecycle-verification.md)
+to prove capability-driven connection management, one-time credential issuance,
+independent adapter authentication, terminal empty-run handling, credential
+revocation, and safe connection disablement against one candidate. For a self-
+contained Preview run, add `-IncludeIngestionConnectionLifecycle` to the
+onboarding rehearsal. The parent activates the Preview engineering policy and
+the child leaves its synthetic connection disabled, credential revoked, and run
+terminal while binding only scrubbed evidence into the umbrella. The separate
+AdapterHost verifier still owns the real provider-record, receipt, and
+checkpoint path.
+
+Use the mutation-bearing
 [deployed Data Rights Access Export verifier](deployed-data-rights-access-export-verification.md)
 to prove exact Guest discovery, approved immutable scope, Worker export
 generation, assurance-gated protected download, idempotent replay, and bounded

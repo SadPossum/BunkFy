@@ -38,6 +38,7 @@ $scripts = @(
     (Join-Path $PSScriptRoot 'operations\verify-deployed-guests-stay-history.ps1'),
     (Join-Path $PSScriptRoot 'operations\verify-deployed-staff-employment.ps1'),
     (Join-Path $PSScriptRoot 'operations\verify-deployed-properties-topology.ps1'),
+    (Join-Path $PSScriptRoot 'operations\verify-deployed-ingestion-connection-lifecycle.ps1'),
     (Join-Path $PSScriptRoot 'operations\verify-deployed-data-rights-access-export.ps1'),
     (Join-Path $PSScriptRoot 'operations\verify-deployed-workspace-enrollment.ps1'),
     (Join-Path $PSScriptRoot 'operations\verify-deployed-workspace-invitation.ps1'),
@@ -51,6 +52,7 @@ $scripts = @(
     (Join-Path $PSScriptRoot 'test-deployed-guests-stay-history.ps1'),
     (Join-Path $PSScriptRoot 'test-deployed-staff-employment.ps1'),
     (Join-Path $PSScriptRoot 'test-deployed-properties-topology.ps1'),
+    (Join-Path $PSScriptRoot 'test-deployed-ingestion-connection-lifecycle.ps1'),
     (Join-Path $PSScriptRoot 'test-deployed-data-rights-access-export.ps1'),
     (Join-Path $PSScriptRoot 'test-deployed-workspace-enrollment.ps1'),
     (Join-Path $PSScriptRoot 'test-deployed-workspace-invitation.ps1'),
@@ -102,6 +104,7 @@ $deployedEvidenceWriters = @(
     'verify-deployed-guests-stay-history.ps1',
     'verify-deployed-staff-employment.ps1',
     'verify-deployed-properties-topology.ps1',
+    'verify-deployed-ingestion-connection-lifecycle.ps1',
     'verify-deployed-data-rights-access-export.ps1',
     'verify-deployed-retention.ps1',
     'verify-deployed-workspace-enrollment.ps1',
@@ -1551,6 +1554,11 @@ foreach ($requiredToken in @(
         'properties-topology-child-proof-passed',
         'propertiesTopologyEvidencePath',
         "`$cleanup['propertiesTopology'] = 'synthetic-topology-retired-retained'",
+        'IncludeIngestionConnectionLifecycle',
+        'verify-deployed-ingestion-connection-lifecycle.ps1',
+        'ingestion-connection-lifecycle-child-proof-passed',
+        'ingestionConnectionLifecycleEvidencePath',
+        "`$cleanup['ingestionConnectionLifecycle'] = 'synthetic-connection-disabled-credential-revoked-run-terminal'",
         'IncludeDataRightsAccessExport',
         'New-RehearsalDataRightsSessions',
         'preview-totp.common.ps1',
@@ -1939,6 +1947,59 @@ foreach ($forbiddenToken in @(
 & (Join-Path $PSScriptRoot 'test-deployed-properties-topology.ps1')
 Write-Host 'BunkFy deployed Properties topology probe policy is valid.'
 
+$ingestionConnectionLifecycleProbe = Get-Content -LiteralPath (
+    Join-Path $PSScriptRoot 'operations\verify-deployed-ingestion-connection-lifecycle.ps1') -Raw
+foreach ($requiredToken in @(
+        "SupportsShouldProcess = `$true",
+        '$handler.AllowAutoRedirect = $false',
+        'ExpectedReleaseId',
+        'release-identity-continuous',
+        'BUNKFY_SMOKE_INGESTION_LIFECYCLE_OPERATOR_TOKEN',
+        'BUNKFY_SMOKE_INGESTION_LIFECYCLE_DENIED_TOKEN',
+        '/api/ingestion/properties/',
+        '/api/ingestion/adapter-ingress/connections/',
+        "'BunkFy-Adapter'",
+        'Ingestion.ConnectionManagementOperationConflict',
+        'Ingestion.VersionConflict',
+        'Ingestion.CountryPolicyDenied.MissingBinding',
+        'ingress-credential-replay-withholds-token',
+        'revoked-credential-denied',
+        'terminal-projections-consistent',
+        'Complete-SmokeLeaseForCleanup',
+        'Revoke-SmokeCredentialForCleanup',
+        'Disable-SmokeConnectionForCleanup',
+        'Write-BunkFyPrivateJsonEvidence',
+        "evidenceKind = 'bunkfy-deployed-ingestion-connection-lifecycle-probe'",
+        "'country-policy-activation-and-rebinding-not-exercised'",
+        "'synthetic-disabled-control-state-retained'")) {
+    if (-not $ingestionConnectionLifecycleProbe.Contains(
+            $requiredToken,
+            [StringComparison]::Ordinal)) {
+        throw "Deployed Ingestion connection lifecycle probe policy is missing '$requiredToken'."
+    }
+}
+foreach ($forbiddenToken in @(
+        'DangerousAcceptAnyServerCertificateValidator',
+        'ServerCertificateCustomValidationCallback',
+        '-SkipCertificateCheck',
+        '$handler.AllowAutoRedirect = $true',
+        'WriteAllBytes',
+        'Set-Content',
+        'Out-File',
+        '/api/admin/',
+        '/processing/activate',
+        '/country-policies',
+        'json.file-drop')) {
+    if ($ingestionConnectionLifecycleProbe.Contains(
+            $forbiddenToken,
+            [StringComparison]::OrdinalIgnoreCase)) {
+        throw "Deployed Ingestion connection lifecycle probe contains forbidden token '$forbiddenToken'."
+    }
+}
+
+& (Join-Path $PSScriptRoot 'test-deployed-ingestion-connection-lifecycle.ps1')
+Write-Host 'BunkFy deployed Ingestion connection lifecycle probe policy is valid.'
+
 $dataRightsAccessExportProbe = Get-Content -LiteralPath (
     Join-Path $PSScriptRoot 'operations\verify-deployed-data-rights-access-export.ps1') -Raw
 foreach ($requiredToken in @(
@@ -2122,6 +2183,7 @@ foreach ($requiredToken in @(
         'Assert-BunkFyGuestsStayHistoryAdmissionEvidence',
         'Assert-BunkFyStaffEmploymentAdmissionEvidence',
         'Assert-BunkFyPropertiesTopologyAdmissionEvidence',
+        'Assert-BunkFyIngestionConnectionLifecycleAdmissionEvidence',
         'Assert-BunkFyDataRightsAccessExportAdmissionEvidence',
         "'guests-stay-history'",
         "'bunkfy-deployed-guests-stay-history-probe'",
@@ -2129,6 +2191,8 @@ foreach ($requiredToken in @(
         "'bunkfy-deployed-staff-employment-probe'",
         "'properties-topology'",
         "'bunkfy-deployed-properties-topology-probe'",
+        "'ingestion-connection-lifecycle'",
+        "'bunkfy-deployed-ingestion-connection-lifecycle-probe'",
         "'data-rights-access-export'",
         "'bunkfy-deployed-data-rights-access-export-probe'",
         "'completed-after-lower-bound'",
@@ -2159,6 +2223,8 @@ foreach ($requiredToken in @(
         "'deployed-staff-employment'",
         'PropertiesTopologyEvidencePath',
         "'deployed-properties-topology'",
+        'IngestionConnectionLifecycleEvidencePath',
+        "'deployed-ingestion-connection-lifecycle'",
         'DataRightsAccessExportEvidencePath',
         "'deployed-data-rights-access-export'",
         'BrowserRehearsalReference',

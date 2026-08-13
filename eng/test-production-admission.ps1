@@ -212,6 +212,33 @@ function New-TestProbeEvidence {
                 parentCleanupRequired = $false
             }
         }
+        'ingestion-connection-lifecycle' {
+            $record['origin'] = $Origin.GetLeftPart([UriPartial]::Authority)
+            $record['releaseId'] = $ReleaseId
+            $record['transport'] = 'loopback-http-fixture'
+            $record['result'] = 'passed'
+            $record['workflow'] = [ordered]@{
+                executionMode = 'remote-polling'
+                protocolVersion = 7
+                configurationSchemaVersion = 3
+                connectionFinalStatus = 'disabled'
+                connectionVersionAdvanced = $true
+                secretReferenceLifecycle = 'set-then-cleared'
+                credentialFinalStatus = 'revoked'
+                credentialVersionAdvanced = $true
+                credentialIssuance = 'one-time-nonredisclosing'
+                independentAuthentication = 'issued-accepted-then-revoked-denied'
+                runFinalStatus = 'succeeded'
+                runObservedCount = 0
+                activeLease = $false
+            }
+            $record['cleanup'] = [ordered]@{
+                connectionDisposition = 'synthetic-disabled-retained'
+                credentialDisposition = 'synthetic-revoked-retained'
+                runDisposition = 'synthetic-succeeded-empty-retained'
+                parentPropertyLifecycleOwnedByCaller = $true
+            }
+        }
         'data-rights-access-export' {
             $record['origin'] = $Origin.GetLeftPart([UriPartial]::Authority)
             $record['releaseId'] = $ReleaseId
@@ -472,6 +499,7 @@ try {
         GuestsStayHistory = Join-Path $temporaryRoot 'guests-stay-history.json'
         StaffEmployment = Join-Path $temporaryRoot 'staff-employment.json'
         PropertiesTopology = Join-Path $temporaryRoot 'properties-topology.json'
+        IngestionConnectionLifecycle = Join-Path $temporaryRoot 'ingestion-connection-lifecycle.json'
         DataRightsAccessExport = Join-Path $temporaryRoot 'data-rights-access-export.json'
         AdapterHost = Join-Path $temporaryRoot 'adapter-host.json'
         Retention = Join-Path $temporaryRoot 'retention.json'
@@ -486,6 +514,7 @@ try {
     New-TestProbeEvidence -Path $probePaths.GuestsStayHistory -SpecificationName guests-stay-history -Origin $origin -ReleaseId $candidateRelease
     New-TestProbeEvidence -Path $probePaths.StaffEmployment -SpecificationName staff-employment -Origin $origin -ReleaseId $candidateRelease
     New-TestProbeEvidence -Path $probePaths.PropertiesTopology -SpecificationName properties-topology -Origin $origin -ReleaseId $candidateRelease
+    New-TestProbeEvidence -Path $probePaths.IngestionConnectionLifecycle -SpecificationName ingestion-connection-lifecycle -Origin $origin -ReleaseId $candidateRelease
     New-TestProbeEvidence -Path $probePaths.DataRightsAccessExport -SpecificationName data-rights-access-export -Origin $origin -ReleaseId $candidateRelease
     New-TestProbeEvidence -Path $probePaths.AdapterHost -SpecificationName adapter-host -Origin $origin -ReleaseId $candidateRelease
     New-TestProbeEvidence -Path $probePaths.Retention -SpecificationName retention -Origin $origin -ReleaseId $candidateRelease
@@ -512,6 +541,7 @@ try {
         GuestsStayHistoryEvidencePath = $probePaths.GuestsStayHistory
         StaffEmploymentEvidencePath = $probePaths.StaffEmployment
         PropertiesTopologyEvidencePath = $probePaths.PropertiesTopology
+        IngestionConnectionLifecycleEvidencePath = $probePaths.IngestionConnectionLifecycle
         DataRightsAccessExportEvidencePath = $probePaths.DataRightsAccessExport
         AdapterHostEvidencePath = $probePaths.AdapterHost
         RetentionEvidencePath = $probePaths.Retention
@@ -540,7 +570,7 @@ try {
         $assembled.AdmissionEvidenceReference -cne $verified.AdmissionEvidenceReference -or
         $verified.AdmissionEvidenceReference -cne $admissionReference -or
         $verified.ReleaseId -cne $candidateRelease -or
-        @($verified.Record.evidence).Count -ne 17 -or
+        @($verified.Record.evidence).Count -ne 18 -or
         @($verified.Record.privateEvidence).Count -ne 5 -or
         @($verified.Record.checks).Count -ne 7) {
         throw 'Production admission fixture emitted invalid closed evidence.'
@@ -657,6 +687,23 @@ try {
         } `
         -ExpectedMessage 'invalid cleanup disposition' `
         -Context 'false Properties topology cleanup claim'
+
+    $invalidIngestionPath = Join-Path $temporaryRoot 'invalid-ingestion-lifecycle-cleanup.json'
+    $invalidIngestion = Get-Content -LiteralPath $probePaths.IngestionConnectionLifecycle -Raw |
+        ConvertFrom-Json -AsHashtable -DateKind String
+    $invalidIngestion.cleanup.credentialDisposition = 'synthetic-active-retained'
+    Write-BunkFyCandidateJson -Path $invalidIngestionPath -Value $invalidIngestion
+    Assert-TestFailure `
+        -Operation {
+            Get-BunkFyVerifiedProductionAdmissionProbe `
+                -Path $invalidIngestionPath `
+                -SpecificationName ingestion-connection-lifecycle `
+                -ExpectedOrigin $origin `
+                -ExpectedReleaseId $candidateRelease `
+                -AllowFixtureEvidence | Out-Null
+        } `
+        -ExpectedMessage 'invalid cleanup disposition' `
+        -Context 'false Ingestion credential cleanup claim'
 
     $duplicatePrivateArguments = $arguments.Clone()
     $duplicatePrivateArguments.WorkspaceAccessEstateReference =

@@ -40,12 +40,13 @@ Deploy the exact candidate with `BUNKFY_EMAIL_CAPTURE_ENABLED=true`, then run:
 
 Add `-IncludeOperationsNotifications`, `-IncludeReservationsInventory`,
 `-IncludeGuestsStayHistory`, `-IncludeStaffEmployment`,
-`-IncludePropertiesTopology`,
+`-IncludePropertiesTopology`, `-IncludeIngestionConnectionLifecycle`,
 `-IncludeDataRightsAccessExport`, `-IncludeRetention`, or
 `-IncludeAdapterHost` to bind the corresponding deployed child proof into the
 umbrella. Contributions may be selected together; room-backed contributions
 own separate fixtures and coordinated cleanup. When Guests, Data Rights,
-Reservations/Inventory, or AdapterHost is selected, the umbrella first
+Reservations/Inventory, Ingestion connection lifecycle, or AdapterHost is
+selected, the umbrella first
 discovers the single current engineering/example country policy exposed by
 Preview, activates it once through the public Properties contract, and verifies
 the exact effective binding. The contributors share this synthetic processing
@@ -81,6 +82,15 @@ applicant is still a nonmember. It creates and retires a separate third
 property, one room, and two beds. Inventory owns room and bed retirement; the
 child owns terminal cleanup and does not modify either parent property or
 activate a country policy.
+
+The Ingestion connection lifecycle contribution runs after the shared Preview
+engineering policy is active and before invitation acceptance. It discovers a
+registered `RemotePolling` capability, creates and versionedly manages one
+connection, issues and uses a one-time credential for an empty remote run,
+revokes that credential, proves the retired token is denied, and leaves the
+connection disabled. The applicant remains a genuine authenticated nonmember
+for its tenant-denial assertion. Provider records, receipts, proposals, and
+checkpoints remain in the separate AdapterHost contribution.
 
 The Retention contribution captures a UTC lower bound before workspace
 creation, then uses only the public read contract to prove that both asserted
@@ -156,6 +166,12 @@ When selected, the Properties topology contribution leaves its own property,
 room, and both beds retired before invitation acceptance. Neither child nor
 umbrella evidence retains workspace, property, room, bed, topology-change,
 operation, label, reason, time-zone, or policy coordinates.
+
+When selected, the Ingestion connection lifecycle contribution leaves its
+synthetic connection disabled, credential revoked, and zero-observation run
+terminal before property cleanup. Neither child nor umbrella evidence retains
+tenant or domain identifiers, adapter or source names, operation ids, labels,
+opaque references, credentials, policy values, or checkpoints.
 
 Join-source issuance retries only the explicit access-profile and property
 projection readiness conflicts, preserving the same source id. Any other

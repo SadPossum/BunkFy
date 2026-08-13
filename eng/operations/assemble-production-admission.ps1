@@ -30,6 +30,7 @@ param(
     [Parameter(Mandatory = $true)][string] $GuestsStayHistoryEvidencePath,
     [Parameter(Mandatory = $true)][string] $StaffEmploymentEvidencePath,
     [Parameter(Mandatory = $true)][string] $PropertiesTopologyEvidencePath,
+    [Parameter(Mandatory = $true)][string] $IngestionConnectionLifecycleEvidencePath,
     [Parameter(Mandatory = $true)][string] $DataRightsAccessExportEvidencePath,
     [Parameter(Mandatory = $true)][string] $AdapterHostEvidencePath,
     [Parameter(Mandatory = $true)][string] $RetentionEvidencePath,
@@ -167,6 +168,12 @@ $propertiesTopology = Get-BunkFyVerifiedProductionAdmissionProbe `
     -ExpectedOrigin $origin `
     -ExpectedReleaseId $CandidateReleaseId `
     -AllowFixtureEvidence:$AllowFixtureEvidence
+$ingestionConnectionLifecycle = Get-BunkFyVerifiedProductionAdmissionProbe `
+    -Path $IngestionConnectionLifecycleEvidencePath `
+    -SpecificationName 'ingestion-connection-lifecycle' `
+    -ExpectedOrigin $origin `
+    -ExpectedReleaseId $CandidateReleaseId `
+    -AllowFixtureEvidence:$AllowFixtureEvidence
 $dataRightsAccessExport = Get-BunkFyVerifiedProductionAdmissionProbe `
     -Path $DataRightsAccessExportEvidencePath `
     -SpecificationName 'data-rights-access-export' `
@@ -276,6 +283,7 @@ foreach ($entry in @(
         [pscustomobject]@{ Name = 'deployed-guests-stay-history'; Value = $guestsStayHistory },
         [pscustomobject]@{ Name = 'deployed-staff-employment'; Value = $staffEmployment },
         [pscustomobject]@{ Name = 'deployed-properties-topology'; Value = $propertiesTopology },
+        [pscustomobject]@{ Name = 'deployed-ingestion-connection-lifecycle'; Value = $ingestionConnectionLifecycle },
         [pscustomobject]@{ Name = 'deployed-data-rights-access-export'; Value = $dataRightsAccessExport },
         [pscustomobject]@{ Name = 'deployed-adapter-host'; Value = $adapterHost },
         [pscustomobject]@{ Name = 'deployed-retention'; Value = $retention })) {

@@ -155,6 +155,7 @@ function Get-BunkFyProductionAdmissionProbeSpecification {
             'guests-stay-history',
             'staff-employment',
             'properties-topology',
+            'ingestion-connection-lifecycle',
             'data-rights-access-export',
             'adapter-host',
             'retention')]
@@ -282,6 +283,19 @@ function Get-BunkFyProductionAdmissionProbeSpecification {
                 Properties = @('schemaVersion', 'evidenceKind', 'generatedAtUtc', 'origin', 'releaseId', 'transport', 'result', 'workflow', 'cleanup', 'checks', 'limitations')
                 Checks = @('scoped-operator-preflight', 'nonmember-property-directory-denied', 'property-created', 'property-create-replay-stable', 'property-create-conflict-rejected', 'property-detail-and-directory-visible', 'property-versioned-update-recorded', 'property-update-replay-stable', 'property-update-conflict-and-stale-write-rejected', 'property-update-visible', 'room-created', 'room-create-replay-stable-and-conflict-rejected', 'room-versioned-update-recorded', 'room-update-replay-conflict-and-stale-write-enforced', 'room-detail-and-directory-visible', 'bed-batch-created-atomically', 'bed-batch-replay-stable-and-conflict-rejected', 'bed-directory-visible', 'bed-versioned-update-recorded', 'bed-update-replay-conflict-and-stale-write-enforced', 'bed-update-visible', 'property-retirement-blocked-by-active-room', 'direct-topology-retirement-requires-inventory', 'bed-retirement-request-replay-stable', 'bed-retirement-completed', 'room-retirement-request-replay-stable', 'room-and-beds-retirement-completed', 'property-retirement-replay-stable', 'property-retirement-conflict-rejected', 'retired-topology-directories-and-processing-consistent', 'release-identity-continuous')
                 Limitations = @('browser-properties-workflow-not-exercised', 'country-policy-activation-suspension-and-rebinding-not-exercised', 'occupied-and-blocked-topology-drain-not-exercised', 'synthetic-retired-topology-retained')
+                GuidProperties = @()
+            }
+        }
+        'ingestion-connection-lifecycle' {
+            return [pscustomobject]@{
+                Name = $Name
+                EvidenceKind = 'bunkfy-deployed-ingestion-connection-lifecycle-probe'
+                SchemaVersion = 1
+                OriginProperty = 'origin'
+                TransportProperty = 'transport'
+                Properties = @('schemaVersion', 'evidenceKind', 'generatedAtUtc', 'origin', 'releaseId', 'transport', 'result', 'workflow', 'cleanup', 'checks', 'limitations')
+                Checks = @('scoped-operator-and-processing-preflight', 'nonmember-connections-denied', 'remote-capability-discovered', 'connection-created', 'connection-create-replay-stable', 'connection-create-conflict-rejected', 'connection-directory-detail-and-health-visible', 'connection-updated-with-secret-reference', 'connection-update-replay-stable', 'connection-update-conflict-and-stale-write-rejected', 'secret-reference-cleared', 'connection-disabled', 'connection-disable-replay-stable', 'connection-disable-conflict-and-stale-write-rejected', 'connection-enabled', 'connection-enable-replay-stable', 'connection-enable-conflict-and-stale-write-rejected', 'ingress-credential-issued-once', 'ingress-credential-replay-withholds-token', 'ingress-credential-create-conflict-rejected', 'ingress-credential-directory-visible', 'remote-lease-claimed-with-issued-credential', 'zero-observation-run-completed', 'terminal-run-and-health-visible', 'credential-authentication-telemetry-visible', 'ingress-credential-revoked', 'ingress-credential-revoke-replay-stable', 'ingress-credential-revoke-conflict-and-stale-write-rejected', 'revoked-credential-denied', 'connection-finally-disabled', 'terminal-projections-consistent', 'release-identity-continuous')
+                Limitations = @('provider-record-receipt-proposal-and-checkpoint-not-exercised', 'country-policy-activation-and-rebinding-not-exercised', 'production-secret-manager-and-orchestrator-rotation-not-exercised', 'synthetic-disabled-control-state-retained')
                 GuidProperties = @()
             }
         }
@@ -645,6 +659,68 @@ function Assert-BunkFyPropertiesTopologyAdmissionEvidence {
     }
 }
 
+function Assert-BunkFyIngestionConnectionLifecycleAdmissionEvidence {
+    param([Parameter(Mandatory = $true)][object] $Record)
+
+    Assert-BunkFyCandidateProperties `
+        -Value $Record.workflow `
+        -ExpectedProperties @(
+            'executionMode',
+            'protocolVersion',
+            'configurationSchemaVersion',
+            'connectionFinalStatus',
+            'connectionVersionAdvanced',
+            'secretReferenceLifecycle',
+            'credentialFinalStatus',
+            'credentialVersionAdvanced',
+            'credentialIssuance',
+            'independentAuthentication',
+            'runFinalStatus',
+            'runObservedCount',
+            'activeLease') `
+        -Context 'Ingestion connection lifecycle workflow'
+    if ([string]$Record.workflow.executionMode -cne 'remote-polling' -or
+        [int]$Record.workflow.protocolVersion -le 0 -or
+        [int]$Record.workflow.configurationSchemaVersion -le 0 -or
+        [string]$Record.workflow.connectionFinalStatus -cne 'disabled' -or
+        $Record.workflow.connectionVersionAdvanced -isnot [bool] -or
+        -not [bool]$Record.workflow.connectionVersionAdvanced -or
+        [string]$Record.workflow.secretReferenceLifecycle -cne
+            'set-then-cleared' -or
+        [string]$Record.workflow.credentialFinalStatus -cne 'revoked' -or
+        $Record.workflow.credentialVersionAdvanced -isnot [bool] -or
+        -not [bool]$Record.workflow.credentialVersionAdvanced -or
+        [string]$Record.workflow.credentialIssuance -cne
+            'one-time-nonredisclosing' -or
+        [string]$Record.workflow.independentAuthentication -cne
+            'issued-accepted-then-revoked-denied' -or
+        [string]$Record.workflow.runFinalStatus -cne 'succeeded' -or
+        [int]$Record.workflow.runObservedCount -ne 0 -or
+        $Record.workflow.activeLease -isnot [bool] -or
+        [bool]$Record.workflow.activeLease) {
+        throw 'Ingestion connection lifecycle evidence has an invalid workflow summary.'
+    }
+
+    Assert-BunkFyCandidateProperties `
+        -Value $Record.cleanup `
+        -ExpectedProperties @(
+            'connectionDisposition',
+            'credentialDisposition',
+            'runDisposition',
+            'parentPropertyLifecycleOwnedByCaller') `
+        -Context 'Ingestion connection lifecycle cleanup'
+    if ([string]$Record.cleanup.connectionDisposition -cne
+            'synthetic-disabled-retained' -or
+        [string]$Record.cleanup.credentialDisposition -cne
+            'synthetic-revoked-retained' -or
+        [string]$Record.cleanup.runDisposition -cne
+            'synthetic-succeeded-empty-retained' -or
+        $Record.cleanup.parentPropertyLifecycleOwnedByCaller -isnot [bool] -or
+        -not [bool]$Record.cleanup.parentPropertyLifecycleOwnedByCaller) {
+        throw 'Ingestion connection lifecycle evidence has an invalid cleanup disposition.'
+    }
+}
+
 function Assert-BunkFyDataRightsAccessExportAdmissionEvidence {
     param([Parameter(Mandatory = $true)][object] $Record)
 
@@ -785,6 +861,9 @@ function Get-BunkFyVerifiedProductionAdmissionProbe {
     }
     elseif ($SpecificationName -ceq 'properties-topology') {
         Assert-BunkFyPropertiesTopologyAdmissionEvidence -Record $record
+    }
+    elseif ($SpecificationName -ceq 'ingestion-connection-lifecycle') {
+        Assert-BunkFyIngestionConnectionLifecycleAdmissionEvidence -Record $record
     }
     elseif ($SpecificationName -ceq 'data-rights-access-export') {
         Assert-BunkFyDataRightsAccessExportAdmissionEvidence -Record $record
@@ -1066,6 +1145,7 @@ function Get-BunkFyProductionAdmissionExpectedEvidence {
         'deployed-guests-stay-history' = [pscustomobject]@{ Kind = 'bunkfy-deployed-guests-stay-history-probe'; ReleaseId = $CandidateReleaseId; Count = 19 }
         'deployed-staff-employment' = [pscustomobject]@{ Kind = 'bunkfy-deployed-staff-employment-probe'; ReleaseId = $CandidateReleaseId; Count = 21 }
         'deployed-properties-topology' = [pscustomobject]@{ Kind = 'bunkfy-deployed-properties-topology-probe'; ReleaseId = $CandidateReleaseId; Count = 31 }
+        'deployed-ingestion-connection-lifecycle' = [pscustomobject]@{ Kind = 'bunkfy-deployed-ingestion-connection-lifecycle-probe'; ReleaseId = $CandidateReleaseId; Count = 32 }
         'deployed-operations-notifications' = [pscustomobject]@{ Kind = 'bunkfy-deployed-operations-notifications-probe'; ReleaseId = $CandidateReleaseId; Count = 10 }
         'deployed-public-edge' = [pscustomobject]@{ Kind = 'bunkfy-deployed-public-edge-probe'; ReleaseId = $CandidateReleaseId; Count = 6 }
         'deployed-reservations-inventory' = [pscustomobject]@{ Kind = 'bunkfy-deployed-reservations-inventory-probe'; ReleaseId = $CandidateReleaseId; Count = 11 }

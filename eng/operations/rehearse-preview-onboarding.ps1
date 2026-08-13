@@ -17,6 +17,7 @@ param(
     [switch] $IncludeGuestsStayHistory,
     [switch] $IncludeStaffEmployment,
     [switch] $IncludePropertiesTopology,
+    [switch] $IncludeIngestionConnectionLifecycle,
     [switch] $IncludeRetention,
     [switch] $IncludeDataRightsAccessExport,
     [switch] $IncludeAdapterHost,
@@ -95,6 +96,9 @@ $staffEmploymentEvidencePath = Join-Path `
 $propertiesTopologyEvidencePath = Join-Path `
     $outputDirectory `
     "$outputBaseName.properties-topology.json"
+$ingestionConnectionLifecycleEvidencePath = Join-Path `
+    $outputDirectory `
+    "$outputBaseName.ingestion-connection-lifecycle.json"
 $retentionEvidencePath = Join-Path `
     $outputDirectory `
     "$outputBaseName.retention.json"
@@ -139,6 +143,9 @@ if ($IncludeStaffEmployment) {
 }
 if ($IncludePropertiesTopology) {
     $evidencePaths += $propertiesTopologyEvidencePath
+}
+if ($IncludeIngestionConnectionLifecycle) {
+    $evidencePaths += $ingestionConnectionLifecycleEvidencePath
 }
 if ($IncludeRetention) {
     $evidencePaths += $retentionEvidencePath
@@ -267,6 +274,12 @@ $cleanup = [ordered]@{
         'not-requested'
     }
     propertiesTopology = if ($IncludePropertiesTopology) {
+        'not-started'
+    }
+    else {
+        'not-requested'
+    }
+    ingestionConnectionLifecycle = if ($IncludeIngestionConnectionLifecycle) {
         'not-started'
     }
     else {
@@ -1479,6 +1492,9 @@ if ($IncludeStaffEmployment) {
 if ($IncludePropertiesTopology) {
     $rehearsalAction += ', exercise Properties topology and coordinated retirement'
 }
+if ($IncludeIngestionConnectionLifecycle) {
+    $rehearsalAction += ', exercise Ingestion connection and credential lifecycle'
+}
 if ($IncludeRetention) {
     $rehearsalAction += ', exercise automatic Retention'
 }
@@ -1660,6 +1676,7 @@ try {
         if ($IncludeDataRightsAccessExport -or
             $IncludeReservationsInventory -or
             $IncludeGuestsStayHistory -or
+            $IncludeIngestionConnectionLifecycle -or
             $IncludeAdapterHost) {
             $proofStage = 'room-backed-domain-processing'
             [void](Enable-BunkFyPreviewEngineeringPropertyProcessing `
@@ -1702,6 +1719,40 @@ try {
             }
             catch {
                 $cleanup['propertiesTopology'] = 'child-failed-review-required'
+                throw
+            }
+        }
+
+        if ($IncludeIngestionConnectionLifecycle) {
+            $proofStage = 'ingestion-connection-lifecycle-proof'
+            $cleanup['ingestionConnectionLifecycle'] = 'child-running-cleanup-authoritative'
+            try {
+                & (Join-Path $PSScriptRoot 'verify-deployed-ingestion-connection-lifecycle.ps1') `
+                    -PublicOrigin $origin `
+                    -ExpectedReleaseId $ExpectedReleaseId `
+                    -WorkspaceId $workspaceId `
+                    -PropertyId $allowedPropertyId `
+                    -OperatorAccessToken $ownerToken `
+                    -DeniedAccessToken $invitationToken `
+                    -RequestTimeoutSeconds $RequestTimeoutSeconds `
+                    -ConvergenceTimeoutSeconds ([Math]::Min($ConvergenceTimeoutSeconds, 300)) `
+                    -PollIntervalMilliseconds $PollIntervalMilliseconds `
+                    -OutputPath $ingestionConnectionLifecycleEvidencePath `
+                    -AllowLoopbackHttp:$AllowLoopbackHttp `
+                    -Force `
+                    -Confirm:$false
+                [void](Read-RehearsalChildEvidence `
+                        -Path $ingestionConnectionLifecycleEvidencePath `
+                        -ExpectedKind 'bunkfy-deployed-ingestion-connection-lifecycle-probe' `
+                        -WorkspaceBinding Forbidden)
+                $cleanup['ingestionConnectionLifecycle'] = 'synthetic-connection-disabled-credential-revoked-run-terminal'
+                $checks.Add([ordered]@{
+                    name = 'ingestion-connection-lifecycle-child-proof-passed'
+                    status = 'passed'
+                })
+            }
+            catch {
+                $cleanup['ingestionConnectionLifecycle'] = 'child-failed-review-required'
                 throw
             }
         }
@@ -2380,6 +2431,12 @@ if ($IncludePropertiesTopology) {
     $childRecords += [pscustomobject]@{
         Name = 'propertiesTopology'
         Path = $propertiesTopologyEvidencePath
+    }
+}
+if ($IncludeIngestionConnectionLifecycle) {
+    $childRecords += [pscustomobject]@{
+        Name = 'ingestionConnectionLifecycle'
+        Path = $ingestionConnectionLifecycleEvidencePath
     }
 }
 if ($IncludeRetention) {
