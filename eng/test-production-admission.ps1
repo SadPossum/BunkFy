@@ -132,13 +132,26 @@ function New-TestProbeEvidence {
             $record['releaseId'] = $ReleaseId
             $record['transport'] = 'loopback-http-fixture'
             $record['result'] = 'passed'
-            foreach ($name in @('workspaceId', 'propertyId', 'inventoryUnitId', 'blockGroupId')) {
-                $record[$name] = [Guid]::NewGuid().ToString('D')
+            $record['workflow'] = [ordered]@{
+                sourceModule = 'inventory'
+                createdNotificationName = 'manual-inventory-block-created'
+                releasedNotificationName = 'manual-inventory-block-released'
+                notificationVersion = 1
+                deliveryTag = 'delivery:web'
+                domainTag = 'domain:inventory'
             }
-            $record['arrival'] = '2027-02-11'
-            $record['departure'] = '2027-02-13'
-            $record['createdNotification'] = [ordered]@{ id = [Guid]::NewGuid().ToString('D'); streamSequence = 41 }
-            $record['releasedNotification'] = [ordered]@{ id = [Guid]::NewGuid().ToString('D'); streamSequence = 42 }
+            $record['delivery'] = [ordered]@{
+                liveNotificationCount = 2
+                initiallyUnreadCount = 2
+                durablyReadCount = 2
+                observerHistoryCount = 2
+                actorDeliveryCount = 0
+                ordered = $true
+            }
+            $record['cleanup'] = [ordered]@{
+                inventoryBlock = 'released'
+                notificationHistory = 'retained-read'
+            }
         }
         'reservations-inventory' {
             $record['origin'] = $Origin.GetLeftPart([UriPartial]::Authority)
@@ -652,6 +665,27 @@ try {
         -Context 'cross-release source evidence'
     if ([IO.Directory]::Exists([string]$mismatchArguments.OutputDirectory)) {
         throw 'Rejected cross-release evidence left an admission bundle.'
+    }
+
+    $invalidNotificationsPath = Join-Path $temporaryRoot 'invalid-notification-delivery.json'
+    $invalidNotifications = Get-Content -LiteralPath $probePaths.Notifications -Raw |
+        ConvertFrom-Json -AsHashtable -DateKind String
+    $invalidNotifications.delivery.actorDeliveryCount = 1
+    Write-BunkFyCandidateJson `
+        -Path $invalidNotificationsPath `
+        -Value $invalidNotifications
+    $invalidNotificationsArguments = $arguments.Clone()
+    $invalidNotificationsArguments.OperationsNotificationsEvidencePath =
+        $invalidNotificationsPath
+    $invalidNotificationsArguments.OutputDirectory =
+        Join-Path $temporaryRoot 'invalid-notifications-admission'
+    Assert-TestFailure `
+        -Operation { & $assembler @invalidNotificationsArguments } `
+        -ExpectedMessage 'invalid delivery summary' `
+        -Context 'Operations Notifications actor-delivery drift'
+    if ([IO.Directory]::Exists(
+            [string]$invalidNotificationsArguments.OutputDirectory)) {
+        throw 'Rejected Operations Notifications evidence left an admission bundle.'
     }
 
     $invalidDataRightsPath = Join-Path $temporaryRoot 'invalid-data-rights-cleanup.json'

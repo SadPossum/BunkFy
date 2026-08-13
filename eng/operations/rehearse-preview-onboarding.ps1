@@ -2120,7 +2120,7 @@ try {
                 [void](Read-RehearsalChildEvidence `
                         -Path $operationsNotificationsEvidencePath `
                         -ExpectedKind 'bunkfy-deployed-operations-notifications-probe' `
-                        -WorkspaceBinding Required)
+                        -WorkspaceBinding Forbidden)
                 $checks.Add([ordered]@{
                         name = 'operations-notifications-child-proof-passed'
                         status = 'passed'

@@ -48,8 +48,11 @@ migration rehearsal source commit and backend digest must match the promoted
 candidate. The rollback rehearsal must bind both supplied promotion records.
 The Preview onboarding rehearsal's opt-in
 `*.operations-notifications.json` child is a standalone Operations
-Notifications proof and may be supplied directly; use the child file, not the
-onboarding umbrella, for `OperationsNotificationsEvidencePath`.
+Notifications proof. Schema v2 omits workspace, property, Inventory, block,
+notification, date-range, and stream-sequence coordinates while retaining
+closed delivery and cleanup semantics. A trusted-HTTPS child may be supplied
+directly; use the child file, not the onboarding umbrella, for
+`OperationsNotificationsEvidencePath`.
 The matching opt-in `*.reservations-inventory.json` child is a standalone
 Reservations and Inventory lifecycle proof and may be supplied directly for
 `ReservationsInventoryEvidencePath`.

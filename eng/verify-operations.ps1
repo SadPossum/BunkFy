@@ -1622,6 +1622,10 @@ foreach ($requiredToken in @(
         throw "Preview onboarding rehearsal policy is missing '$requiredToken'."
     }
 }
+if ($previewOnboardingRehearsal -notmatch
+    "(?s)-ExpectedKind 'bunkfy-deployed-operations-notifications-probe'.{0,160}-WorkspaceBinding Forbidden") {
+    throw 'Preview onboarding must reject a workspace-bound Operations Notifications child.'
+}
 $propertyProcessingActivationCalls = [regex]::Matches(
     $previewOnboardingRehearsal,
     '(?m)^\s*\[void\]\(Enable-BunkFyPreviewEngineeringPropertyProcessing\s*`?$').Count
@@ -1752,6 +1756,11 @@ foreach ($requiredToken in @(
         'manual-inventory-block-released',
         'initiating-actor-excluded',
         'Release-SmokeBlockBestEffort',
+        'schemaVersion = 2',
+        "'loopback-http-preview'",
+        'workflow = [ordered]',
+        'delivery = [ordered]',
+        'cleanup = [ordered]',
         "evidenceKind = 'bunkfy-deployed-operations-notifications-probe'",
         "'browser-attention-rendering-not-exercised'",
         "'released-block-and-notification-history-retained'")) {
@@ -1764,7 +1773,13 @@ foreach ($forbiddenToken in @(
         'ServerCertificateCustomValidationCallback',
         '-SkipCertificateCheck',
         '$handler.AllowAutoRedirect = $true',
-        '/api/notifications/read-all')) {
+        '/api/notifications/read-all',
+        'workspaceId = $WorkspaceId.ToString(''D'')',
+        'propertyId = $PropertyId.ToString(''D'')',
+        'inventoryUnitId = $InventoryUnitId.ToString(''D'')',
+        'blockGroupId = $blockGroupId.ToString(''D'')',
+        'createdNotification = [ordered]',
+        'releasedNotification = [ordered]')) {
     if ($operationsNotificationsProbe.Contains($forbiddenToken, [StringComparison]::OrdinalIgnoreCase)) {
         throw "Deployed Operations Notifications probe contains forbidden token '$forbiddenToken'."
     }

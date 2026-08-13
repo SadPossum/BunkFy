@@ -26,11 +26,16 @@ $fixture = [pscustomobject]@{
 }
 
 function Start-BunkFyOperationsNotificationsFixtureServer {
-    param([Parameter(Mandatory = $true)][ValidateSet('valid', 'actor-leak')][string] $Mode)
+    param(
+        [Parameter(Mandatory = $true)]
+        [ValidateSet('valid', 'actor-leak')]
+        [string] $Mode,
+        [string] $ReleaseMarkerPath
+    )
 
     $readyPath = Join-Path $fixtureRoot ("ready-$Mode-$([Guid]::NewGuid().ToString('N')).txt")
     $job = Start-Job -ScriptBlock {
-        param($ReadyPath, $Mode, $Fixture)
+        param($ReadyPath, $ReleaseMarkerPath, $Mode, $Fixture)
 
         Set-StrictMode -Version Latest
         $ErrorActionPreference = 'Stop'
@@ -500,6 +505,9 @@ function Start-BunkFyOperationsNotificationsFixtureServer {
                             throw 'Inventory block release omitted its idempotency identity.'
                         }
                         $script:released = $true
+                        if (-not [string]::IsNullOrWhiteSpace($ReleaseMarkerPath)) {
+                            [IO.File]::WriteAllText($ReleaseMarkerPath, 'released')
+                        }
                         $response = @{
                             blockGroupId = $Fixture.BlockGroupId
                             propertyId = $Fixture.PropertyId
@@ -589,7 +597,7 @@ function Start-BunkFyOperationsNotificationsFixtureServer {
             }
             $listener.Stop()
         }
-    } -ArgumentList $readyPath, $Mode, $fixture
+    } -ArgumentList $readyPath, $ReleaseMarkerPath, $Mode, $fixture
 
     $deadline = [DateTimeOffset]::UtcNow.AddSeconds(10)
     while (-not (Test-Path -LiteralPath $readyPath) -and
@@ -641,12 +649,15 @@ function Invoke-BunkFyFixtureProbe {
     param(
         [Parameter(Mandatory = $true)][ValidateSet('valid', 'actor-leak')][string] $Mode,
         [Parameter(Mandatory = $true)][string] $OutputPath,
-        [string] $ExpectedReleaseId = $fixture.ReleaseId
+        [string] $ExpectedReleaseId = $fixture.ReleaseId,
+        [string] $ReleaseMarkerPath
     )
 
     $server = $null
     try {
-        $server = Start-BunkFyOperationsNotificationsFixtureServer -Mode $Mode
+        $server = Start-BunkFyOperationsNotificationsFixtureServer `
+            -Mode $Mode `
+            -ReleaseMarkerPath $ReleaseMarkerPath
         $actorToken = ConvertTo-SecureString $fixture.ActorToken -AsPlainText -Force
         $observerToken = ConvertTo-SecureString $fixture.ObserverToken -AsPlainText -Force
         & $probeScript `
@@ -674,33 +685,131 @@ function Invoke-BunkFyFixtureProbe {
     }
 }
 
+function Assert-BunkFyExactPropertyNames {
+    param(
+        [Parameter(Mandatory = $true)][object] $Value,
+        [Parameter(Mandatory = $true)][string[]] $Expected,
+        [Parameter(Mandatory = $true)][string] $Context
+    )
+
+    $actual = @($Value.PSObject.Properties.Name | Sort-Object)
+    $expectedSorted = @($Expected | Sort-Object)
+    if ($actual.Count -ne $expectedSorted.Count -or
+        (Compare-Object -ReferenceObject $expectedSorted -DifferenceObject $actual)) {
+        throw "$Context has an invalid property set."
+    }
+}
+
 try {
     $validOutput = Join-Path $fixtureRoot 'valid-evidence.json'
     Invoke-BunkFyFixtureProbe -Mode valid -OutputPath $validOutput
     $evidence = Get-Content -LiteralPath $validOutput -Raw | ConvertFrom-Json -Depth 12
-    if ($evidence.schemaVersion -ne 1 -or
+    if ($evidence.schemaVersion -ne 2 -or
         $evidence.evidenceKind -cne 'bunkfy-deployed-operations-notifications-probe' -or
         $evidence.result -cne 'passed' -or
         $evidence.releaseId -cne $fixture.ReleaseId -or
+        $evidence.transport -cne 'loopback-http-preview' -or
         @($evidence.checks).Count -ne 10 -or
-        [Guid]$evidence.blockGroupId -ne [Guid]$fixture.BlockGroupId -or
-        [Guid]$evidence.createdNotification.id -ne [Guid]$fixture.CreatedNotificationId -or
-        [Guid]$evidence.releasedNotification.id -ne [Guid]$fixture.ReleasedNotificationId -or
-        [long]$evidence.createdNotification.streamSequence -ne 41 -or
-        [long]$evidence.releasedNotification.streamSequence -ne 42) {
+        [string]$evidence.workflow.sourceModule -cne 'inventory' -or
+        [string]$evidence.workflow.createdNotificationName -cne
+            'manual-inventory-block-created' -or
+        [string]$evidence.workflow.releasedNotificationName -cne
+            'manual-inventory-block-released' -or
+        [int]$evidence.workflow.notificationVersion -ne 1 -or
+        [string]$evidence.workflow.deliveryTag -cne 'delivery:web' -or
+        [string]$evidence.workflow.domainTag -cne 'domain:inventory' -or
+        [int]$evidence.delivery.liveNotificationCount -ne 2 -or
+        [int]$evidence.delivery.initiallyUnreadCount -ne 2 -or
+        [int]$evidence.delivery.durablyReadCount -ne 2 -or
+        [int]$evidence.delivery.observerHistoryCount -ne 2 -or
+        [int]$evidence.delivery.actorDeliveryCount -ne 0 -or
+        $evidence.delivery.ordered -isnot [bool] -or
+        -not [bool]$evidence.delivery.ordered -or
+        [string]$evidence.cleanup.inventoryBlock -cne 'released' -or
+        [string]$evidence.cleanup.notificationHistory -cne 'retained-read') {
         throw 'The valid notification fixture produced invalid evidence.'
     }
+    Assert-BunkFyExactPropertyNames `
+        -Value $evidence `
+        -Expected @(
+            'schemaVersion', 'evidenceKind', 'generatedAtUtc', 'origin',
+            'releaseId', 'transport', 'result', 'workflow', 'delivery',
+            'cleanup', 'checks', 'limitations') `
+        -Context 'Notification evidence'
+    Assert-BunkFyExactPropertyNames `
+        -Value $evidence.workflow `
+        -Expected @(
+            'sourceModule', 'createdNotificationName',
+            'releasedNotificationName', 'notificationVersion', 'deliveryTag',
+            'domainTag') `
+        -Context 'Notification workflow evidence'
+    Assert-BunkFyExactPropertyNames `
+        -Value $evidence.delivery `
+        -Expected @(
+            'liveNotificationCount', 'initiallyUnreadCount',
+            'durablyReadCount', 'observerHistoryCount', 'actorDeliveryCount',
+            'ordered') `
+        -Context 'Notification delivery evidence'
+    Assert-BunkFyExactPropertyNames `
+        -Value $evidence.cleanup `
+        -Expected @('inventoryBlock', 'notificationHistory') `
+        -Context 'Notification cleanup evidence'
     $evidenceText = Get-Content -LiteralPath $validOutput -Raw
     foreach ($secret in @(
+            $fixture.WorkspaceId,
+            $fixture.PropertyId,
+            $fixture.InventoryUnitId,
+            $fixture.ActorMembershipId,
+            $fixture.ObserverMembershipId,
+            $fixture.BlockGroupId,
+            $fixture.CreatedNotificationId,
+            $fixture.ReleasedNotificationId,
+            $fixture.UnrelatedNotificationId,
             $fixture.ActorToken,
             $fixture.ObserverToken,
             $fixture.ActorSubjectId,
             $fixture.ObserverSubjectId,
+            $fixture.Arrival,
+            $fixture.Departure,
+            'Deployment notification verification ',
             'Inventory was blocked for the fixture date range.',
             'A manual inventory block was released.')) {
         if ($evidenceText.Contains($secret, [StringComparison]::Ordinal)) {
-            throw 'Notification evidence retained a credential, subject, or response body.'
+            throw 'Notification evidence retained scoped, personal, secret, or response detail.'
         }
+    }
+    if (-not $IsWindows) {
+        $mode = (& stat -c '%a' -- $validOutput).Trim()
+        if ($LASTEXITCODE -ne 0 -or $mode -cne '600') {
+            throw "Notification evidence mode is '$mode' instead of '600'."
+        }
+    }
+
+    $overwriteRejected = $false
+    try {
+        $actorToken = ConvertTo-SecureString $fixture.ActorToken -AsPlainText -Force
+        $observerToken = ConvertTo-SecureString $fixture.ObserverToken -AsPlainText -Force
+        & $probeScript `
+            -PublicOrigin ([Uri]'http://127.0.0.1:65530') `
+            -ExpectedReleaseId $fixture.ReleaseId `
+            -WorkspaceId $fixture.WorkspaceId `
+            -PropertyId $fixture.PropertyId `
+            -InventoryUnitId $fixture.InventoryUnitId `
+            -Arrival $fixture.Arrival `
+            -Departure $fixture.Departure `
+            -ActorAccessToken $actorToken `
+            -ObserverAccessToken $observerToken `
+            -OutputPath $validOutput `
+            -AllowLoopbackHttp `
+            -Confirm:$false
+    }
+    catch {
+        $overwriteRejected = $_.Exception.Message.Contains(
+            'already exists',
+            [StringComparison]::OrdinalIgnoreCase)
+    }
+    if (-not $overwriteRejected) {
+        throw 'The notification probe overwrote or contacted the network for existing evidence.'
     }
 
     $releaseMismatchOutput = Join-Path $fixtureRoot 'release-mismatch-evidence.json'
@@ -721,16 +830,23 @@ try {
     }
 
     $invalidOutput = Join-Path $fixtureRoot 'invalid-evidence.json'
+    $invalidReleaseMarker = Join-Path $fixtureRoot 'invalid-block-released.txt'
     $invalidRejected = $false
     try {
-        Invoke-BunkFyFixtureProbe -Mode actor-leak -OutputPath $invalidOutput
+        Invoke-BunkFyFixtureProbe `
+            -Mode actor-leak `
+            -OutputPath $invalidOutput `
+            -ReleaseMarkerPath $invalidReleaseMarker
     }
     catch {
         $invalidRejected = $_.Exception.Message.Contains(
             'initiating actor received a notification',
             [StringComparison]::OrdinalIgnoreCase)
     }
-    if (-not $invalidRejected -or (Test-Path -LiteralPath $invalidOutput)) {
+    if (-not $invalidRejected -or
+        (Test-Path -LiteralPath $invalidOutput) -or
+        -not (Test-Path -LiteralPath $invalidReleaseMarker -PathType Leaf) -or
+        (Get-Content -LiteralPath $invalidReleaseMarker -Raw) -cne 'released') {
         throw 'The notification probe accepted an initiating-actor delivery or wrote passing evidence.'
     }
 
@@ -758,6 +874,33 @@ try {
     }
     if (-not $sameTokenRejected) {
         throw 'The notification probe accepted identical actor and observer tokens.'
+    }
+
+    $insecureRemoteRejected = $false
+    try {
+        $actorToken = ConvertTo-SecureString $fixture.ActorToken -AsPlainText -Force
+        $observerToken = ConvertTo-SecureString $fixture.ObserverToken -AsPlainText -Force
+        & $probeScript `
+            -PublicOrigin ([Uri]'http://preview.example.test') `
+            -ExpectedReleaseId $fixture.ReleaseId `
+            -WorkspaceId $fixture.WorkspaceId `
+            -PropertyId $fixture.PropertyId `
+            -InventoryUnitId $fixture.InventoryUnitId `
+            -Arrival $fixture.Arrival `
+            -Departure $fixture.Departure `
+            -ActorAccessToken $actorToken `
+            -ObserverAccessToken $observerToken `
+            -OutputPath (Join-Path $fixtureRoot 'insecure-remote.json') `
+            -AllowLoopbackHttp `
+            -Confirm:$false
+    }
+    catch {
+        $insecureRemoteRejected = $_.Exception.Message.Contains(
+            'HTTPS',
+            [StringComparison]::Ordinal)
+    }
+    if (-not $insecureRemoteRejected) {
+        throw 'The notification probe accepted insecure non-loopback HTTP.'
     }
 
     Write-Host 'BunkFy deployed Operations Notifications fixture passed.'

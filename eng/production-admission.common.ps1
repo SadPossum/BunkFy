@@ -226,13 +226,13 @@ function Get-BunkFyProductionAdmissionProbeSpecification {
             return [pscustomobject]@{
                 Name = $Name
                 EvidenceKind = 'bunkfy-deployed-operations-notifications-probe'
-                SchemaVersion = 1
+                SchemaVersion = 2
                 OriginProperty = 'origin'
                 TransportProperty = 'transport'
-                Properties = @('schemaVersion', 'evidenceKind', 'generatedAtUtc', 'origin', 'releaseId', 'transport', 'result', 'workspaceId', 'propertyId', 'inventoryUnitId', 'arrival', 'departure', 'blockGroupId', 'createdNotification', 'releasedNotification', 'checks', 'limitations')
+                Properties = @('schemaVersion', 'evidenceKind', 'generatedAtUtc', 'origin', 'releaseId', 'transport', 'result', 'workflow', 'delivery', 'cleanup', 'checks', 'limitations')
                 Checks = @('distinct-scoped-identities-preflight', 'cross-workspace-history-denied', 'created-notification-live-streamed', 'created-notification-detail-and-read-state', 'released-notification-live-streamed', 'released-notification-detail-and-read-state', 'initiating-actor-excluded', 'observer-history-exactly-once', 'inventory-block-cleanup-confirmed', 'release-identity-continuous')
                 Limitations = @('browser-attention-rendering-not-exercised', 'external-delivery-adapters-not-exercised', 'released-block-and-notification-history-retained')
-                GuidProperties = @('workspaceId', 'propertyId', 'inventoryUnitId', 'blockGroupId')
+                GuidProperties = @()
             }
         }
         'reservations-inventory' {
@@ -673,6 +673,60 @@ function Assert-BunkFyPropertiesTopologyAdmissionEvidence {
     }
 }
 
+function Assert-BunkFyOperationsNotificationsAdmissionEvidence {
+    param([Parameter(Mandatory = $true)][object] $Record)
+
+    Assert-BunkFyCandidateProperties `
+        -Value $Record.workflow `
+        -ExpectedProperties @(
+            'sourceModule',
+            'createdNotificationName',
+            'releasedNotificationName',
+            'notificationVersion',
+            'deliveryTag',
+            'domainTag') `
+        -Context 'Operations Notifications workflow'
+    if ([string]$Record.workflow.sourceModule -cne 'inventory' -or
+        [string]$Record.workflow.createdNotificationName -cne
+            'manual-inventory-block-created' -or
+        [string]$Record.workflow.releasedNotificationName -cne
+            'manual-inventory-block-released' -or
+        [int]$Record.workflow.notificationVersion -ne 1 -or
+        [string]$Record.workflow.deliveryTag -cne 'delivery:web' -or
+        [string]$Record.workflow.domainTag -cne 'domain:inventory') {
+        throw 'Operations Notifications evidence has an invalid workflow summary.'
+    }
+
+    Assert-BunkFyCandidateProperties `
+        -Value $Record.delivery `
+        -ExpectedProperties @(
+            'liveNotificationCount',
+            'initiallyUnreadCount',
+            'durablyReadCount',
+            'observerHistoryCount',
+            'actorDeliveryCount',
+            'ordered') `
+        -Context 'Operations Notifications delivery'
+    if ([int]$Record.delivery.liveNotificationCount -ne 2 -or
+        [int]$Record.delivery.initiallyUnreadCount -ne 2 -or
+        [int]$Record.delivery.durablyReadCount -ne 2 -or
+        [int]$Record.delivery.observerHistoryCount -ne 2 -or
+        [int]$Record.delivery.actorDeliveryCount -ne 0 -or
+        $Record.delivery.ordered -isnot [bool] -or
+        -not [bool]$Record.delivery.ordered) {
+        throw 'Operations Notifications evidence has an invalid delivery summary.'
+    }
+
+    Assert-BunkFyCandidateProperties `
+        -Value $Record.cleanup `
+        -ExpectedProperties @('inventoryBlock', 'notificationHistory') `
+        -Context 'Operations Notifications cleanup'
+    if ([string]$Record.cleanup.inventoryBlock -cne 'released' -or
+        [string]$Record.cleanup.notificationHistory -cne 'retained-read') {
+        throw 'Operations Notifications evidence has an invalid cleanup disposition.'
+    }
+}
+
 function Assert-BunkFyIngestionConnectionLifecycleAdmissionEvidence {
     param([Parameter(Mandatory = $true)][object] $Record)
 
@@ -927,6 +981,9 @@ function Get-BunkFyVerifiedProductionAdmissionProbe {
         Assert-BunkFyRetentionAdmissionEvidence `
             -Record $record `
             -GeneratedAt $generatedAt
+    }
+    elseif ($SpecificationName -ceq 'operations-notifications') {
+        Assert-BunkFyOperationsNotificationsAdmissionEvidence -Record $record
     }
     elseif ($SpecificationName -ceq 'guests-stay-history') {
         Assert-BunkFyGuestsStayHistoryAdmissionEvidence -Record $record

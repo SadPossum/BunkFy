@@ -53,6 +53,14 @@ Preview, activates it once through the public Properties contract, and verifies
 the exact effective binding. The contributors share this synthetic processing
 prerequisite; it is not production country-policy approval.
 
+The Operations Notifications contribution runs after invitation and enrollment
+proof so the owner can mutate Inventory and a distinct property-scoped Staff
+member can observe the result. Its schema-v2 child proves ordered live delivery,
+initial unread and durable read state, exactly-once history, actor exclusion,
+and released block cleanup without retaining workspace or domain identifiers,
+dates, stream coordinates, content, or credentials. The parent retires the
+dedicated room and binds the child only by SHA-256.
+
 The Data Rights contribution retains the generated owner password only as a
 disposable `SecureString`, creates a fresh unassured login, completes password
 authentication for the negative assurance control, temporarily enrolls TOTP
