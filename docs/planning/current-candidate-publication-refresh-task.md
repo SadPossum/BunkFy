@@ -33,7 +33,7 @@ evidence or present local Preview proof as hosted deployment evidence.
 5. Keep the bundle unpublished until an approved non-local registry and
    private release record exist.
 
-## Corrected Candidate Attempt
+## Candidate Attempt History
 
 - Candidate `b88a82fbd66d6dd633c0ac9346c89dcaf4e50be6` failed validation run
   `31757055359` during clean-checkout restore because NuGet audit identified
@@ -46,6 +46,13 @@ evidence or present local Preview proof as hosted deployment evidence.
   private test dependency. NuGet audit was not suppressed or downgraded.
 - The replacement workflow pair must bind the corrected root commit; neither
   failed run is acceptable evidence for that source set.
+- Corrected candidate `af3a41a89f304286384f8aa67c36ed11916c82b9`
+  passed clean-checkout restore and NuGet audit in validation run `31758264402`,
+  then exposed an LF-only multiline guard in `eng/verify-operations.ps1` on the
+  Windows runner. Runtime rehearsal behavior was not implicated.
+- Image evidence run `31758272376` was cancelled after that verification
+  failure and produced no promotable candidate bundle. The operations guard
+  now counts the required call exactly once with either LF or CRLF input.
 
 ## Acceptance
 

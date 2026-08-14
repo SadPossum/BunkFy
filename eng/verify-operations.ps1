@@ -1628,9 +1628,10 @@ if ($previewOnboardingRehearsal -notmatch
     "(?s)-ExpectedKind 'bunkfy-deployed-operations-notifications-probe'.{0,160}-WorkspaceBinding Forbidden") {
     throw 'Preview onboarding must reject a workspace-bound Operations Notifications child.'
 }
+# Multiline '$' stops before LF but leaves CR unmatched on Windows checkouts.
 $propertyProcessingActivationCalls = [regex]::Matches(
     $previewOnboardingRehearsal,
-    '(?m)^\s*\[void\]\(Enable-BunkFyPreviewEngineeringPropertyProcessing\s*`?$').Count
+    '(?m)^\s*\[void\]\(Enable-BunkFyPreviewEngineeringPropertyProcessing\s*`?\r?$').Count
 if ($propertyProcessingActivationCalls -ne 1) {
     throw 'Preview onboarding must activate shared room-backed property processing exactly once.'
 }
