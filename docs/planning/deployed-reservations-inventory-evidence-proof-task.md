@@ -1,6 +1,6 @@
 # Deployed Reservations And Inventory Evidence Proof Task
 
-Status: in progress
+Status: complete
 Date: 2026-08-13
 
 ## Goal
@@ -90,3 +90,34 @@ child and bind it only by SHA-256.
   membership, session, and mail cleanup.
 - No backend, database, web, or GMA runtime change is introduced unless the
   deployed proof reveals a concrete defect.
+
+## Completion
+
+The root operations layer now emits and admits the closed schema-v2 contract:
+twelve checks, an explicit `loopback-http-preview` transport, tenant-denial
+proof, stable create/check-in/checkout replay, and machine-checkable allocation,
+occupancy, and cleanup summaries. Its deterministic fixture, admission parser,
+static guards, and operator documentation enforce the same shape and reject
+release, replay, semantic, overwrite, permission, transport, and minimization
+drift. The complete Operations gate passed once before deployment.
+
+The first exact Preview run exposed a real backend defect outside the verifier:
+independent Properties consumers could race their first projection insert and
+converge only after PostgreSQL errors and NATS redelivery. That finding was
+fixed in backend candidate `43733de` with module-owned transaction-key locks;
+no BunkFy concept was moved into GMA.
+
+Root candidate `5c33c63`, release
+`preview-projection-bootstrap-5c33c63`, then passed the exact self-contained
+rehearsal: invitation 8/8, enrollment 9/9, Reservations and Inventory 12/12,
+and umbrella 11/11. The child proves a direct booking, confirmed and released
+allocation, checked-in and checked-out occupancy, stable mutation replay, zero
+active allocations, available selected inventory, and no topology mutation.
+All four evidence files are mode `0600`; the identifier-free child SHA-256 is
+`1aad28c1f3193adc14394405f782755df2834f633f62551647507ba9ab45ca0f`
+and the umbrella binds that hash with SHA-256
+`548eac4e70887445a21033fa8159c1762941ac9b7124f2610d8b97483cf468d0`.
+Fresh API and Worker logs contained none of the original unique-key, failed
+handler, retry, exception, or lock-boundary signatures.
+
+This remains Preview evidence, not hosted trusted-HTTPS production admission.
