@@ -33,6 +33,20 @@ evidence or present local Preview proof as hosted deployment evidence.
 5. Keep the bundle unpublished until an approved non-local registry and
    private release record exist.
 
+## Corrected Candidate Attempt
+
+- Candidate `b88a82fbd66d6dd633c0ac9346c89dcaf4e50be6` failed validation run
+  `31757055359` during clean-checkout restore because NuGet audit identified
+  `SSH.NET 2025.1.0` as affected by high-severity advisory
+  `GHSA-q939-rpr3-3284`.
+- Image evidence run `31757060136` was cancelled while building the backend
+  OCI archive. It produced no closed, attested, or promotable candidate bundle.
+- BunkFy, every mounted GMA repository that directly consumes Testcontainers,
+  and GMA Skeleton now make the patched `SSH.NET 2026.0.0` floor an explicit
+  private test dependency. NuGet audit was not suppressed or downgraded.
+- The replacement workflow pair must bind the corrected root commit; neither
+  failed run is acceptable evidence for that source set.
+
 ## Acceptance
 
 - the root, backend, web, and recursive GMA source graph is clean and published;
