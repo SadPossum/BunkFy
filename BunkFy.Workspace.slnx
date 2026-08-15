@@ -74,11 +74,13 @@
     <File Path="apps/backend/docs/planning/auth-and-organizations-maintenance-production-admission-task.md" />
     <File Path="apps/backend/docs/planning/automatic-retention-control-plane-task.md" />
     <File Path="apps/backend/docs/planning/backend-release-candidate-publication-task.md" />
+    <File Path="apps/backend/docs/planning/data-rights-case-creation-idempotency-task.md" />
     <File Path="apps/backend/docs/planning/data-rights-coordinator-mutation-serialization-task.md" />
     <File Path="apps/backend/docs/planning/data-rights-correction-execution-task.md" />
     <File Path="apps/backend/docs/planning/data-rights-guest-response-deadline-policy-task.md" />
     <File Path="apps/backend/docs/planning/data-rights-multi-owner-execution-task.md" />
     <File Path="apps/backend/docs/planning/data-rights-operational-surface-hardening-task.md" />
+    <File Path="apps/backend/docs/planning/data-rights-operator-continuity-and-recovery-task.md" />
     <File Path="apps/backend/docs/planning/data-rights-protected-export-artifacts-task.md" />
     <File Path="apps/backend/docs/planning/data-rights-restriction-execution-task.md" />
     <File Path="apps/backend/docs/planning/data-rights-task-timeout-alignment-task.md" />
