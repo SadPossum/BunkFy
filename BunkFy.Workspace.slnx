@@ -75,6 +75,7 @@
     <File Path="apps/backend/docs/planning/automatic-retention-control-plane-task.md" />
     <File Path="apps/backend/docs/planning/backend-release-candidate-publication-task.md" />
     <File Path="apps/backend/docs/planning/data-rights-case-creation-idempotency-task.md" />
+    <File Path="apps/backend/docs/planning/data-rights-confirmation-revision-pinning-task.md" />
     <File Path="apps/backend/docs/planning/data-rights-coordinator-mutation-serialization-task.md" />
     <File Path="apps/backend/docs/planning/data-rights-correction-execution-task.md" />
     <File Path="apps/backend/docs/planning/data-rights-guest-response-deadline-policy-task.md" />
