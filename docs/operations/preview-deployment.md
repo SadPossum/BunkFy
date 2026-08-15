@@ -29,6 +29,10 @@ submodules.
 .\eng\new-preview-env.ps1
 ```
 
+Use `-OutputPath /protected/bunkfy-preview/.env` when generating a fresh,
+private environment outside the checkout. The default remains
+`deploy/preview/.env`.
+
 Review `deploy/preview/.env`, set `BUNKFY_PUBLIC_URL` to the externally visible
 HTTPS origin, and set `BUNKFY_ALLOWED_HOSTS` to an explicit semicolon-separated
 list containing that origin's host plus any loopback host used by local health
@@ -64,7 +68,8 @@ The command changes local permissions, not secret values.
 ignored GMA source-root maps before invoking Docker, so a clean recursive
 checkout packages the same source composition validated by CI. A deployment
 that has already loaded reviewed image bytes can use `-NoBuild` with `up`; that
-mode never bootstraps or rebuilds source.
+mode never bootstraps or rebuilds source. Add `-NoPull` when every resolved
+image has also been preloaded and registry access must fail closed.
 
 ## Start And Verify
 
@@ -80,12 +85,15 @@ contract. A protected environment file may live outside the checkout:
 ```powershell
 .\eng\preview.ps1 up `
   -EnvironmentPath /protected/bunkfy-preview/.env `
-  -NoBuild
+  -NoBuild `
+  -NoPull
 ```
 
 Pass the same environment path to backup, restore, recovery-rehearsal, and
 isolation commands. Do not maintain a private Compose fork; otherwise a recovery
 or backup restart can apply different runtime settings from the original stack.
+Use `preview.ps1 down -RemoveVolumes` only for a disposable target whose named
+volumes must be destroyed with the stack.
 
 The browser app is available on loopback at `http://127.0.0.1:8080` by default. The API is reachable only through the same-origin Nginx route. PostgreSQL, Redis, NATS, MinIO, and Mailpit have no host ports in the default topology.
 

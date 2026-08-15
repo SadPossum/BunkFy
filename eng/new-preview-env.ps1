@@ -1,5 +1,8 @@
 [CmdletBinding(SupportsShouldProcess = $true)]
-param([switch] $Force)
+param(
+    [switch] $Force,
+    [string] $OutputPath
+)
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -8,7 +11,15 @@ $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'operations\local-sensitive-state.common.ps1')
 
 $templatePath = Join-BunkFyPath 'deploy\preview\.env.example'
-$environmentPath = Join-BunkFyPath 'deploy\preview\.env'
+$environmentPath = if ([string]::IsNullOrWhiteSpace($OutputPath)) {
+    Join-BunkFyPath 'deploy\preview\.env'
+}
+elseif ([IO.Path]::IsPathRooted($OutputPath)) {
+    [IO.Path]::GetFullPath($OutputPath)
+}
+else {
+    Join-BunkFyPath $OutputPath
+}
 if ((Test-Path -LiteralPath $environmentPath -PathType Leaf) -and -not $Force) {
     throw "Preview environment '$environmentPath' already exists. Use -Force to replace it."
 }

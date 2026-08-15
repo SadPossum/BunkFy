@@ -18,8 +18,10 @@ evidence or present local Preview proof as hosted deployment evidence.
 - GitHub validation owns the clean-checkout repository gate for that commit.
 - Product Image Evidence owns one build of unpublished backend and web OCI
   archives, SBOMs, vulnerability scans, checksums, and GitHub attestations.
-- Preview evidence remains runtime rehearsal evidence. It does not attest the
-  GitHub-built OCI bytes.
+- Ordinary Preview evidence remains runtime rehearsal evidence and does not
+  identify the GitHub-built OCI bytes. The dedicated candidate rehearsal may
+  verify and execute those exact attested archives locally, but still does not
+  become hosted deployment evidence.
 - Hosted registry authentication, immutable-tag policy, promotion, deployment,
   rollback, private approvals, and production data remain deployment-owned.
 
@@ -105,10 +107,15 @@ evidence or present local Preview proof as hosted deployment evidence.
 - Local independent verification of the downloaded bundle validated the closed
   checksums, both OCI manifests, exact source commit, and all four GitHub
   attestations without `-AllowUnattested`.
+- The dedicated candidate runtime rehearsal subsequently executed those exact
+  backend and web archive identities together, proved matching release identity
+  plus public/management isolation, and removed its disposable resources. Its
+  private local evidence is recorded by
+  `current-candidate-runtime-rehearsal-task.md`; it is not a hosted release.
 
 The documentation closure commit follows the candidate source commit and is
 not part of the attested OCI source identity. Hosted registry authentication,
-immutable promotion, production migration and deployment, deployed rollback,
+immutable promotion, hosted migration and deployment, deployed rollback,
 edge and Admin isolation, backup/restore and key continuity, private release
 approval, and legal/company authorization remain external gates. Preview is
 not production evidence.

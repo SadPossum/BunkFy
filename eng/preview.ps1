@@ -13,7 +13,9 @@ param(
     [switch] $Operations,
     [switch] $Tools,
     [string] $EnvironmentPath,
-    [switch] $NoBuild
+    [switch] $NoBuild,
+    [switch] $NoPull,
+    [switch] $RemoveVolumes
 )
 
 . (Join-Path $PSScriptRoot 'common.ps1')
@@ -30,6 +32,12 @@ else {
 
 if ($NoBuild -and $Action -ne 'up') {
     throw '-NoBuild is supported only with the up action.'
+}
+if ($NoPull -and $Action -notin @('up', 'open-operations')) {
+    throw '-NoPull is supported only with the up and open-operations actions.'
+}
+if ($RemoveVolumes -and $Action -ne 'down') {
+    throw '-RemoveVolumes is supported only with the down action.'
 }
 
 if ($Action -eq 'build' -or ($Action -eq 'up' -and -not $NoBuild)) {
@@ -180,14 +188,26 @@ switch ($Action) {
         else {
             $arguments += @('--build')
         }
+        if ($NoPull) {
+            $arguments += @('--pull', 'never')
+        }
         $arguments += @('--wait')
     }
-    'down' { $arguments += @('down') }
+    'down' {
+        $arguments += @('down', '--remove-orphans')
+        if ($RemoveVolumes) {
+            $arguments += @('--volumes')
+        }
+    }
     'logs' { $arguments += @('logs', '--follow', '--tail', '200') }
     'status' { $arguments += @('ps') }
     'migrate' { $arguments += @('run', '--rm', 'migrations') }
     'open-operations' {
-        $arguments += @('up', '--detach', '--no-build', '--wait', 'admin-api')
+        $arguments += @('up', '--detach', '--no-build')
+        if ($NoPull) {
+            $arguments += @('--pull', 'never')
+        }
+        $arguments += @('--wait', 'admin-api')
     }
     'close-operations' {
         $arguments += @('rm', '--stop', '--force', 'admin-api')

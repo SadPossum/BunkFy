@@ -15,6 +15,7 @@ $scripts = @(
     (Join-Path $PSScriptRoot 'operations\protect-preview-local-state.ps1'),
     (Join-Path $PSScriptRoot 'operations\rehearse-production-migrations.ps1'),
     (Join-Path $PSScriptRoot 'operations\rehearse-candidate-production-migrations.ps1'),
+    (Join-Path $PSScriptRoot 'operations\rehearse-candidate-preview-runtime.ps1'),
     (Join-Path $PSScriptRoot 'image-promotion.common.ps1'),
     (Join-Path $PSScriptRoot 'verify-image-promotion.ps1'),
     (Join-Path $PSScriptRoot 'production-admission.common.ps1'),
@@ -1018,10 +1019,14 @@ foreach ($requiredToken in @(
         '-Force',
         'EnvironmentPath',
         '-NoBuild is supported only with the up action.',
+        '-NoPull is supported only with the up and open-operations actions.',
+        '-RemoveVolumes is supported only with the down action.',
         'BUNKFY_ALLOWED_HOSTS',
         'without wildcards',
         'must include the host from BUNKFY_PUBLIC_URL',
         "@('--no-build')",
+        "@('--pull', 'never')",
+        "@('--volumes')",
         'open-operations',
         'close-operations',
         'BUNKFY_RELEASE_ID',
@@ -1039,6 +1044,7 @@ Write-Host 'BunkFy preview build bootstrap is valid.'
 $newPreviewEnvironmentScript = Get-Content -LiteralPath (
     Join-Path $PSScriptRoot 'new-preview-env.ps1') -Raw
 foreach ($requiredToken in @(
+        'OutputPath',
         'local-sensitive-state.common.ps1',
         'Write-BunkFyLocalSensitiveTextFile',
         '-Overwrite:$Force')) {
@@ -1267,6 +1273,51 @@ foreach ($forbiddenToken in @(
 }
 
 Write-Host 'BunkFy attested-candidate migration rehearsal policy is valid.'
+
+$candidateRuntimeRehearsalScript = Get-Content -LiteralPath (
+    Join-Path $PSScriptRoot 'operations\rehearse-candidate-preview-runtime.ps1') -Raw
+foreach ($requiredToken in @(
+        'verify-image-candidate.ps1',
+        'AttestationsVerified',
+        "bunkfy/backend:candidate-`$ExpectedSourceCommit",
+        "bunkfy/web:candidate-`$ExpectedSourceCommit",
+        "'image', 'load', '--input'",
+        'ManifestDigest',
+        'RepoDigests',
+        'new-preview-env.ps1',
+        '-OutputPath $environmentPath',
+        '-NoBuild',
+        '-NoPull',
+        '-Operations',
+        'verify-deployed-public-edge.ps1',
+        'verify-preview-isolation.ps1',
+        '-RemoveVolumes',
+        'com.docker.compose.project=',
+        "'image', 'rm'",
+        "evidenceKind = 'bunkfy-candidate-preview-runtime-rehearsal'",
+        "'local-preview-fixture-only'")) {
+    if (-not $candidateRuntimeRehearsalScript.Contains(
+            $requiredToken,
+            [StringComparison]::Ordinal)) {
+        throw "Candidate runtime rehearsal guard is missing '$requiredToken'."
+    }
+}
+foreach ($forbiddenToken in @(
+        'AllowUnattested',
+        'docker pull',
+        'docker build',
+        "'image', 'pull'",
+        "'image', 'build'",
+        "'image', 'push'",
+        "'--force'")) {
+    if ($candidateRuntimeRehearsalScript.Contains(
+            $forbiddenToken,
+            [StringComparison]::OrdinalIgnoreCase)) {
+        throw "Candidate runtime rehearsal contains forbidden token '$forbiddenToken'."
+    }
+}
+
+Write-Host 'BunkFy attested-candidate runtime rehearsal policy is valid.'
 
 $deployedEdgeCommon = Get-Content -LiteralPath (
     Join-Path $PSScriptRoot 'operations\deployed-public-edge.common.ps1') -Raw

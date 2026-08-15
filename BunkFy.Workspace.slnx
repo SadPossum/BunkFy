@@ -808,6 +808,7 @@
     <File Path="docs/brand/house-q/design-qa.md" />
   </Folder>
   <Folder Name="/docs/operations/">
+    <File Path="docs/operations/candidate-preview-runtime-rehearsal.md" />
     <File Path="docs/operations/deployed-adapter-host-verification.md" />
     <File Path="docs/operations/deployed-admin-boundary-verification.md" />
     <File Path="docs/operations/deployed-data-rights-access-export-verification.md" />
@@ -836,6 +837,7 @@
   <Folder Name="/docs/planning/">
     <File Path="docs/planning/bunkfy-repository-stack-and-workflow-plan.md" />
     <File Path="docs/planning/current-candidate-publication-refresh-task.md" />
+    <File Path="docs/planning/current-candidate-runtime-rehearsal-task.md" />
     <File Path="docs/planning/deployed-data-rights-access-export-proof-task.md" />
     <File Path="docs/planning/deployed-guests-stay-history-proof-task.md" />
     <File Path="docs/planning/deployed-ingestion-conflict-proposal-lifecycle-proof-task.md" />
@@ -935,6 +937,7 @@
     <File Path="eng/operations/promote-image-candidate.ps1" />
     <File Path="eng/operations/protect-preview-local-state.ps1" />
     <File Path="eng/operations/provision-staff-access.ps1" />
+    <File Path="eng/operations/rehearse-candidate-preview-runtime.ps1" />
     <File Path="eng/operations/rehearse-candidate-production-migrations.ps1" />
     <File Path="eng/operations/rehearse-deployed-release-rollback.ps1" />
     <File Path="eng/operations/rehearse-preview-adapter-host.ps1" />
