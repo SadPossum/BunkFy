@@ -53,6 +53,19 @@ evidence or present local Preview proof as hosted deployment evidence.
 - Image evidence run `31758272376` was cancelled after that verification
   failure and produced no promotable candidate bundle. The operations guard
   now counts the required call exactly once with either LF or CRLF input.
+- Candidate `fed4820b78f48c328b826fb61589a7c7122d14fa` passed exact-head
+  validation run `31758831616`, including clean checkout, bootstrap, restore,
+  NuGet audit, and the Windows operations guard.
+- Image evidence run `31863614352` built both OCI archives and retained closed
+  scan evidence, but correctly blocked publication because the backend runtime
+  contained `Microsoft.NETCore.App.Runtime.linux-x64 10.0.10`, affected by
+  high-severity `CVE-2026-62901`. The retained evidence artifact is
+  `product-image-evidence-fed4820b78f48c328b826fb61589a7c7122d14fa`
+  (`9241444441`, GitHub artifact digest
+  `sha256:2bb2a6ae32f271f7b6c8ea9ed228a745335fba2fe4ca7655bcd50db75ac8a2e0`).
+- The replacement candidate pins the final ASP.NET runtime to the serviced
+  `10.0.11` manifest. The failed scan and skipped attestations/bundle are not
+  accepted as promotable evidence.
 
 ## Acceptance
 
