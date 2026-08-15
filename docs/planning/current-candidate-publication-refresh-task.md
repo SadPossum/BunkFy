@@ -1,7 +1,8 @@
 # Current Candidate Publication Refresh Task
 
-Status: in progress
+Status: complete
 Date: 2026-08-14
+Completed: 2026-08-15
 
 ## Goal
 
@@ -66,6 +67,51 @@ evidence or present local Preview proof as hosted deployment evidence.
 - The replacement candidate pins the final ASP.NET runtime to the serviced
   `10.0.11` manifest. The failed scan and skipped attestations/bundle are not
   accepted as promotable evidence.
+
+## Completion Evidence
+
+- Exact source candidate:
+  `b95ece148c7172628e1182ed930397b8a4f6a04b`, with backend
+  `ac33fa3b10baa00d80020fa6cc22a127909c3d3d` and web
+  `38655aa13b5f1772bd3199c2dc2517708c1dd35c` in a clean recursive source set.
+- Clean-checkout validation: run
+  [`31864477931`](https://github.com/SadPossum/BunkFy/actions/runs/31864477931)
+  completed successfully for the exact source candidate.
+- Product Image Evidence: run
+  [`31865308259`](https://github.com/SadPossum/BunkFy/actions/runs/31865308259)
+  completed successfully for the same source candidate. Backend and web each
+  reported zero vulnerabilities, misconfigurations, and secrets, and zero
+  blocking security findings.
+- Exact OCI candidate artifact:
+  `product-image-candidate-b95ece148c7172628e1182ed930397b8a4f6a04b`
+  (`9241898578`, GitHub artifact digest
+  `sha256:f3d9f41e81a4c9bdd82e872de3bd1927c51550fde3d176610eff3111da47bcc6`,
+  expires `2026-08-22T04:54:39Z`). Its closed checksum-set digest is
+  `134dd452842e00e913136352c5c068e2927714f00ce390c68fabb300dc9c827f`.
+- Backend OCI archive: SHA-256
+  `12dd7ae12c506b43b13b7fbcfd5344a691c04388ae722c75b97c6e6a6dd1dafc`,
+  manifest digest
+  `sha256:a6166d167bf781bd3ff4de161eae8c2320da561d6b5115762a3d2f13574e4334`.
+- Web OCI archive: SHA-256
+  `f63580f37f3899aa1bc937b17171cb02805c3f12cb990d446dcd98bc1b74302f`,
+  manifest digest
+  `sha256:03a10de4e27cfeab1be079cc1b6785bf14ae16925ea4152d4c96f8403ab2a86d`.
+- Closed evidence artifact:
+  `product-image-evidence-b95ece148c7172628e1182ed930397b8a4f6a04b`
+  (`9241898810`, GitHub artifact digest
+  `sha256:fc8fb615806354879b4a02d6e3dcaa0c2d2f6350f1acdbb695eafc0aff4e3521`,
+  expires `2026-09-14T04:54:43Z`). The separately downloaded evidence and the
+  copy embedded in the candidate bundle are byte-identical.
+- Local independent verification of the downloaded bundle validated the closed
+  checksums, both OCI manifests, exact source commit, and all four GitHub
+  attestations without `-AllowUnattested`.
+
+The documentation closure commit follows the candidate source commit and is
+not part of the attested OCI source identity. Hosted registry authentication,
+immutable promotion, production migration and deployment, deployed rollback,
+edge and Admin isolation, backup/restore and key continuity, private release
+approval, and legal/company authorization remain external gates. Preview is
+not production evidence.
 
 ## Acceptance
 
