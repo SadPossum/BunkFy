@@ -575,6 +575,7 @@
     <Project Path="apps/backend/src/Extensions/BunkFy.Extensions.DataRights.TenantTermination/BunkFy.Extensions.DataRights.TenantTermination.csproj" />
     <Project Path="apps/backend/src/Extensions/BunkFy.Extensions.Operations.Notifications/BunkFy.Extensions.Operations.Notifications.csproj" />
     <Project Path="apps/backend/src/Extensions/BunkFy.Extensions.ReservationGuestRecords/BunkFy.Extensions.ReservationGuestRecords.csproj" />
+    <Project Path="apps/backend/src/Extensions/BunkFy.Extensions.Retention.TaskRuntime/BunkFy.Extensions.Retention.TaskRuntime.csproj" />
     <Project Path="apps/backend/src/Extensions/BunkFy.Extensions.Workspaces/BunkFy.Extensions.Workspaces.csproj" />
   </Folder>
   <Folder Name="/apps/backend/src/Extensions/BunkFy.Extensions.DataRights.AccessControl/docs/">
@@ -604,6 +605,7 @@
     <Project Path="apps/backend/src/Extensions/tests/BunkFy.Extensions.DataRights.TenantTermination.Tests/BunkFy.Extensions.DataRights.TenantTermination.Tests.csproj" />
     <Project Path="apps/backend/src/Extensions/tests/BunkFy.Extensions.Operations.Notifications.Tests/BunkFy.Extensions.Operations.Notifications.Tests.csproj" />
     <Project Path="apps/backend/src/Extensions/tests/BunkFy.Extensions.ReservationGuestRecords.Tests/BunkFy.Extensions.ReservationGuestRecords.Tests.csproj" />
+    <Project Path="apps/backend/src/Extensions/tests/BunkFy.Extensions.Retention.TaskRuntime.Tests/BunkFy.Extensions.Retention.TaskRuntime.Tests.csproj" />
     <Project Path="apps/backend/src/Extensions/tests/BunkFy.Extensions.Workspaces.Tests/BunkFy.Extensions.Workspaces.Tests.csproj" />
   </Folder>
   <Folder Name="/apps/backend/src/Hosts/">
