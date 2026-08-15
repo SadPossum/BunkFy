@@ -81,6 +81,7 @@
     <File Path="apps/backend/docs/planning/data-rights-export-failure-and-retry-semantics-task.md" />
     <File Path="apps/backend/docs/planning/data-rights-guest-response-deadline-policy-task.md" />
     <File Path="apps/backend/docs/planning/data-rights-multi-owner-execution-task.md" />
+    <File Path="apps/backend/docs/planning/data-rights-mutation-continuity-task.md" />
     <File Path="apps/backend/docs/planning/data-rights-operational-surface-hardening-task.md" />
     <File Path="apps/backend/docs/planning/data-rights-operator-continuity-and-recovery-task.md" />
     <File Path="apps/backend/docs/planning/data-rights-protected-export-artifacts-task.md" />
