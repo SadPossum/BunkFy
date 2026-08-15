@@ -78,6 +78,7 @@
     <File Path="apps/backend/docs/planning/data-rights-confirmation-revision-pinning-task.md" />
     <File Path="apps/backend/docs/planning/data-rights-coordinator-mutation-serialization-task.md" />
     <File Path="apps/backend/docs/planning/data-rights-correction-execution-task.md" />
+    <File Path="apps/backend/docs/planning/data-rights-export-failure-and-retry-semantics-task.md" />
     <File Path="apps/backend/docs/planning/data-rights-guest-response-deadline-policy-task.md" />
     <File Path="apps/backend/docs/planning/data-rights-multi-owner-execution-task.md" />
     <File Path="apps/backend/docs/planning/data-rights-operational-surface-hardening-task.md" />
@@ -160,6 +161,7 @@
     <File Path="apps/backend/docs/planning/production-authentication-admission-task.md" />
     <File Path="apps/backend/docs/planning/production-file-surface-lockdown-task.md" />
     <File Path="apps/backend/docs/planning/properties-bed-mutation-idempotency-task.md" />
+    <File Path="apps/backend/docs/planning/properties-canonical-time-zones-task.md" />
     <File Path="apps/backend/docs/planning/properties-deployed-topology-lifecycle-proof-task.md" />
     <File Path="apps/backend/docs/planning/properties-details-update-idempotency-task.md" />
     <File Path="apps/backend/docs/planning/properties-follow-up-notes.md" />
@@ -790,6 +792,8 @@
     <Project Path="apps/backend/src/Shared/BunkFy.DataGovernance/BunkFy.DataGovernance.csproj" />
     <Project Path="apps/backend/src/Shared/BunkFy.DataGovernance/tests/BunkFy.DataGovernance.Tests/BunkFy.DataGovernance.Tests.csproj" />
     <Project Path="apps/backend/src/Shared/BunkFy.Ingestion.Parsing.Abstractions/BunkFy.Ingestion.Parsing.Abstractions.csproj" />
+    <Project Path="apps/backend/src/Shared/BunkFy.TimeZones/BunkFy.TimeZones.csproj" />
+    <Project Path="apps/backend/src/Shared/BunkFy.TimeZones/tests/BunkFy.TimeZones.Tests/BunkFy.TimeZones.Tests.csproj" />
   </Folder>
   <Folder Name="/apps/backend/tests/">
     <Project Path="apps/backend/tests/Architecture.Tests/Architecture.Tests.csproj" />
