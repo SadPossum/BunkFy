@@ -84,6 +84,7 @@
     <File Path="apps/backend/docs/planning/data-rights-operator-continuity-and-recovery-task.md" />
     <File Path="apps/backend/docs/planning/data-rights-protected-export-artifacts-task.md" />
     <File Path="apps/backend/docs/planning/data-rights-restriction-execution-task.md" />
+    <File Path="apps/backend/docs/planning/data-rights-subject-owner-failure-taxonomy-task.md" />
     <File Path="apps/backend/docs/planning/data-rights-task-timeout-alignment-task.md" />
     <File Path="apps/backend/docs/planning/development-guidelines.md" />
     <File Path="apps/backend/docs/planning/durable-runtime-production-admission-task.md" />
