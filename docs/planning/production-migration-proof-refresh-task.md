@@ -1,7 +1,8 @@
 # Production Migration Proof Refresh Task
 
-Status: completed for isolated migration mechanics
+Status: completed for current attested candidate
 Date: 2026-08-12
+Current refresh: 2026-08-15
 
 ## Goal
 
@@ -65,3 +66,47 @@ One current evidence record binds the exact source and image identities to a
 non-mutating plan, fail-closed admission checks, successful apply, zero-pending
 convergence, and schema-equivalent repeat apply, with no rehearsal resources
 left behind.
+
+## Current Candidate Refresh
+
+Candidate `b95ece148c7172628e1182ed930397b8a4f6a04b` has clean-checkout validation
+and a retained, scanned, attested OCI bundle. Refresh the migration proof from
+that exact bundle instead of relying on the older local-registry image:
+
+- [x] verify the closed candidate bundle and GitHub attestations;
+- [x] load only its backend OCI archive, require Docker's repository digest to
+  match the attested manifest, and bind evidence to the resolved image id;
+- [x] run the existing non-mutating Plan, fail-closed admission, approved Apply,
+  zero-pending convergence, and idempotent rerun checks;
+- [x] remove the disposable PostgreSQL resources and imported candidate image;
+  and
+- [x] retain minimized evidence and record its checksum without presenting the
+  rehearsal as hosted migration approval.
+
+### Current Candidate Evidence
+
+- Candidate bundle checksum-set digest:
+  `134dd452842e00e913136352c5c068e2927714f00ce390c68fabb300dc9c827f`;
+  all GitHub attestations verified without an unattested bypass.
+- Backend archive SHA-256:
+  `12dd7ae12c506b43b13b7fbcfd5344a691c04388ae722c75b97c6e6a6dd1dafc`;
+  Docker's repository digest matched manifest
+  `sha256:a6166d167bf781bd3ff4de161eae8c2320da561d6b5115762a3d2f13574e4334`,
+  and the migration evidence recorded the exact resolved image id used.
+- Rehearsal `94119036ff85` planned 15 modules and 223 pending migrations without
+  mutating the empty target. Malformed source identity, malformed backup
+  reference, and wrong database-target approval all failed before mutation.
+- Approved Apply installed all 223 migrations, the next Plan reported zero
+  pending migrations, and the repeated approved Apply preserved the resulting
+  schema fingerprint.
+- Evidence is retained locally at
+  `.tmp/migration-rehearsals/20260815T051327Z-candidate-b95ece148c71-789b1d23.json`,
+  SHA-256
+  `7fa1c362e8fbedf12f4ca4ad4dbc31e0e8029b63529689268e5fe2ef179ee600`.
+  It contains no connection string, password, or generated key material.
+- Independent cleanup checks found zero matching containers, internal networks,
+  or imported candidate images after completion.
+
+This closes isolated mechanics for the attested candidate only. It is not a
+hosted target backup, migration approval, maintenance-window rehearsal,
+compatibility sign-off, deployment, rollback, or post-deployment verification.

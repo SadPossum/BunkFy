@@ -14,6 +14,7 @@ $scripts = @(
     (Join-Path $PSScriptRoot 'operations\rehearse-preview-recovery.ps1'),
     (Join-Path $PSScriptRoot 'operations\protect-preview-local-state.ps1'),
     (Join-Path $PSScriptRoot 'operations\rehearse-production-migrations.ps1'),
+    (Join-Path $PSScriptRoot 'operations\rehearse-candidate-production-migrations.ps1'),
     (Join-Path $PSScriptRoot 'image-promotion.common.ps1'),
     (Join-Path $PSScriptRoot 'verify-image-promotion.ps1'),
     (Join-Path $PSScriptRoot 'production-admission.common.ps1'),
@@ -1232,6 +1233,40 @@ foreach ($forbiddenToken in @(
 }
 
 Write-Host 'BunkFy Production migration rehearsal policy is valid.'
+
+$candidateMigrationRehearsalScript = Get-Content -LiteralPath (
+    Join-Path $PSScriptRoot 'operations\rehearse-candidate-production-migrations.ps1') -Raw
+foreach ($requiredToken in @(
+        'verify-image-candidate.ps1',
+        'AttestationsVerified',
+        "bunkfy/backend:candidate-`$ExpectedSourceCommit",
+        "'image', 'load', '--input'",
+        'ManifestDigest',
+        'loadedImageId',
+        'RepoDigests',
+        'rehearse-production-migrations.ps1',
+        "'image', 'rm'",
+        'ImportedImageRemoved = $true')) {
+    if (-not $candidateMigrationRehearsalScript.Contains(
+            $requiredToken,
+            [StringComparison]::Ordinal)) {
+        throw "Candidate migration rehearsal guard is missing '$requiredToken'."
+    }
+}
+foreach ($forbiddenToken in @(
+        'AllowUnattested',
+        'docker pull',
+        'docker build',
+        "'image', 'push'",
+        "'--force'")) {
+    if ($candidateMigrationRehearsalScript.Contains(
+            $forbiddenToken,
+            [StringComparison]::OrdinalIgnoreCase)) {
+        throw "Candidate migration rehearsal contains forbidden token '$forbiddenToken'."
+    }
+}
+
+Write-Host 'BunkFy attested-candidate migration rehearsal policy is valid.'
 
 $deployedEdgeCommon = Get-Content -LiteralPath (
     Join-Path $PSScriptRoot 'operations\deployed-public-edge.common.ps1') -Raw

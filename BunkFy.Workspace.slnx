@@ -935,6 +935,7 @@
     <File Path="eng/operations/promote-image-candidate.ps1" />
     <File Path="eng/operations/protect-preview-local-state.ps1" />
     <File Path="eng/operations/provision-staff-access.ps1" />
+    <File Path="eng/operations/rehearse-candidate-production-migrations.ps1" />
     <File Path="eng/operations/rehearse-deployed-release-rollback.ps1" />
     <File Path="eng/operations/rehearse-preview-adapter-host.ps1" />
     <File Path="eng/operations/rehearse-preview-browser-onboarding.mjs" />
