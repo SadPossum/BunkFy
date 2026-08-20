@@ -106,6 +106,7 @@
     <File Path="apps/backend/docs/planning/guests-management-update-archive-idempotency-task.md" />
     <File Path="apps/backend/docs/planning/guests-operational-surface-hardening-task.md" />
     <File Path="apps/backend/docs/planning/guests-read-surface-hardening-task.md" />
+    <File Path="apps/backend/docs/planning/guests-retention-canonical-time-zone-evidence-task.md" />
     <File Path="apps/backend/docs/planning/guests-sensitive-mutation-assurance-task.md" />
     <File Path="apps/backend/docs/planning/guests-tenant-termination-owner-task.md" />
     <File Path="apps/backend/docs/planning/hosted-production-foundation-task.md" />
@@ -194,10 +195,13 @@
     <File Path="apps/backend/docs/planning/reservations-mutation-serialization-task.md" />
     <File Path="apps/backend/docs/planning/reservations-operational-surface-hardening-task.md" />
     <File Path="apps/backend/docs/planning/reservations-pii-minimization-task.md" />
+    <File Path="apps/backend/docs/planning/reservations-property-operations-snapshot-task.md" />
+    <File Path="apps/backend/docs/planning/reservations-stay-amendment-convergence-task.md" />
     <File Path="apps/backend/docs/planning/reservations-stay-lifecycle-task.md" />
     <File Path="apps/backend/docs/planning/reservations-tenant-termination-owner-task.md" />
     <File Path="apps/backend/docs/planning/retention-mutation-serialization-task.md" />
     <File Path="apps/backend/docs/planning/retention-operational-surface-hardening-task.md" />
+    <File Path="apps/backend/docs/planning/retention-operator-recovery-task.md" />
     <File Path="apps/backend/docs/planning/retention-task-timeout-alignment-task.md" />
     <File Path="apps/backend/docs/planning/retention-tenant-termination-owner-task.md" />
     <File Path="apps/backend/docs/planning/secure-staff-enrollment-task.md" />
@@ -233,6 +237,7 @@
     <File Path="apps/backend/docs/planning/task-runtime-tenant-termination-owner-task.md" />
     <File Path="apps/backend/docs/planning/tenant-scoped-data-rights-cases-task.md" />
     <File Path="apps/backend/docs/planning/tenant-termination-control-plane-task.md" />
+    <File Path="apps/backend/docs/planning/tenant-termination-export-handoff-task.md" />
     <File Path="apps/backend/docs/planning/tenant-termination-operator-controls-task.md" />
     <File Path="apps/backend/docs/planning/tenant-termination-phase-ordering-task.md" />
     <File Path="apps/backend/docs/planning/tenant-termination-terminal-coordinator-task.md" />
@@ -858,6 +863,7 @@
     <File Path="docs/planning/deployed-properties-topology-lifecycle-proof-task.md" />
     <File Path="docs/planning/deployed-reservations-inventory-evidence-proof-task.md" />
     <File Path="docs/planning/deployed-staff-employment-lifecycle-proof-task.md" />
+    <File Path="docs/planning/post-domain-candidate-publication-refresh-task.md" />
     <File Path="docs/planning/preview-adapter-host-rehearsal-task.md" />
     <File Path="docs/planning/preview-admin-boundary-proof-task.md" />
     <File Path="docs/planning/preview-browser-onboarding-rehearsal-task.md" />
