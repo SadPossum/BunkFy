@@ -2,7 +2,7 @@
 
 Status: completed for current attested candidate
 Date: 2026-08-12
-Current refresh: 2026-08-15
+Current refresh: 2026-08-21
 
 ## Goal
 
@@ -110,3 +110,39 @@ that exact bundle instead of relying on the older local-registry image:
 This closes isolated mechanics for the attested candidate only. It is not a
 hosted target backup, migration approval, maintenance-window rehearsal,
 compatibility sign-off, deployment, rollback, or post-deployment verification.
+
+## Post-Domain Candidate Refresh
+
+Candidate `d6679787cddf2605ab2dd5f31073045d53195343` has exact-head backend
+and product validation plus retained, scanned, attested OCI bytes. The
+Production migration proof was refreshed from that bundle after the
+Reservations, Retention, Data Rights, and tenant-termination slices:
+
+- candidate bundle checksum-set digest:
+  `b3790a276153630752778a1db3b653e367f8115e0644a942d8f269bfceb87382`;
+  all GitHub attestations verified without an unattested bypass;
+- backend archive SHA-256:
+  `15816e14917c887780a888de885ff37945e77977c0ec22f220a17414c4638dd9`;
+  Docker's repository digest and executed image id both matched manifest
+  `sha256:621d1fd9ec70de7f34b2a462311a79313e8b383d43113efaad748c1675254d5d`;
+- PostgreSQL ran from the tracked `17.5-alpine` reference at digest
+  `sha256:6567bca8d7bc8c82c5922425a0baee57be8402df92bae5eacad5f01ae9544daa`;
+- rehearsal `559409b784f1` planned 15 modules and 230 pending migrations
+  without mutating the empty target. Malformed source identity, malformed
+  backup reference, and wrong database-target approval all failed before
+  mutation;
+- approved Apply installed all 230 migrations, the next Plan reported zero
+  pending migrations, and the repeated approved Apply preserved the resulting
+  schema fingerprint;
+- evidence is retained locally at
+  `.tmp/migration-rehearsals/20260821T135455Z-candidate-d6679787cddf-bff1a276.json`,
+  SHA-256
+  `dec0aa9a392886223bc8c9c1b84ff570c820501a34b25c6f2e8d42ce01baed5e`;
+  it contains no connection string, password, or generated key material; and
+- independent cleanup checks found no matching containers, internal network,
+  persistent volume, or imported candidate image after completion.
+
+This refresh supersedes the older candidate as current isolated migration
+mechanics evidence. It remains local proof, not a hosted target backup,
+migration approval, maintenance-window rehearsal, compatibility sign-off,
+deployment, rollback, or post-deployment verification.
