@@ -1,6 +1,6 @@
 # Post-Hardening Candidate Publication Refresh Task
 
-Status: in progress
+Status: source prepared; hosted evidence incomplete
 Date: 2026-08-22
 
 ## Goal
@@ -30,12 +30,20 @@ current graph.
 
 ## Current Source Floor
 
-- backend: `7397c0a1e195402dba6782c80818d1e7a9171faf`;
+- backend: `1c6d983b8cd2b71e9e72e8a1c86dbc4edf6870c2`;
 - web: `fe2792b099af6a39c67a1264f89ece3dfca0c8de`;
 - GMA Framework: `bdc508208f84a4b85bb7ab39850c6065086c56c4`;
-- Operations Notifications focused verification: 107/107;
-- backend consolidated non-Docker verification: passed with a warning-free
-  build and drift-free PostgreSQL and SQL Server migration models.
+- backend validation: GitHub Actions run `32565154243` passed on Ubuntu and
+  Windows for the exact backend commit;
+- backend Security Baseline: GitHub Actions run `32565154195` passed for the
+  exact backend commit;
+- backend provider verification: the exact source tree passed 160/160 Docker
+  integration tests locally in 19 minutes 37 seconds after the shared
+  migration bootstrap was isolated from live outbox publishers;
+- hosted backend Docker and source-evidence workflows: not dispatched because
+  the available automation credential does not have workflow-dispatch
+  permission. The local provider result does not substitute for retained
+  hosted evidence.
 
 The exact candidate root is the commit that first records this ledger and the
 source pointers above. Evidence is added in a later documentation-only closure
@@ -44,7 +52,7 @@ commit and is never presented as part of the attested source identity.
 ## Delivery
 
 1. [ ] Commit and publish this ledger as the exact candidate root.
-2. [ ] Require exact-head backend validation and Security Baseline success.
+2. [x] Require exact-head backend validation and Security Baseline success.
 3. [ ] Run one exact-head backend Docker workflow and source-evidence workflow.
 4. [ ] Run root validation, Security Baseline, CodeQL, and source evidence once
    for the exact candidate root.
