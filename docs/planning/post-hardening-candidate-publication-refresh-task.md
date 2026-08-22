@@ -30,16 +30,23 @@ current graph.
 
 ## Current Source Floor
 
-- backend: `1c6d983b8cd2b71e9e72e8a1c86dbc4edf6870c2`;
+- backend: `99387a0dba45d3e0d37057d324168ee24051a53d`;
 - web: `fe2792b099af6a39c67a1264f89ece3dfca0c8de`;
 - GMA Framework: `bdc508208f84a4b85bb7ab39850c6065086c56c4`;
-- backend validation: GitHub Actions run `32565154243` passed on Ubuntu and
+- GMA Organizations: `69b18cdecb1814a230516eaeed6ab4e6eb55efdf`;
+- backend validation: GitHub Actions run `32570044410` passed on Ubuntu and
   Windows for the exact backend commit;
-- backend Security Baseline: GitHub Actions run `32565154195` passed for the
+- backend Security Baseline: GitHub Actions run `32570044312` passed for the
   exact backend commit;
-- backend provider verification: the exact source tree passed 160/160 Docker
-  integration tests locally in 19 minutes 37 seconds after the shared
-  migration bootstrap was isolated from live outbox publishers;
+- backend local verification: the exact source tree passed the consolidated
+  non-Docker repository gate, including 397/397 Workspaces, 285/285 Staff,
+  105/105 extension Workspaces, 107/107 Operations Notifications, 112/112
+  Architecture, and 65/65 non-Docker integration tests; focused PostgreSQL
+  serialization and authoritative-membership scenarios also passed;
+- backend provider baseline: predecessor `1c6d983b8cd2b71e9e72e8a1c86dbc4edf6870c2`
+  passed 160/160 Docker integration tests locally in 19 minutes 37 seconds.
+  That result is useful regression evidence but does not substitute for the
+  exact-head Docker candidate gate required below;
 - hosted backend Docker and source-evidence workflows: not dispatched because
   the available automation credential does not have workflow-dispatch
   permission. The local provider result does not substitute for retained
