@@ -3,6 +3,7 @@
 Status: completed
 Date: 2026-08-15
 Completed: 2026-08-15
+Current refresh: 2026-08-22
 
 ## Goal
 
@@ -89,6 +90,40 @@ proof for it.
 This closes local exact-byte composition mechanics for the current candidate.
 It does not close any hosted promotion, deployment, TLS, authenticated workflow,
 rollback, private approval, or Production gate.
+
+## Post-Hardening Candidate Refresh
+
+The same rehearsal executed candidate
+`f31bebefd055d0f8a0260ec1f0d5c62a3c25856b` after exact-root Validate,
+Security Baseline, CodeQL, Release Evidence, and Product Image Evidence passed:
+
+- bundle digest
+  `58dbd757075ff3e358abd15ef77f73afb3360cfe1b47ddd30d9e64bda34016c6`
+  and all GitHub attestations verified before import;
+- backend archive SHA-256
+  `9de6c1d8bb2cfb6ce23860ed38b85ae22b966cb507d0e60f014e89d24ffe8095`
+  ran at manifest
+  `sha256:02a59243ed4cc48a3b888a7a2435daa15531903fd637cb089c756df736d19dee`;
+  web archive SHA-256
+  `b0c9fea9e53648dbb61ccd11cac5f6db135f86e61ddf757feb37bd6576a67f99`
+  ran at manifest
+  `sha256:3712ce5271e70b016b0946a3619bdc32853d5e2b3d2e4654d1f1a179e14a150d`;
+- replay initialization and migrations exited successfully; API, Worker,
+  Admin API, and web reached their expected running and healthy states;
+- release `candidate-f31bebefd055d0f8a0260ec1f0d5c62a3c25856b` passed web/API
+  release identity, browser policy, edge health, public API smoke, Admin API
+  absence, untrusted-Host rejection, and management isolation;
+- private evidence
+  `.tmp/candidate-runtime-rehearsals/20260822T134257Z-candidate-f31bebefd055-f736caff.json`
+  has SHA-256
+  `cfd42320a681af4e1cb30b1e926d069947b4d24c8eb59c0297167655d737d568`
+  and Unix mode `0600`; and
+- no candidate container, network, volume, imported tag, generated environment,
+  or working directory remained after cleanup.
+
+This supersedes the older candidate as current local exact-byte composition
+proof. Registry promotion, hosted TLS, authenticated workflows, rollback,
+backup/restore, private approval, and Production authorization remain open.
 
 ## Done When
 

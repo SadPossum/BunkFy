@@ -2,7 +2,7 @@
 
 Status: completed for current attested candidate
 Date: 2026-08-12
-Current refresh: 2026-08-21
+Current refresh: 2026-08-22
 
 ## Goal
 
@@ -146,3 +146,37 @@ This refresh supersedes the older candidate as current isolated migration
 mechanics evidence. It remains local proof, not a hosted target backup,
 migration approval, maintenance-window rehearsal, compatibility sign-off,
 deployment, rollback, or post-deployment verification.
+
+## Post-Hardening Candidate Refresh
+
+Candidate `f31bebefd055d0f8a0260ec1f0d5c62a3c25856b` has exact-root
+validation, Security Baseline, CodeQL, source evidence, and retained, scanned,
+attested OCI bytes. Its Production migration proof supersedes the post-domain
+candidate:
+
+- closed bundle digest
+  `58dbd757075ff3e358abd15ef77f73afb3360cfe1b47ddd30d9e64bda34016c6`
+  and every GitHub attestation verified without an unattested bypass;
+- backend archive SHA-256
+  `9de6c1d8bb2cfb6ce23860ed38b85ae22b966cb507d0e60f014e89d24ffe8095`,
+  executed image id, and repository digest matched manifest
+  `sha256:02a59243ed4cc48a3b888a7a2435daa15531903fd637cb089c756df736d19dee`;
+- PostgreSQL remained pinned to tracked digest
+  `sha256:6567bca8d7bc8c82c5922425a0baee57be8402df92bae5eacad5f01ae9544daa`;
+- rehearsal `bf4fafa2609c` planned 15 modules and 250 pending migrations
+  without mutating the empty target. Malformed source identity, malformed
+  backup reference, and wrong database-target approval failed before mutation;
+- approved Apply installed all 250 migrations, the next Plan reported zero
+  pending, and repeated Apply preserved schema fingerprint
+  `181593cbe9bbc24c229e73185ea7fb5e54ae2163e1c804663f8884eb6ae54eb1`;
+- minimized evidence
+  `.tmp/migration-rehearsals/20260822T134123Z-candidate-f31bebefd055-5f8ac2d0.json`
+  has SHA-256
+  `de4b0e9fc171293c796b60011072e62047d2ce584b306a5af10567ca51f881fa`
+  and contains no connection string, password, or generated key material; and
+- independent cleanup found no matching container, network, volume, working
+  directory, or imported candidate image.
+
+This is current isolated migration-mechanics evidence. It is not a hosted
+target backup, migration approval, maintenance-window rehearsal, deployment,
+rollback, or post-deployment verification.
