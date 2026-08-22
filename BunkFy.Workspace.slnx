@@ -172,6 +172,7 @@
     <File Path="apps/backend/docs/planning/operations-notifications-least-privilege-audience-task.md" />
     <File Path="apps/backend/docs/planning/operations-notifications-personal-data-catalogue-task.md" />
     <File Path="apps/backend/docs/planning/operations-notifications-production-admission-task.md" />
+    <File Path="apps/backend/docs/planning/operations-notifications-recipient-convergence-task.md" />
     <File Path="apps/backend/docs/planning/operations-notifications-staff-data-rights-task.md" />
     <File Path="apps/backend/docs/planning/operations-notifications-tenant-termination-result-fencing-task.md" />
     <File Path="apps/backend/docs/planning/organizations-tenant-termination-owner-task.md" />
@@ -274,6 +275,8 @@
     <File Path="apps/backend/docs/planning/workspace-onboarding-production-proof-task.md" />
     <File Path="apps/backend/docs/planning/workspace-onboarding-task.md" />
     <File Path="apps/backend/docs/planning/workspace-operational-admission-integration-task.md" />
+    <File Path="apps/backend/docs/planning/workspace-owner-access-transition-integrity-task.md" />
+    <File Path="apps/backend/docs/planning/workspace-owner-transfer-staff-eligibility-task.md" />
     <File Path="apps/backend/docs/planning/workspace-staff-access-lifecycle-task.md" />
     <File Path="apps/backend/docs/planning/workspace-staff-access-mutation-serialization-task.md" />
     <File Path="apps/backend/docs/planning/workspace-staff-onboarding-authorization-task.md" />
