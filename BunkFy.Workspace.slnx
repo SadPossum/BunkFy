@@ -914,7 +914,6 @@
     <File Path="docs/planning/preview-trusted-https-browser-onboarding-proof-task.md" />
     <File Path="docs/planning/preview-workspace-access-administration-proof-task.md" />
     <File Path="docs/planning/preview-workspace-access-seed-estate-proof-task.md" />
-    <File Path="docs/planning/workspace-access-control-authority-recovery-task.md" />
     <File Path="docs/planning/production-admission-attempt-identity-task.md" />
     <File Path="docs/planning/production-admission-freshness-task.md" />
     <File Path="docs/planning/production-image-promotion-boundary-task.md" />
@@ -922,6 +921,8 @@
     <File Path="docs/planning/production-workspace-access-estate-admission-task.md" />
     <File Path="docs/planning/shared-network-http-admission-task.md" />
     <File Path="docs/planning/web-shell-failure-recovery-task.md" />
+    <File Path="docs/planning/workspace-access-control-authority-recovery-task.md" />
+    <File Path="docs/planning/workspace-shell-catalogue-recovery-task.md" />
   </Folder>
   <Folder Name="/eng/">
     <File Path="eng/bootstrap.ps1" />

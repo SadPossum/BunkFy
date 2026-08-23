@@ -103,6 +103,7 @@ Repository verification on 2026-08-23:
 - `git diff --check` passed for the slice.
 - Published web commit:
   `e578b9d2f54d85fd2c2bf334fe0e1f42210199cb`.
+- Exact-commit web `validate` and `Security Baseline` GitHub checks passed.
 
 ## Deferred
 
