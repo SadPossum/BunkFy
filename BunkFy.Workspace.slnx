@@ -884,6 +884,7 @@
   </Folder>
   <Folder Name="/docs/planning/">
     <File Path="docs/planning/account-security-partial-data-recovery-task.md" />
+    <File Path="docs/planning/authentication-entry-source-and-callback-recovery-task.md" />
     <File Path="docs/planning/bunkfy-repository-stack-and-workflow-plan.md" />
     <File Path="docs/planning/composite-operator-page-partial-data-recovery-task.md" />
     <File Path="docs/planning/current-candidate-publication-refresh-task.md" />
