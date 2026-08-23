@@ -888,6 +888,7 @@
     <File Path="docs/planning/composite-operator-page-partial-data-recovery-task.md" />
     <File Path="docs/planning/current-candidate-publication-refresh-task.md" />
     <File Path="docs/planning/current-candidate-runtime-rehearsal-task.md" />
+    <File Path="docs/planning/data-rights-operator-source-authority-recovery-task.md" />
     <File Path="docs/planning/deployed-data-rights-access-export-proof-task.md" />
     <File Path="docs/planning/deployed-guests-stay-history-proof-task.md" />
     <File Path="docs/planning/deployed-ingestion-conflict-proposal-lifecycle-proof-task.md" />
