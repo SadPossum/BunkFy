@@ -13,21 +13,34 @@ $script:BunkFyProductionAdmissionPrivateControls = @(
     'hosted-backup-and-recovery',
     'runtime-topology-restart-and-credential-rotation',
     'workspace-access-seed-estate')
+$script:BunkFyPrivateProductionControlIndexLimitations = @(
+    'private-record-content-and-authenticity-not-verified',
+    'private-records-not-retained-in-public-admission-bundle',
+    'source-clock-attestation-not-verified')
 $script:BunkFyProductionAdmissionChecks = @(
     'candidate-and-rollback-promotions-verified',
     'deployed-rollback-rehearsal-verified',
     'production-migration-rehearsal-verified',
     'deployed-release-and-admin-boundary-verified',
     'deployed-domain-workflows-verified',
-    'private-control-references-declared',
+    'private-control-index-bound',
     'mutable-evidence-fresh-and-coherent',
     'source-evidence-references-bound',
     'source-evidence-hashes-bound')
 $script:BunkFyProductionAdmissionFreshnessPolicy =
-    'bounded-mutable-runtime-proof-v1'
+    'bounded-mutable-and-private-control-proof-v2'
 $script:BunkFyProductionAdmissionClockSkew = [TimeSpan]::FromMinutes(5)
 $script:BunkFyProductionAdmissionMutableEvidenceMaximumAge =
     [TimeSpan]::FromHours(24)
+$script:BunkFyPrivateProductionControlIndexMaximumAge =
+    [TimeSpan]::FromHours(24)
+$script:BunkFyPrivateProductionControlMaximumAges = [ordered]@{
+    'browser-workspace-onboarding' = [TimeSpan]::FromHours(24)
+    'deployment-approval-alerting-and-rollback' = [TimeSpan]::FromHours(24)
+    'hosted-backup-and-recovery' = [TimeSpan]::FromDays(30)
+    'runtime-topology-restart-and-credential-rotation' = [TimeSpan]::FromDays(30)
+    'workspace-access-seed-estate' = [TimeSpan]::FromHours(24)
+}
 $script:BunkFyProductionAdmissionApprovalWindow = [TimeSpan]::FromHours(4)
 
 function Assert-BunkFyProductionAdmissionReference {
@@ -120,17 +133,40 @@ function Assert-BunkFyProductionAdmissionMutableEvidenceFreshness {
 function Get-BunkFyProductionAdmissionExpiry {
     param(
         [Parameter(Mandatory = $true)][DateTimeOffset] $GeneratedAtUtc,
-        [Parameter(Mandatory = $true)][DateTimeOffset] $OldestMutableEvidenceAtUtc
+        [Parameter(Mandatory = $true)][DateTimeOffset] $OldestMutableEvidenceAtUtc,
+        [Parameter(Mandatory = $true)][DateTimeOffset] $PrivateControlIndexExpiresAtUtc,
+        [Parameter(Mandatory = $true)][DateTimeOffset] $PrivateControlEvidenceExpiresAtUtc
     )
 
-    $approvalExpiry = $GeneratedAtUtc.ToUniversalTime().Add(
-        $script:BunkFyProductionAdmissionApprovalWindow)
-    $sourceExpiry = $OldestMutableEvidenceAtUtc.ToUniversalTime().Add(
-        $script:BunkFyProductionAdmissionMutableEvidenceMaximumAge)
-    if ($approvalExpiry -lt $sourceExpiry) {
-        return $approvalExpiry
+    $expiries = @(
+        $GeneratedAtUtc.ToUniversalTime().Add(
+            $script:BunkFyProductionAdmissionApprovalWindow),
+        $OldestMutableEvidenceAtUtc.ToUniversalTime().Add(
+            $script:BunkFyProductionAdmissionMutableEvidenceMaximumAge),
+        $PrivateControlIndexExpiresAtUtc.ToUniversalTime(),
+        $PrivateControlEvidenceExpiresAtUtc.ToUniversalTime()) |
+        Sort-Object
+    return $expiries[0]
+}
+
+function Assert-BunkFyProductionAdmissionBoundedFreshness {
+    param(
+        [Parameter(Mandatory = $true)][DateTimeOffset] $Timestamp,
+        [Parameter(Mandatory = $true)][DateTimeOffset] $EvaluationTimeUtc,
+        [Parameter(Mandatory = $true)][TimeSpan] $MaximumAge,
+        [Parameter(Mandatory = $true)][string] $Context
+    )
+
+    $timestampUtc = $Timestamp.ToUniversalTime()
+    $evaluationUtc = $EvaluationTimeUtc.ToUniversalTime()
+    if ($timestampUtc -gt $evaluationUtc.Add(
+            $script:BunkFyProductionAdmissionClockSkew)) {
+        throw "$Context is too far in the future."
     }
-    return $sourceExpiry
+    if ($timestampUtc -lt $evaluationUtc.Subtract($MaximumAge)) {
+        throw "$Context is older than its $([int]$MaximumAge.TotalMinutes)-minute freshness limit."
+    }
+    return $timestampUtc
 }
 
 function Resolve-BunkFyProductionAdmissionDigestReference {
@@ -208,6 +244,274 @@ function Get-BunkFyProductionAdmissionEvidenceFile {
         Record = $record
         Sha256 = (Get-FileHash -LiteralPath $resolvedPath -Algorithm SHA256).Hash.ToLowerInvariant()
     }
+}
+
+function Get-BunkFyPrivateProductionControlIndexChecksumsSha256 {
+    param(
+        [Parameter(Mandatory = $true)][string] $RecordSha256
+    )
+
+    [void](Assert-BunkFyProductionAdmissionSha256 `
+            -Value $RecordSha256 `
+            -Context 'private production control index record checksum')
+    $content = "$RecordSha256  private-control-index.json`n"
+    $bytes = [Text.UTF8Encoding]::new($false).GetBytes($content)
+    $digest = [Security.Cryptography.SHA256]::HashData($bytes)
+    return [Convert]::ToHexString($digest).ToLowerInvariant()
+}
+
+function Get-BunkFyVerifiedPrivateProductionControlIndexRecord {
+    param(
+        [Parameter(Mandatory = $true)][string] $Path,
+        [Parameter(Mandatory = $true)][string] $ExpectedReleaseId,
+        [Parameter(Mandatory = $true)][string] $ExpectedSourceCommit,
+        [Parameter(Mandatory = $true)][string] $ExpectedBackendDigestReference,
+        [Parameter(Mandatory = $true)][string] $ExpectedWebDigestReference,
+        [Parameter(Mandatory = $true)][string] $ExpectedAdmissionEvidenceReference,
+        [Parameter(Mandatory = $true)][string] $ExpectedChecksumsSha256,
+        [switch] $AllowFixtureEvidence
+    )
+
+    [void](Assert-BunkFyProductionAdmissionSha256 `
+            -Value $ExpectedChecksumsSha256 `
+            -Context 'private production control index closed checksum')
+    $source = Get-BunkFyProductionAdmissionEvidenceFile `
+        -Path $Path `
+        -Context 'private production control index record' `
+        -MaximumBytes 512KB
+    $canonicalChecksumsSha256 =
+        Get-BunkFyPrivateProductionControlIndexChecksumsSha256 `
+            -RecordSha256 $source.Sha256
+    if ($canonicalChecksumsSha256 -cne $ExpectedChecksumsSha256) {
+        throw 'Private production control index does not match its canonical closed checksum.'
+    }
+
+    $record = $source.Record
+    Assert-BunkFyCandidateProperties `
+        -Value $record `
+        -ExpectedProperties @(
+            'schemaVersion',
+            'evidenceKind',
+            'indexId',
+            'privateControlIndexReference',
+            'generatedAtUtc',
+            'repository',
+            'profile',
+            'result',
+            'admissionEvidenceReference',
+            'candidate',
+            'controls',
+            'limitations') `
+        -Context 'private production control index record'
+    $indexId = [Guid]::Empty
+    $expectedProfile = if ($AllowFixtureEvidence) {
+        'loopback-fixture'
+    }
+    else {
+        'production'
+    }
+    $indexReference = Assert-BunkFyProductionAdmissionReference `
+        -Value ([string]$record.privateControlIndexReference) `
+        -Name 'private production control index reference'
+    if ($record.schemaVersion -ne 1 -or
+        $record.evidenceKind -cne 'bunkfy-private-production-control-index' -or
+        $record.repository -cne 'SadPossum/BunkFy' -or
+        $record.profile -cne $expectedProfile -or
+        $record.result -cne 'recorded-awaiting-private-approval' -or
+        -not [Guid]::TryParseExact([string]$record.indexId, 'D', [ref]$indexId) -or
+        $indexId -eq [Guid]::Empty -or
+        $indexReference -cne "private-controls:$($indexId.ToString('N'))") {
+        throw 'Private production control index has an invalid identity or result.'
+    }
+    if ($record.admissionEvidenceReference -cne
+            $ExpectedAdmissionEvidenceReference) {
+        throw 'Private production control index belongs to a different admission attempt.'
+    }
+    if ($indexReference -ceq $ExpectedAdmissionEvidenceReference) {
+        throw 'Private production control index reference must be distinct from the admission reference.'
+    }
+
+    $verificationTimeUtc = [DateTimeOffset]::UtcNow
+    $generatedAtUtc = ConvertTo-BunkFyProductionAdmissionTimestamp `
+        -Value $record.generatedAtUtc `
+        -Context 'private production control index generation time'
+    [void](Assert-BunkFyProductionAdmissionBoundedFreshness `
+            -Timestamp $generatedAtUtc `
+            -EvaluationTimeUtc $verificationTimeUtc `
+            -MaximumAge $script:BunkFyPrivateProductionControlIndexMaximumAge `
+            -Context 'private production control index')
+
+    Assert-BunkFyCandidateProperties `
+        -Value $record.candidate `
+        -ExpectedProperties @('releaseId', 'sourceCommit', 'images') `
+        -Context 'private production control index candidate'
+    if ($record.candidate.releaseId -cne $ExpectedReleaseId -or
+        $record.candidate.sourceCommit -cne $ExpectedSourceCommit) {
+        throw 'Private production control index belongs to a different candidate.'
+    }
+    $expectedImageReferences = [ordered]@{
+        backend = $ExpectedBackendDigestReference
+        web = $ExpectedWebDigestReference
+    }
+    $images = @($record.candidate.images | Sort-Object name)
+    if (($images.name -join "`n") -cne "backend`nweb") {
+        throw 'Private production control index candidate must contain backend and web images.'
+    }
+    $imageRepositories = [Collections.Generic.HashSet[string]]::new(
+        [StringComparer]::Ordinal)
+    foreach ($image in $images) {
+        Assert-BunkFyCandidateProperties `
+            -Value $image `
+            -ExpectedProperties @('name', 'digestReference') `
+            -Context 'private production control index candidate image'
+        $resolvedImage = Resolve-BunkFyProductionAdmissionDigestReference `
+            -Value ([string]$image.digestReference) `
+            -Context "Private production control index '$($image.name)' image"
+        if ($image.digestReference -cne
+                $expectedImageReferences[[string]$image.name]) {
+            throw "Private production control index '$($image.name)' image belongs to a different candidate."
+        }
+        [void]$imageRepositories.Add($resolvedImage.Repository)
+    }
+    if ($imageRepositories.Count -ne 2) {
+        throw 'Private production control index candidate images must use distinct repositories.'
+    }
+
+    $controls = @($record.controls)
+    if ($controls.Count -ne
+        $script:BunkFyProductionAdmissionPrivateControls.Count) {
+        throw 'Private production control index has an incomplete control set.'
+    }
+    $seenControls = [Collections.Generic.HashSet[string]]::new(
+        [StringComparer]::Ordinal)
+    $seenReferences = [Collections.Generic.HashSet[string]]::new(
+        [StringComparer]::Ordinal)
+    $seenHashes = [Collections.Generic.HashSet[string]]::new(
+        [StringComparer]::Ordinal)
+    $verifiedControls = [Collections.Generic.List[object]]::new()
+    $controlExpiries = [Collections.Generic.List[DateTimeOffset]]::new()
+    foreach ($control in $controls) {
+        Assert-BunkFyCandidateProperties `
+            -Value $control `
+            -ExpectedProperties @(
+                'control',
+                'reference',
+                'recordSha256',
+                'observedAtUtc') `
+            -Context 'private production control index entry'
+        $controlName = [string]$control.control
+        if (-not $seenControls.Add($controlName)) {
+            throw 'Private production control index controls must be unique.'
+        }
+        $maximumAge =
+            $script:BunkFyPrivateProductionControlMaximumAges[$controlName]
+        if ($null -eq $maximumAge) {
+            throw "Private production control index contains unsupported control '$controlName'."
+        }
+        $reference = Assert-BunkFyProductionAdmissionReference `
+            -Value ([string]$control.reference) `
+            -Name "private production control '$controlName' reference"
+        if (-not $seenReferences.Add($reference)) {
+            throw 'Private production control index references must be distinct.'
+        }
+        if ($reference -ceq $ExpectedAdmissionEvidenceReference -or
+            $reference -ceq $indexReference) {
+            throw 'Private production control index records must not reuse an index or admission reference.'
+        }
+        $recordSha256 = Assert-BunkFyProductionAdmissionSha256 `
+            -Value ([string]$control.recordSha256) `
+            -Context "private production control '$controlName' record checksum"
+        if (-not $seenHashes.Add($recordSha256)) {
+            throw 'Private production control index record checksums must be distinct.'
+        }
+        $observedAtUtc = ConvertTo-BunkFyProductionAdmissionTimestamp `
+            -Value $control.observedAtUtc `
+            -Context "private production control '$controlName' observation time"
+        if ($observedAtUtc -gt $generatedAtUtc.Add(
+                $script:BunkFyProductionAdmissionClockSkew)) {
+            throw "Private production control '$controlName' postdates its index."
+        }
+        [void](Assert-BunkFyProductionAdmissionBoundedFreshness `
+                -Timestamp $observedAtUtc `
+                -EvaluationTimeUtc $verificationTimeUtc `
+                -MaximumAge $maximumAge `
+                -Context "private production control '$controlName'")
+        $controlExpiresAtUtc = $observedAtUtc.Add($maximumAge)
+        $controlExpiries.Add($controlExpiresAtUtc)
+        $verifiedControls.Add([pscustomobject]@{
+                Control = $controlName
+                Reference = $reference
+                RecordSha256 = $recordSha256
+                ObservedAtUtc = $observedAtUtc
+                MaximumAge = $maximumAge
+                ExpiresAtUtc = $controlExpiresAtUtc
+            })
+    }
+    Assert-BunkFyProductionAdmissionStringSequence `
+        -Actual @($seenControls) `
+        -Expected $script:BunkFyProductionAdmissionPrivateControls `
+        -Context 'private production control index controls' `
+        -OrderIndependent
+    Assert-BunkFyProductionAdmissionStringSequence `
+        -Actual @($record.limitations) `
+        -Expected $script:BunkFyPrivateProductionControlIndexLimitations `
+        -Context 'private production control index limitations'
+
+    $indexExpiresAtUtc = $generatedAtUtc.Add(
+        $script:BunkFyPrivateProductionControlIndexMaximumAge)
+    $privateControlExpiresAtUtc = @($controlExpiries | Sort-Object)[0]
+    $expiresAtUtc = @(
+        $indexExpiresAtUtc,
+        $privateControlExpiresAtUtc) | Sort-Object | Select-Object -First 1
+    return [pscustomobject]@{
+        Path = $source.Path
+        SourceSha256 = $source.Sha256
+        ChecksumsSha256 = $canonicalChecksumsSha256
+        IndexId = $indexId
+        Reference = $indexReference
+        GeneratedAtUtc = $generatedAtUtc
+        IndexExpiresAtUtc = $indexExpiresAtUtc
+        PrivateControlExpiresAtUtc = $privateControlExpiresAtUtc
+        ExpiresAtUtc = $expiresAtUtc
+        Controls = @($verifiedControls | Sort-Object Control)
+        Record = $record
+    }
+}
+
+function Get-BunkFyVerifiedPrivateProductionControlIndex {
+    param(
+        [Parameter(Mandatory = $true)][string] $Directory,
+        [Parameter(Mandatory = $true)][string] $ExpectedReleaseId,
+        [Parameter(Mandatory = $true)][string] $ExpectedSourceCommit,
+        [Parameter(Mandatory = $true)][string] $ExpectedBackendDigestReference,
+        [Parameter(Mandatory = $true)][string] $ExpectedWebDigestReference,
+        [Parameter(Mandatory = $true)][string] $ExpectedAdmissionEvidenceReference,
+        [switch] $AllowFixtureEvidence
+    )
+
+    $resolvedDirectory = [IO.Path]::GetFullPath($Directory)
+    $closed = Get-BunkFyClosedChecksumSet `
+        -Directory $resolvedDirectory `
+        -MaximumPayloadBytes 1MB `
+        -Context 'private production control index'
+    if ($closed.Files.Count -ne 1 -or
+        $closed.Files[0].RelativePath -cne 'private-control-index.json') {
+        throw 'Private production control index must contain only private-control-index.json and checksums.sha256.'
+    }
+    $verified = Get-BunkFyVerifiedPrivateProductionControlIndexRecord `
+        -Path (Join-Path $resolvedDirectory 'private-control-index.json') `
+        -ExpectedReleaseId $ExpectedReleaseId `
+        -ExpectedSourceCommit $ExpectedSourceCommit `
+        -ExpectedBackendDigestReference $ExpectedBackendDigestReference `
+        -ExpectedWebDigestReference $ExpectedWebDigestReference `
+        -ExpectedAdmissionEvidenceReference $ExpectedAdmissionEvidenceReference `
+        -ExpectedChecksumsSha256 $closed.ChecksumsSha256 `
+        -AllowFixtureEvidence:$AllowFixtureEvidence
+    $verified | Add-Member `
+        -MemberType NoteProperty `
+        -Name Directory `
+        -Value $resolvedDirectory
+    return $verified
 }
 
 function Get-BunkFyProductionAdmissionProbeSpecification {
@@ -1570,18 +1874,21 @@ function Get-BunkFyVerifiedProductionAdmission {
     }
     $resolvedDirectory = [IO.Path]::GetFullPath($Directory)
     $closed = Get-BunkFyClosedChecksumSet -Directory $resolvedDirectory -MaximumPayloadBytes 2MB -Context 'production admission evidence'
-    if ($closed.Files.Count -ne 1 -or $closed.Files[0].RelativePath -cne 'production-admission.json') {
-        throw 'Production admission evidence must contain only production-admission.json and checksums.sha256.'
+    $closedPaths = @($closed.Files.RelativePath | Sort-Object)
+    if ($closed.Files.Count -ne 2 -or
+        ($closedPaths -join "`n") -cne
+            "private-control-index.json`nproduction-admission.json") {
+        throw 'Production admission evidence must contain only private-control-index.json, production-admission.json, and checksums.sha256.'
     }
     $source = Get-BunkFyProductionAdmissionEvidenceFile -Path (Join-Path $resolvedDirectory 'production-admission.json') -Context 'production admission record'
     $record = $source.Record
     Assert-BunkFyCandidateProperties `
         -Value $record `
-        -ExpectedProperties @('schemaVersion', 'evidenceKind', 'admissionId', 'admissionEvidenceReference', 'generatedAtUtc', 'result', 'decision', 'repository', 'profile', 'candidate', 'rollback', 'deployment', 'validity', 'evidence', 'privateEvidence', 'checks', 'limitations') `
+        -ExpectedProperties @('schemaVersion', 'evidenceKind', 'admissionId', 'admissionEvidenceReference', 'generatedAtUtc', 'result', 'decision', 'repository', 'profile', 'candidate', 'rollback', 'deployment', 'privateControlIndex', 'validity', 'evidence', 'privateEvidence', 'checks', 'limitations') `
         -Context 'production admission record'
     $admissionId = [Guid]::Empty
     $expectedProfile = if ($AllowFixtureEvidence) { 'loopback-fixture' } else { 'production' }
-    if ($record.schemaVersion -ne 2 -or
+    if ($record.schemaVersion -ne 3 -or
         $record.evidenceKind -cne 'bunkfy-production-admission-bundle' -or
         $record.result -cne 'passed' -or
         $record.decision -cne 'evidence-complete-awaiting-private-approval' -or
@@ -1673,12 +1980,76 @@ function Get-BunkFyVerifiedProductionAdmission {
         throw 'Production admission record has an invalid Admin evidence set id.'
     }
 
+    Assert-BunkFyCandidateProperties `
+        -Value $record.privateControlIndex `
+        -ExpectedProperties @(
+            'evidenceKind',
+            'evidenceReference',
+            'sourceSha256',
+            'checksumsSha256',
+            'generatedAtUtc',
+            'expiresAtUtc') `
+        -Context 'production admission private control index summary'
+    if ($record.privateControlIndex.evidenceKind -cne
+            'bunkfy-private-production-control-index') {
+        throw 'Production admission private control index has the wrong evidence kind.'
+    }
+    [void](Assert-BunkFyProductionAdmissionReference `
+            -Value ([string]$record.privateControlIndex.evidenceReference) `
+            -Name 'production admission private control index reference')
+    [void](Assert-BunkFyProductionAdmissionSha256 `
+            -Value ([string]$record.privateControlIndex.sourceSha256) `
+            -Context 'production admission private control index record checksum')
+    [void](Assert-BunkFyProductionAdmissionSha256 `
+            -Value ([string]$record.privateControlIndex.checksumsSha256) `
+            -Context 'production admission private control index closed checksum')
+    $candidateBackendImage = @(
+        $record.candidate.images | Where-Object name -CEQ 'backend')[0]
+    $candidateWebImage = @(
+        $record.candidate.images | Where-Object name -CEQ 'web')[0]
+    $privateControlIndex =
+        Get-BunkFyVerifiedPrivateProductionControlIndexRecord `
+            -Path (Join-Path $resolvedDirectory 'private-control-index.json') `
+            -ExpectedReleaseId $ExpectedReleaseId `
+            -ExpectedSourceCommit $ExpectedSourceCommit `
+            -ExpectedBackendDigestReference `
+                ([string]$candidateBackendImage.digestReference) `
+            -ExpectedWebDigestReference `
+                ([string]$candidateWebImage.digestReference) `
+            -ExpectedAdmissionEvidenceReference `
+                $ExpectedAdmissionEvidenceReference `
+            -ExpectedChecksumsSha256 `
+                ([string]$record.privateControlIndex.checksumsSha256) `
+            -AllowFixtureEvidence:$AllowFixtureEvidence
+    $declaredPrivateIndexGeneratedAtUtc =
+        ConvertTo-BunkFyProductionAdmissionTimestamp `
+            -Value $record.privateControlIndex.generatedAtUtc `
+            -Context 'production admission private control index generation time'
+    $declaredPrivateIndexExpiresAtUtc =
+        ConvertTo-BunkFyProductionAdmissionTimestamp `
+            -Value $record.privateControlIndex.expiresAtUtc `
+            -Context 'production admission private control index expiry time' `
+            -AllowFuture
+    if ($record.privateControlIndex.evidenceReference -cne
+            $privateControlIndex.Reference -or
+        $record.privateControlIndex.sourceSha256 -cne
+            $privateControlIndex.SourceSha256 -or
+        $declaredPrivateIndexGeneratedAtUtc -ne
+            $privateControlIndex.GeneratedAtUtc -or
+        $declaredPrivateIndexExpiresAtUtc -ne
+            $privateControlIndex.IndexExpiresAtUtc -or
+        $privateControlIndex.GeneratedAtUtc -gt $generatedAtUtc.Add(
+            $script:BunkFyProductionAdmissionClockSkew)) {
+        throw 'Production admission private control index summary is not cross-bound to the retained index.'
+    }
+
     $systemReferences = @(
         [string]$record.admissionEvidenceReference,
         [string]$record.candidate.promotionEvidenceReference,
         [string]$record.rollback.promotionEvidenceReference,
         [string]$record.deployment.rollbackEvidenceReference,
-        [string]$record.deployment.migrationEvidenceReference)
+        [string]$record.deployment.migrationEvidenceReference,
+        [string]$privateControlIndex.Reference)
     if (@($systemReferences | Sort-Object -Unique).Count -ne
         $systemReferences.Count) {
         throw 'Production admission system evidence references must be distinct.'
@@ -1762,16 +2133,21 @@ function Get-BunkFyVerifiedProductionAdmission {
         -ExpectedProperties @(
             'policy',
             'mutableEvidenceMaximumAgeMinutes',
+            'privateControlIndexMaximumAgeMinutes',
             'approvalWindowMinutes',
             'clockSkewSeconds',
             'oldestMutableEvidenceAtUtc',
             'newestMutableEvidenceAtUtc',
+            'privateControlIndexExpiresAtUtc',
+            'privateControlEvidenceExpiresAtUtc',
             'expiresAtUtc') `
         -Context 'production admission validity'
     if ($record.validity.policy -cne
             $script:BunkFyProductionAdmissionFreshnessPolicy -or
         [int]$record.validity.mutableEvidenceMaximumAgeMinutes -ne
             [int]$script:BunkFyProductionAdmissionMutableEvidenceMaximumAge.TotalMinutes -or
+        [int]$record.validity.privateControlIndexMaximumAgeMinutes -ne
+            [int]$script:BunkFyPrivateProductionControlIndexMaximumAge.TotalMinutes -or
         [int]$record.validity.approvalWindowMinutes -ne
             [int]$script:BunkFyProductionAdmissionApprovalWindow.TotalMinutes -or
         [int]$record.validity.clockSkewSeconds -ne
@@ -1790,16 +2166,34 @@ function Get-BunkFyVerifiedProductionAdmission {
         -Value $record.validity.expiresAtUtc `
         -Context 'production admission expiry time' `
         -AllowFuture
+    $declaredPrivateControlIndexExpiryUtc =
+        ConvertTo-BunkFyProductionAdmissionTimestamp `
+            -Value $record.validity.privateControlIndexExpiresAtUtc `
+            -Context 'private production control index validity expiry' `
+            -AllowFuture
+    $declaredPrivateControlEvidenceExpiryUtc =
+        ConvertTo-BunkFyProductionAdmissionTimestamp `
+            -Value $record.validity.privateControlEvidenceExpiresAtUtc `
+            -Context 'private production control evidence validity expiry' `
+            -AllowFuture
     $expectedExpiryUtc = Get-BunkFyProductionAdmissionExpiry `
         -GeneratedAtUtc $generatedAtUtc `
-        -OldestMutableEvidenceAtUtc $actualOldestMutableAtUtc
+        -OldestMutableEvidenceAtUtc $actualOldestMutableAtUtc `
+        -PrivateControlIndexExpiresAtUtc `
+            $privateControlIndex.IndexExpiresAtUtc `
+        -PrivateControlEvidenceExpiresAtUtc `
+            $privateControlIndex.PrivateControlExpiresAtUtc
     if ($declaredOldestMutableAtUtc -ne $actualOldestMutableAtUtc -or
         $declaredNewestMutableAtUtc -ne $actualNewestMutableAtUtc -or
         $declaredOldestMutableAtUtc -gt $declaredNewestMutableAtUtc -or
         $declaredNewestMutableAtUtc -gt $generatedAtUtc.Add(
             $script:BunkFyProductionAdmissionClockSkew) -or
+        $declaredPrivateControlIndexExpiryUtc -ne
+            $privateControlIndex.IndexExpiresAtUtc -or
+        $declaredPrivateControlEvidenceExpiryUtc -ne
+            $privateControlIndex.PrivateControlExpiresAtUtc -or
         $expiresAtUtc -ne $expectedExpiryUtc) {
-        throw 'Production admission validity does not match its mutable evidence window.'
+        throw 'Production admission validity does not match its bounded evidence windows.'
     }
     if ($verificationTimeUtc -gt $expiresAtUtc.Add(
             $script:BunkFyProductionAdmissionClockSkew)) {
@@ -1812,19 +2206,53 @@ function Get-BunkFyVerifiedProductionAdmission {
     }
     $privateControls = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
     $privateReferences = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+    $privateHashes = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+    $expectedPrivateControls = @{}
+    foreach ($control in $privateControlIndex.Controls) {
+        $expectedPrivateControls[$control.Control] = $control
+    }
     foreach ($entry in $privateEvidence) {
-        Assert-BunkFyCandidateProperties -Value $entry -ExpectedProperties @('control', 'reference') -Context 'private evidence declaration'
-        if (-not $privateControls.Add([string]$entry.control)) {
+        Assert-BunkFyCandidateProperties `
+            -Value $entry `
+            -ExpectedProperties @(
+                'control',
+                'reference',
+                'recordSha256',
+                'observedAtUtc',
+                'maximumAgeMinutes') `
+            -Context 'private evidence declaration'
+        $controlName = [string]$entry.control
+        if (-not $privateControls.Add($controlName)) {
             throw 'Production admission private evidence controls must be unique.'
+        }
+        $expectedPrivateControl = $expectedPrivateControls[$controlName]
+        if ($null -eq $expectedPrivateControl) {
+            throw "Production admission private evidence contains unsupported control '$controlName'."
         }
         $privateReference = Assert-BunkFyProductionAdmissionReference `
             -Value ([string]$entry.reference) `
-            -Name "private evidence '$($entry.control)'"
+            -Name "private evidence '$controlName'"
         if (-not $privateReferences.Add($privateReference)) {
             throw 'Production admission private evidence references must be distinct.'
         }
         if ($systemReferences -ccontains $privateReference) {
             throw 'Production admission private evidence must not reuse a system reference.'
+        }
+        $privateHash = Assert-BunkFyProductionAdmissionSha256 `
+            -Value ([string]$entry.recordSha256) `
+            -Context "private evidence '$controlName' record checksum"
+        if (-not $privateHashes.Add($privateHash)) {
+            throw 'Production admission private evidence record checksums must be distinct.'
+        }
+        $observedAtUtc = ConvertTo-BunkFyProductionAdmissionTimestamp `
+            -Value $entry.observedAtUtc `
+            -Context "private evidence '$controlName' observation time"
+        if ($privateReference -cne $expectedPrivateControl.Reference -or
+            $privateHash -cne $expectedPrivateControl.RecordSha256 -or
+            $observedAtUtc -ne $expectedPrivateControl.ObservedAtUtc -or
+            [int]$entry.maximumAgeMinutes -ne
+                [int]$expectedPrivateControl.MaximumAge.TotalMinutes) {
+            throw "Production admission private evidence '$controlName' is not cross-bound to the retained index."
         }
     }
     Assert-BunkFyProductionAdmissionStringSequence -Actual @($privateControls) -Expected $script:BunkFyProductionAdmissionPrivateControls -Context 'private evidence controls' -OrderIndependent
@@ -1847,6 +2275,7 @@ function Get-BunkFyVerifiedProductionAdmission {
         ChecksumsSha256 = $closed.ChecksumsSha256
         AdmissionId = $admissionId
         AdmissionEvidenceReference = [string]$record.admissionEvidenceReference
+        PrivateControlIndexReference = $privateControlIndex.Reference
         ReleaseId = [string]$record.candidate.releaseId
         SourceCommit = [string]$record.candidate.sourceCommit
         RollbackReleaseId = [string]$record.rollback.releaseId

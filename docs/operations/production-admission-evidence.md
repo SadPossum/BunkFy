@@ -101,7 +101,8 @@ Its Preview engineering/example country-policy binding proves runtime contract
 composition only. It cannot satisfy a production country approval, legal,
 transfer, or retention-policy evidence requirement.
 
-Also provide five non-secret references from the private release system:
+Also provide one minimized, closed private-control index from the private
+release system. It must bind these exact five controls:
 
 - completed browser workspace-onboarding and registration rehearsal;
 - hosted backup and recovery rehearsal;
@@ -117,9 +118,35 @@ Tenant identity should be retained only as approved one-way fingerprints. The
 Preview estate result explicitly marked `preview-deployment-only` cannot
 satisfy this hosted control.
 
-Use bounded references such as `record:OPS-123`; never pass a URL containing a
-token, credentials, personal data, or raw logs. The repository validates the
-reference shape, not the private record's content or authenticity.
+The source directory contains exactly `private-control-index.json` and
+`checksums.sha256`. The index is schema v1 with:
+
+- evidence kind `bunkfy-private-production-control-index`, one non-empty
+  `indexId`, and matching `private-controls:<guid-N>` reference;
+- repository `SadPossum/BunkFy`, profile `production`, and result
+  `recorded-awaiting-private-approval`;
+- the exact admission reference, candidate release, root source commit, and
+  backend/web digest references;
+- exactly one entry per required control with a distinct bounded record
+  reference, distinct nonzero lowercase `recordSha256`, and UTC
+  `observedAtUtc`; and
+- exact limitations `private-record-content-and-authenticity-not-verified`,
+  `private-records-not-retained-in-public-admission-bundle`, and
+  `source-clock-attestation-not-verified`.
+
+The checksum file is the canonical UTF-8 line
+`<json-sha256>  private-control-index.json` followed by one LF. The index and
+the browser, deployment-control, and Workspace Access records must be no more
+than 24 hours old. Hosted recovery and runtime-operations records must be no
+more than 30 days old. No record may postdate the index or admission beyond the
+five-minute clock allowance.
+
+Use opaque references such as `record:OPS-123`; never include provider names,
+URLs containing tokens, credentials, account or tenant ids, personal data,
+topology, recovery values, operator identities, or raw logs. The public
+repository verifies identity, freshness, and checksums. It does not inspect or
+authenticate the private records, so the private release system remains
+responsible for signatures, reviewers, and final approval.
 
 ## Assemble
 
@@ -150,11 +177,7 @@ $admission = @{
   DataRightsAccessExportEvidencePath = '/evidence/probes/data-rights-access-export.json'
   AdapterHostEvidencePath = '/evidence/probes/adapter-host.json'
   RetentionEvidencePath = '/evidence/probes/retention.json'
-  BrowserRehearsalReference = 'record:BROWSER-123'
-  HostedRecoveryReference = 'record:RECOVERY-123'
-  DeploymentControlReference = 'record:DEPLOY-123'
-  RuntimeOperationsReference = 'record:RUNTIME-123'
-  WorkspaceAccessEstateReference = 'record:ACCESS-123'
+  PrivateControlIndexDirectory = '/evidence/private/control-index'
   OutputDirectory = '/evidence/admission/release-20260806-02'
 }
 
@@ -162,25 +185,29 @@ $admission = @{
 ```
 
 The command validates every input before creating output. It writes
-`production-admission.json` plus `checksums.sha256` through a staging directory,
+`production-admission.json`, an exact copy of the minimized
+`private-control-index.json`, and `checksums.sha256` through a staging directory,
 self-verifies the closed set, and then moves it into place atomically. Existing
-output is never replaced. The assembler rejects an empty admission identity and
-retains the caller-supplied identity exactly; it never substitutes a new one
-after the candidate has been probed. It also rejects any mutable input whose
-admission identity differs from that caller-supplied value.
+output is never replaced, and the private-control source and output directories
+must not overlap. The assembler rejects an empty admission identity and retains
+the caller-supplied identity exactly; it never substitutes a new one after the
+candidate has been probed. It also rejects any mutable or private-control input
+whose candidate or admission identity differs from the caller-supplied values.
 
 The admission record contains release and image identities, evidence kinds,
 timestamps, source references, check counts, SHA-256 bindings, bounded validity,
-and the five private references. Admission schema v2 fixes the mutable-evidence
-limit at 24 hours and the approval window at four hours. Its expiry is the
-earlier of the approval-window end and the oldest mutable proof's 24-hour limit;
-the record cannot enlarge those limits. Schema v1 admission bundles are
+the retained private-index checksum, and one minimized summary per private
+control. Admission schema v3 fixes mutable deployed evidence and index age at
+24 hours, the per-control limits above, and the approval window at four hours.
+Its expiry is the earliest of the approval-window end, oldest mutable proof's
+24-hour limit, index expiry, and earliest private-control expiry; the record
+cannot enlarge those limits. Schema v1 and v2 admission bundles are
 intentionally rejected and must be reassembled from current source evidence.
-Private references must be distinct and
-cannot reuse the admission, promotion, rollback, or migration identities. The
-record does not copy workspace, property, Inventory, Reservation, Staff, guest,
-Data Rights case/artifact, notification, adapter, or Retention coordinates from
-source evidence.
+Index and private record references must be distinct and cannot reuse the
+admission, promotion, rollback, or migration identities. The record does not
+copy workspace, property, Inventory, Reservation, Staff, guest, Data Rights
+case/artifact, notification, adapter, Retention, provider, topology, or operator
+coordinates from source evidence.
 
 ## Verify And Approve
 
@@ -197,9 +224,11 @@ Verify the retained bundle again before private approval:
 
 A passing record deliberately says `evidence-complete-awaiting-private-approval`.
 The verifier independently recalculates repository parity, source checksum and
-reference bindings, the mutable observation window, and expiry. If the bundle
-expires before approval, abandon that attempt, allocate a new admission identity,
-and rerun the mutable deployed probes and rollback rehearsal. The exact promotion
+reference bindings, every summary from the retained private-control index, all
+mutable and private freshness windows, and final expiry. If the bundle expires
+before approval, abandon that attempt, allocate a new admission identity, and
+rerun the mutable deployed probes, rollback rehearsal, and any private controls
+whose freshness window no longer covers the new attempt. The exact promotion
 and migration evidence may be reused while their candidate identities still
 match.
 

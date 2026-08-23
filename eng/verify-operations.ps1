@@ -2419,6 +2419,10 @@ foreach ($requiredToken in @(
         'Get-BunkFyVerifiedProductionMigrationRehearsal',
         'Get-BunkFyVerifiedDeployedRollbackRehearsal',
         'Get-BunkFyVerifiedProductionAdmission',
+        'Get-BunkFyVerifiedPrivateProductionControlIndex',
+        'Get-BunkFyVerifiedPrivateProductionControlIndexRecord',
+        'BunkFyPrivateProductionControlIndexMaximumAge',
+        'BunkFyPrivateProductionControlMaximumAges',
         'BunkFyProductionAdmissionMutableEvidenceMaximumAge',
         'Get-BunkFyProductionAdmissionExpiry',
         'Resolve-BunkFyProductionAdmissionDigestReference',
@@ -2427,7 +2431,9 @@ foreach ($requiredToken in @(
         "'bunkfy-production-admission-bundle'",
         "'evidence-complete-awaiting-private-approval'",
         "'private-evidence-content-and-authenticity-not-verified'",
+        "'private-records-not-retained-in-public-admission-bundle'",
         "'source-clock-attestation-not-verified'",
+        "'private-control-index-bound'",
         "'mutable-evidence-fresh-and-coherent'",
         "'source-evidence-references-bound'")) {
     if (-not $productionAdmissionCommon.Contains($requiredToken, [StringComparison]::Ordinal)) {
@@ -2455,18 +2461,32 @@ foreach ($requiredToken in @(
         "'deployed-ingestion-conflict-proposal-lifecycle'",
         'DataRightsAccessExportEvidencePath',
         "'deployed-data-rights-access-export'",
-        'BrowserRehearsalReference',
-        'HostedRecoveryReference',
-        'DeploymentControlReference',
-        'RuntimeOperationsReference',
-        'WorkspaceAccessEstateReference',
-        'schemaVersion = 2',
+        'PrivateControlIndexDirectory',
+        'Get-BunkFyVerifiedPrivateProductionControlIndex',
+        "'private-control-index.json'",
+        'schemaVersion = 3',
+        'privateControlIndexMaximumAgeMinutes',
+        'privateControlEvidenceExpiresAtUtc',
+        'recordSha256 = $_.RecordSha256',
         'evidenceReference = $EvidenceReference',
         'mutableEvidenceMaximumAgeMinutes',
         'Get-BunkFyVerifiedProductionAdmission',
         '[IO.Directory]::Move')) {
     if (-not $productionAdmissionAssembler.Contains($requiredToken, [StringComparison]::Ordinal)) {
         throw "Production admission assembler policy is missing '$requiredToken'."
+    }
+}
+foreach ($retiredToken in @(
+        'BrowserRehearsalReference',
+        'HostedRecoveryReference',
+        'DeploymentControlReference',
+        'RuntimeOperationsReference',
+        'WorkspaceAccessEstateReference',
+        'schemaVersion = 2')) {
+    if ($productionAdmissionAssembler.Contains(
+            $retiredToken,
+            [StringComparison]::Ordinal)) {
+        throw "Production admission assembler retains retired token '$retiredToken'."
     }
 }
 foreach ($requiredToken in @(

@@ -509,6 +509,125 @@ function New-TestMigrationEvidence {
     Write-BunkFyCandidateJson -Path $Path -Value $record
 }
 
+function New-TestPrivateControlIndex {
+    param(
+        [Parameter(Mandatory = $true)][string] $Directory,
+        [Parameter(Mandatory = $true)][object] $CandidatePromotion,
+        [Parameter(Mandatory = $true)][string] $AdmissionEvidenceReference,
+        [DateTimeOffset] $GeneratedAtUtc = [DateTimeOffset]::UtcNow
+    )
+
+    [IO.Directory]::CreateDirectory($Directory) | Out-Null
+    $indexId = [Guid]::NewGuid()
+    $references = [ordered]@{
+        'browser-workspace-onboarding' = 'record:BROWSER-123'
+        'deployment-approval-alerting-and-rollback' = 'record:DEPLOY-123'
+        'hosted-backup-and-recovery' = 'record:RECOVERY-123'
+        'runtime-topology-restart-and-credential-rotation' = 'record:RUNTIME-123'
+        'workspace-access-seed-estate' = 'record:ACCESS-123'
+    }
+    $hashSeeds = [ordered]@{
+        'browser-workspace-onboarding' = '1'
+        'deployment-approval-alerting-and-rollback' = '2'
+        'hosted-backup-and-recovery' = '3'
+        'runtime-topology-restart-and-credential-rotation' = '4'
+        'workspace-access-seed-estate' = '5'
+    }
+    $record = [ordered]@{
+        schemaVersion = 1
+        evidenceKind = 'bunkfy-private-production-control-index'
+        indexId = $indexId.ToString('D')
+        privateControlIndexReference =
+            "private-controls:$($indexId.ToString('N'))"
+        generatedAtUtc = $GeneratedAtUtc.ToUniversalTime().ToString('O')
+        repository = 'SadPossum/BunkFy'
+        profile = 'loopback-fixture'
+        result = 'recorded-awaiting-private-approval'
+        admissionEvidenceReference = $AdmissionEvidenceReference
+        candidate = [ordered]@{
+            releaseId = $CandidatePromotion.ReleaseId
+            sourceCommit = $CandidatePromotion.SourceCommit
+            images = @($CandidatePromotion.Images | Sort-Object Name | ForEach-Object {
+                    [ordered]@{
+                        name = $_.Name
+                        digestReference = $_.DigestReference
+                    }
+                })
+        }
+        controls = @($script:BunkFyProductionAdmissionPrivateControls |
+            Sort-Object |
+            ForEach-Object {
+                [ordered]@{
+                    control = $_
+                    reference = $references[$_]
+                    recordSha256 = $hashSeeds[$_] * 64
+                    observedAtUtc =
+                        $GeneratedAtUtc.ToUniversalTime().ToString('O')
+                }
+            })
+        limitations = $script:BunkFyPrivateProductionControlIndexLimitations
+    }
+    $recordPath = Join-Path $Directory 'private-control-index.json'
+    Write-BunkFyCandidateJson -Path $recordPath -Value $record
+    $hash = (Get-FileHash -LiteralPath $recordPath -Algorithm SHA256).
+        Hash.ToLowerInvariant()
+    [IO.File]::WriteAllText(
+        (Join-Path $Directory 'checksums.sha256'),
+        "$hash  private-control-index.json`n",
+        [Text.UTF8Encoding]::new($false))
+}
+
+function New-TestTamperedPrivateControlIndex {
+    param(
+        [Parameter(Mandatory = $true)][string] $SourceDirectory,
+        [Parameter(Mandatory = $true)][string] $DestinationDirectory,
+        [Parameter(Mandatory = $true)][scriptblock] $Mutation
+    )
+
+    Copy-Item `
+        -LiteralPath $SourceDirectory `
+        -Destination $DestinationDirectory `
+        -Recurse
+    $recordPath = Join-Path $DestinationDirectory 'private-control-index.json'
+    $record = [IO.File]::ReadAllText($recordPath) |
+        ConvertFrom-Json -AsHashtable -DateKind String
+    & $Mutation $record | Out-Null
+    Write-BunkFyCandidateJson -Path $recordPath -Value $record
+    $hash = (Get-FileHash -LiteralPath $recordPath -Algorithm SHA256).
+        Hash.ToLowerInvariant()
+    [IO.File]::WriteAllText(
+        (Join-Path $DestinationDirectory 'checksums.sha256'),
+        "$hash  private-control-index.json`n",
+        [Text.UTF8Encoding]::new($false))
+}
+
+function Assert-TestPrivateControlIndexAssemblyFailure {
+    param(
+        [Parameter(Mandatory = $true)][string] $SourceDirectory,
+        [Parameter(Mandatory = $true)][string] $DestinationDirectory,
+        [Parameter(Mandatory = $true)][scriptblock] $Mutation,
+        [Parameter(Mandatory = $true)][hashtable] $BaseArguments,
+        [Parameter(Mandatory = $true)][string] $OutputDirectory,
+        [Parameter(Mandatory = $true)][string] $ExpectedMessage,
+        [Parameter(Mandatory = $true)][string] $Context
+    )
+
+    New-TestTamperedPrivateControlIndex `
+        -SourceDirectory $SourceDirectory `
+        -DestinationDirectory $DestinationDirectory `
+        -Mutation $Mutation
+    $failureArguments = $BaseArguments.Clone()
+    $failureArguments.PrivateControlIndexDirectory = $DestinationDirectory
+    $failureArguments.OutputDirectory = $OutputDirectory
+    Assert-TestFailure `
+        -Operation { & $assembler @failureArguments } `
+        -ExpectedMessage $ExpectedMessage `
+        -Context $Context
+    if ([IO.Directory]::Exists($OutputDirectory)) {
+        throw "Rejected $Context left an admission bundle."
+    }
+}
+
 function Assert-TestFailure {
     param(
         [Parameter(Mandatory = $true)][scriptblock] $Operation,
@@ -532,23 +651,63 @@ function New-TestTamperedAdmissionBundle {
     param(
         [Parameter(Mandatory = $true)][string] $SourceDirectory,
         [Parameter(Mandatory = $true)][string] $DestinationDirectory,
-        [Parameter(Mandatory = $true)][scriptblock] $Mutation
+        [Parameter(Mandatory = $true)][scriptblock] $Mutation,
+        [scriptblock] $PrivateIndexMutation
     )
 
     Copy-Item `
         -LiteralPath $SourceDirectory `
         -Destination $DestinationDirectory `
         -Recurse
+    $privateIndexPath =
+        Join-Path $DestinationDirectory 'private-control-index.json'
+    $privateIndex = $null
+    if ($null -ne $PrivateIndexMutation) {
+        $privateIndex = [IO.File]::ReadAllText($privateIndexPath) |
+            ConvertFrom-Json -AsHashtable -DateKind String
+        & $PrivateIndexMutation $privateIndex | Out-Null
+        Write-BunkFyCandidateJson `
+            -Path $privateIndexPath `
+            -Value $privateIndex
+    }
+
     $recordPath = Join-Path $DestinationDirectory 'production-admission.json'
     $record = [IO.File]::ReadAllText($recordPath) |
         ConvertFrom-Json -AsHashtable -DateKind String
+    if ($null -ne $PrivateIndexMutation) {
+        $privateIndexHash = (
+            Get-FileHash -LiteralPath $privateIndexPath -Algorithm SHA256
+        ).Hash.ToLowerInvariant()
+        $record.privateControlIndex.sourceSha256 = $privateIndexHash
+        $record.privateControlIndex.checksumsSha256 =
+            Get-BunkFyPrivateProductionControlIndexChecksumsSha256 `
+                -RecordSha256 $privateIndexHash
+        $record.privateControlIndex.generatedAtUtc =
+            $privateIndex.generatedAtUtc
+        $privateIndexGeneratedAtUtc = [DateTimeOffset]::ParseExact(
+            [string]$privateIndex.generatedAtUtc,
+            'O',
+            [Globalization.CultureInfo]::InvariantCulture,
+            [Globalization.DateTimeStyles]::RoundtripKind)
+        $record.privateControlIndex.expiresAtUtc =
+            $privateIndexGeneratedAtUtc.Add(
+                $script:BunkFyPrivateProductionControlIndexMaximumAge).
+                ToUniversalTime().ToString('O')
+    }
     & $Mutation $record | Out-Null
     Write-BunkFyCandidateJson -Path $recordPath -Value $record
-    $hash = (Get-FileHash -LiteralPath $recordPath -Algorithm SHA256).
-        Hash.ToLowerInvariant()
+    $checksumLines = @(
+        Get-ChildItem -LiteralPath $DestinationDirectory -File |
+            Where-Object Name -CNE 'checksums.sha256' |
+            Sort-Object Name |
+            ForEach-Object {
+                $hash = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).
+                    Hash.ToLowerInvariant()
+                "$hash  $($_.Name)"
+            })
     [IO.File]::WriteAllText(
         (Join-Path $DestinationDirectory 'checksums.sha256'),
-        "$hash  production-admission.json`n",
+        (($checksumLines -join "`n") + "`n"),
         [Text.UTF8Encoding]::new($false))
 }
 
@@ -599,6 +758,11 @@ try {
     New-TestPromotionEvidence -Directory $rollbackPromotionPath -ReleaseId $rollbackRelease -SourceCommit $rollbackSource -DigestSeed '5'
     $candidatePromotion = Get-BunkFyVerifiedImagePromotion -PromotionDirectory $candidatePromotionPath -ExpectedReleaseId $candidateRelease -ExpectedSourceCommit $candidateSource -AllowFixtureEvidence
     $rollbackPromotion = Get-BunkFyVerifiedImagePromotion -PromotionDirectory $rollbackPromotionPath -ExpectedReleaseId $rollbackRelease -ExpectedSourceCommit $rollbackSource -AllowFixtureEvidence
+    $privateControlIndexPath = Join-Path $temporaryRoot 'private-controls'
+    New-TestPrivateControlIndex `
+        -Directory $privateControlIndexPath `
+        -CandidatePromotion $candidatePromotion `
+        -AdmissionEvidenceReference $admissionReference
 
     $rollbackRehearsalPath = Join-Path $temporaryRoot 'rollback-rehearsal'
     New-TestRollbackEvidence -Directory $rollbackRehearsalPath -Origin $origin -CandidatePromotion $candidatePromotion -RollbackPromotion $rollbackPromotion -AdmissionEvidenceReference $admissionReference
@@ -667,11 +831,7 @@ try {
         DataRightsAccessExportEvidencePath = $probePaths.DataRightsAccessExport
         AdapterHostEvidencePath = $probePaths.AdapterHost
         RetentionEvidencePath = $probePaths.Retention
-        BrowserRehearsalReference = 'record:BROWSER-123'
-        HostedRecoveryReference = 'record:RECOVERY-123'
-        DeploymentControlReference = 'record:DEPLOY-123'
-        RuntimeOperationsReference = 'record:RUNTIME-123'
-        WorkspaceAccessEstateReference = 'record:ACCESS-123'
+        PrivateControlIndexDirectory = $privateControlIndexPath
         OutputDirectory = $output
         AllowFixtureEvidence = $true
         PassThru = $true
@@ -688,11 +848,13 @@ try {
     }
     $verified = & $verifier @verificationArguments
     $closed = Get-BunkFyClosedChecksumSet -Directory $output -MaximumPayloadBytes 2MB -Context 'production admission fixture'
-    if ($closed.Files.Count -ne 1 -or
+    if ($closed.Files.Count -ne 2 -or
         $assembled.AdmissionEvidenceReference -cne $verified.AdmissionEvidenceReference -or
         $verified.AdmissionEvidenceReference -cne $admissionReference -or
         $verified.ReleaseId -cne $candidateRelease -or
-        $verified.Record.schemaVersion -ne 2 -or
+        $verified.Record.schemaVersion -ne 3 -or
+        $verified.PrivateControlIndexReference -cne
+            $verified.Record.privateControlIndex.evidenceReference -or
         $verified.ExpiresAtUtc -le [DateTimeOffset]::UtcNow -or
         @($verified.Record.evidence).Count -ne 19 -or
         @($verified.Record.privateEvidence).Count -ne 5 -or
@@ -714,7 +876,10 @@ try {
         throw 'Rejected hosted fixture promotion left an admission bundle.'
     }
 
-    $serialized = [IO.File]::ReadAllText((Join-Path $output 'production-admission.json'))
+    $serialized = @(
+        [IO.File]::ReadAllText((Join-Path $output 'production-admission.json')),
+        [IO.File]::ReadAllText((Join-Path $output 'private-control-index.json'))
+    ) -join "`n"
     foreach ($forbidden in @('workspaceId', 'propertyId', 'inventoryUnitId', 'guestId', 'caseId', 'artifactId', 'token', 'password', 'responseBody', 'rawHeaders')) {
         if ($serialized.Contains($forbidden, [StringComparison]::OrdinalIgnoreCase)) {
             throw "Production admission bundle retained forbidden source detail '$forbidden'."
@@ -730,6 +895,264 @@ try {
         -Operation { & $verifier @tamperedVerificationArguments } `
         -ExpectedMessage 'does not match checksums' `
         -Context 'tampered admission bundle'
+
+    $tamperedPrivateIndexBundle =
+        Join-Path $temporaryRoot 'tampered-retained-private-index'
+    Copy-Item `
+        -LiteralPath $output `
+        -Destination $tamperedPrivateIndexBundle `
+        -Recurse
+    [IO.File]::AppendAllText(
+        (Join-Path $tamperedPrivateIndexBundle 'private-control-index.json'),
+        ' ')
+    $tamperedPrivateIndexVerificationArguments =
+        $verificationArguments.Clone()
+    $tamperedPrivateIndexVerificationArguments.AdmissionDirectory =
+        $tamperedPrivateIndexBundle
+    Assert-TestFailure `
+        -Operation {
+            & $verifier @tamperedPrivateIndexVerificationArguments
+        } `
+        -ExpectedMessage 'does not match checksums' `
+        -Context 'tampered retained private control index'
+
+    $schemaV2Admission = Join-Path $temporaryRoot 'schema-v2-admission'
+    New-TestTamperedAdmissionBundle `
+        -SourceDirectory $output `
+        -DestinationDirectory $schemaV2Admission `
+        -Mutation {
+            param($record)
+            $record.schemaVersion = 2
+        }
+    $schemaV2VerificationArguments = $verificationArguments.Clone()
+    $schemaV2VerificationArguments.AdmissionDirectory = $schemaV2Admission
+    Assert-TestFailure `
+        -Operation { & $verifier @schemaV2VerificationArguments } `
+        -ExpectedMessage 'invalid identity or result' `
+        -Context 'unbound schema-v2 admission bundle'
+
+    Assert-TestPrivateControlIndexAssemblyFailure `
+        -SourceDirectory $privateControlIndexPath `
+        -DestinationDirectory (
+            Join-Path $temporaryRoot 'missing-private-control-index') `
+        -Mutation {
+            param($record)
+            $record.controls = @($record.controls | Select-Object -Skip 1)
+        } `
+        -BaseArguments $arguments `
+        -OutputDirectory (
+            Join-Path $temporaryRoot 'missing-private-control-admission') `
+        -ExpectedMessage 'incomplete control set' `
+        -Context 'missing private control'
+
+    Assert-TestPrivateControlIndexAssemblyFailure `
+        -SourceDirectory $privateControlIndexPath `
+        -DestinationDirectory (
+            Join-Path $temporaryRoot 'extra-private-control-index') `
+        -Mutation {
+            param($record)
+            $record.controls += [ordered]@{
+                control = 'unsupported-private-control'
+                reference = 'record:EXTRA-123'
+                recordSha256 = '6' * 64
+                observedAtUtc = $record.generatedAtUtc
+            }
+        } `
+        -BaseArguments $arguments `
+        -OutputDirectory (
+            Join-Path $temporaryRoot 'extra-private-control-admission') `
+        -ExpectedMessage 'incomplete control set' `
+        -Context 'extra private control'
+
+    Assert-TestPrivateControlIndexAssemblyFailure `
+        -SourceDirectory $privateControlIndexPath `
+        -DestinationDirectory (
+            Join-Path $temporaryRoot 'duplicate-private-hash-index') `
+        -Mutation {
+            param($record)
+            $record.controls[1].recordSha256 =
+                $record.controls[0].recordSha256
+        } `
+        -BaseArguments $arguments `
+        -OutputDirectory (
+            Join-Path $temporaryRoot 'duplicate-private-hash-admission') `
+        -ExpectedMessage 'record checksums must be distinct' `
+        -Context 'duplicate private control record checksum'
+
+    Assert-TestPrivateControlIndexAssemblyFailure `
+        -SourceDirectory $privateControlIndexPath `
+        -DestinationDirectory (
+            Join-Path $temporaryRoot 'cross-candidate-private-index') `
+        -Mutation {
+            param($record)
+            $record.candidate.sourceCommit = $rollbackSource
+        } `
+        -BaseArguments $arguments `
+        -OutputDirectory (
+            Join-Path $temporaryRoot 'cross-candidate-private-admission') `
+        -ExpectedMessage 'different candidate' `
+        -Context 'cross-candidate private control index'
+
+    Assert-TestPrivateControlIndexAssemblyFailure `
+        -SourceDirectory $privateControlIndexPath `
+        -DestinationDirectory (
+            Join-Path $temporaryRoot 'cross-attempt-private-index') `
+        -Mutation {
+            param($record)
+            $record.admissionEvidenceReference =
+                "admission:$([Guid]::NewGuid().ToString('N'))"
+        } `
+        -BaseArguments $arguments `
+        -OutputDirectory (
+            Join-Path $temporaryRoot 'cross-attempt-private-admission') `
+        -ExpectedMessage 'different admission attempt' `
+        -Context 'cross-attempt private control index'
+
+    Assert-TestPrivateControlIndexAssemblyFailure `
+        -SourceDirectory $privateControlIndexPath `
+        -DestinationDirectory (
+            Join-Path $temporaryRoot 'stale-private-index') `
+        -Mutation {
+            param($record)
+            $timestamp = [DateTimeOffset]::UtcNow.AddHours(-25).ToString('O')
+            $record.generatedAtUtc = $timestamp
+            foreach ($control in @($record.controls)) {
+                $control.observedAtUtc = $timestamp
+            }
+        } `
+        -BaseArguments $arguments `
+        -OutputDirectory (
+            Join-Path $temporaryRoot 'stale-private-index-admission') `
+        -ExpectedMessage 'older than its 1440-minute freshness limit' `
+        -Context 'stale private control index'
+
+    Assert-TestPrivateControlIndexAssemblyFailure `
+        -SourceDirectory $privateControlIndexPath `
+        -DestinationDirectory (
+            Join-Path $temporaryRoot 'stale-browser-control-index') `
+        -Mutation {
+            param($record)
+            $browser = @($record.controls | Where-Object {
+                    $_.control -ceq 'browser-workspace-onboarding'
+                })[0]
+            $browser.observedAtUtc =
+                [DateTimeOffset]::UtcNow.AddHours(-25).ToString('O')
+        } `
+        -BaseArguments $arguments `
+        -OutputDirectory (
+            Join-Path $temporaryRoot 'stale-browser-control-admission') `
+        -ExpectedMessage 'older than its 1440-minute freshness limit' `
+        -Context 'stale browser workspace-onboarding control'
+
+    Assert-TestPrivateControlIndexAssemblyFailure `
+        -SourceDirectory $privateControlIndexPath `
+        -DestinationDirectory (
+            Join-Path $temporaryRoot 'future-private-index') `
+        -Mutation {
+            param($record)
+            $timestamp = [DateTimeOffset]::UtcNow.AddMinutes(10).ToString('O')
+            $record.generatedAtUtc = $timestamp
+            foreach ($control in @($record.controls)) {
+                $control.observedAtUtc = $timestamp
+            }
+        } `
+        -BaseArguments $arguments `
+        -OutputDirectory (
+            Join-Path $temporaryRoot 'future-private-index-admission') `
+        -ExpectedMessage 'valid non-future UTC round-trip timestamp' `
+        -Context 'future private control index'
+
+    Assert-TestPrivateControlIndexAssemblyFailure `
+        -SourceDirectory $privateControlIndexPath `
+        -DestinationDirectory (
+            Join-Path $temporaryRoot 'future-private-control-index') `
+        -Mutation {
+            param($record)
+            $record.controls[0].observedAtUtc =
+                [DateTimeOffset]::UtcNow.AddMinutes(10).ToString('O')
+        } `
+        -BaseArguments $arguments `
+        -OutputDirectory (
+            Join-Path $temporaryRoot 'future-private-control-admission') `
+        -ExpectedMessage 'valid non-future UTC round-trip timestamp' `
+        -Context 'future private control observation'
+
+    $extraFilePrivateIndexPath =
+        Join-Path $temporaryRoot 'extra-file-private-index'
+    Copy-Item `
+        -LiteralPath $privateControlIndexPath `
+        -Destination $extraFilePrivateIndexPath `
+        -Recurse
+    [IO.File]::WriteAllText(
+        (Join-Path $extraFilePrivateIndexPath 'private-details.json'),
+        "{}`n",
+        [Text.UTF8Encoding]::new($false))
+    $extraFilePrivateIndexArguments = $arguments.Clone()
+    $extraFilePrivateIndexArguments.PrivateControlIndexDirectory =
+        $extraFilePrivateIndexPath
+    $extraFilePrivateIndexArguments.OutputDirectory =
+        Join-Path $temporaryRoot 'extra-file-private-admission'
+    Assert-TestFailure `
+        -Operation { & $assembler @extraFilePrivateIndexArguments } `
+        -ExpectedMessage 'not a closed checksummed file set' `
+        -Context 'private control index with unlisted private detail'
+
+    $nonCanonicalPrivateIndexPath =
+        Join-Path $temporaryRoot 'noncanonical-private-index'
+    Copy-Item `
+        -LiteralPath $privateControlIndexPath `
+        -Destination $nonCanonicalPrivateIndexPath `
+        -Recurse
+    $privateRecordHash = (
+        Get-FileHash `
+            -LiteralPath (
+                Join-Path $nonCanonicalPrivateIndexPath `
+                    'private-control-index.json') `
+            -Algorithm SHA256
+    ).Hash.ToLowerInvariant()
+    [IO.File]::WriteAllText(
+        (Join-Path $nonCanonicalPrivateIndexPath 'checksums.sha256'),
+        "$privateRecordHash  private-control-index.json`r`n",
+        [Text.UTF8Encoding]::new($false))
+    $nonCanonicalPrivateIndexArguments = $arguments.Clone()
+    $nonCanonicalPrivateIndexArguments.PrivateControlIndexDirectory =
+        $nonCanonicalPrivateIndexPath
+    $nonCanonicalPrivateIndexArguments.OutputDirectory =
+        Join-Path $temporaryRoot 'noncanonical-private-admission'
+    Assert-TestFailure `
+        -Operation { & $assembler @nonCanonicalPrivateIndexArguments } `
+        -ExpectedMessage 'canonical closed checksum' `
+        -Context 'noncanonical private control index checksum set'
+
+    $overlappingPrivateIndexArguments = $arguments.Clone()
+    $overlappingPrivateIndexArguments.OutputDirectory =
+        Join-Path $privateControlIndexPath 'nested-admission-output'
+    Assert-TestFailure `
+        -Operation { & $assembler @overlappingPrivateIndexArguments } `
+        -ExpectedMessage 'must not overlap' `
+        -Context 'private control index and admission output overlap'
+    if ([IO.Directory]::Exists(
+            [string]$overlappingPrivateIndexArguments.OutputDirectory)) {
+        throw 'Rejected private control index overlap left an admission bundle.'
+    }
+
+    $privateHashDriftAdmission =
+        Join-Path $temporaryRoot 'private-hash-drift-admission'
+    New-TestTamperedAdmissionBundle `
+        -SourceDirectory $output `
+        -DestinationDirectory $privateHashDriftAdmission `
+        -Mutation {
+            param($record)
+            $record.privateEvidence[0].recordSha256 = 'f' * 64
+        }
+    $privateHashDriftVerificationArguments =
+        $verificationArguments.Clone()
+    $privateHashDriftVerificationArguments.AdmissionDirectory =
+        $privateHashDriftAdmission
+    Assert-TestFailure `
+        -Operation { & $verifier @privateHashDriftVerificationArguments } `
+        -ExpectedMessage 'not cross-bound to the retained index' `
+        -Context 'standalone private control hash drift'
 
     $stalePublicEdgePath = Join-Path $temporaryRoot 'stale-public-edge.json'
     $stalePublicEdge = [IO.File]::ReadAllText($probePaths.PublicEdge) |
@@ -830,10 +1253,27 @@ try {
             foreach ($entry in @($record.evidence)) {
                 $entry.observedAtUtc = $timestamp
             }
+            foreach ($entry in @($record.privateEvidence)) {
+                $entry.observedAtUtc = $timestamp
+            }
             $record.validity.oldestMutableEvidenceAtUtc = $timestamp
             $record.validity.newestMutableEvidenceAtUtc = $timestamp
+            $privateExpiry =
+                $expiredGeneratedAtUtc.AddHours(24).ToString('O')
+            $record.validity.privateControlIndexExpiresAtUtc =
+                $privateExpiry
+            $record.validity.privateControlEvidenceExpiresAtUtc =
+                $privateExpiry
             $record.validity.expiresAtUtc =
                 $expiredGeneratedAtUtc.AddHours(4).ToString('O')
+        } `
+        -PrivateIndexMutation {
+            param($record)
+            $timestamp = $expiredGeneratedAtUtc.ToString('O')
+            $record.generatedAtUtc = $timestamp
+            foreach ($entry in @($record.controls)) {
+                $entry.observedAtUtc = $timestamp
+            }
         }
     $expiredVerificationArguments = $verificationArguments.Clone()
     $expiredVerificationArguments.AdmissionDirectory = $expiredAdmission
@@ -1152,28 +1592,46 @@ try {
         -ExpectedMessage 'invalid terminal proposal summary' `
         -Context 'pending Ingestion proposal admitted as terminal evidence'
 
+    $duplicatePrivateIndexPath =
+        Join-Path $temporaryRoot 'duplicate-private-reference-index'
+    New-TestTamperedPrivateControlIndex `
+        -SourceDirectory $privateControlIndexPath `
+        -DestinationDirectory $duplicatePrivateIndexPath `
+        -Mutation {
+            param($record)
+            $record.controls[1].reference = $record.controls[0].reference
+        }
     $duplicatePrivateArguments = $arguments.Clone()
-    $duplicatePrivateArguments.WorkspaceAccessEstateReference =
-        $duplicatePrivateArguments.BrowserRehearsalReference
+    $duplicatePrivateArguments.PrivateControlIndexDirectory =
+        $duplicatePrivateIndexPath
     $duplicatePrivateArguments.OutputDirectory =
         Join-Path $temporaryRoot 'duplicate-private-reference-admission'
     Assert-TestFailure `
         -Operation { & $assembler @duplicatePrivateArguments } `
-        -ExpectedMessage 'distinct evidence reference' `
+        -ExpectedMessage 'references must be distinct' `
         -Context 'duplicate private estate evidence reference'
     if ([IO.Directory]::Exists(
             [string]$duplicatePrivateArguments.OutputDirectory)) {
         throw 'Rejected duplicate private reference left an admission bundle.'
     }
 
+    $systemReferenceReuseIndexPath =
+        Join-Path $temporaryRoot 'system-reference-reuse-index'
+    New-TestTamperedPrivateControlIndex `
+        -SourceDirectory $privateControlIndexPath `
+        -DestinationDirectory $systemReferenceReuseIndexPath `
+        -Mutation {
+            param($record)
+            $record.controls[0].reference = $admissionReference
+        }
     $systemReferenceReuseArguments = $arguments.Clone()
-    $systemReferenceReuseArguments.BrowserRehearsalReference =
-        $admissionReference
+    $systemReferenceReuseArguments.PrivateControlIndexDirectory =
+        $systemReferenceReuseIndexPath
     $systemReferenceReuseArguments.OutputDirectory =
         Join-Path $temporaryRoot 'system-reference-reuse-assembly'
     Assert-TestFailure `
         -Operation { & $assembler @systemReferenceReuseArguments } `
-        -ExpectedMessage 'must not reuse a system evidence reference' `
+        -ExpectedMessage 'must not reuse an index or admission reference' `
         -Context 'assembled private and system evidence reference reuse'
     if ([IO.Directory]::Exists(
             [string]$systemReferenceReuseArguments.OutputDirectory)) {

@@ -35,11 +35,7 @@ param(
     [Parameter(Mandatory = $true)][string] $DataRightsAccessExportEvidencePath,
     [Parameter(Mandatory = $true)][string] $AdapterHostEvidencePath,
     [Parameter(Mandatory = $true)][string] $RetentionEvidencePath,
-    [Parameter(Mandatory = $true)][string] $BrowserRehearsalReference,
-    [Parameter(Mandatory = $true)][string] $HostedRecoveryReference,
-    [Parameter(Mandatory = $true)][string] $DeploymentControlReference,
-    [Parameter(Mandatory = $true)][string] $RuntimeOperationsReference,
-    [Parameter(Mandatory = $true)][string] $WorkspaceAccessEstateReference,
+    [Parameter(Mandatory = $true)][string] $PrivateControlIndexDirectory,
     [string] $OutputDirectory,
     [switch] $AllowFixtureEvidence,
     [switch] $PassThru
@@ -90,6 +86,18 @@ foreach ($name in @('backend', 'web')) {
         throw "Candidate and rollback promotions must use the same '$name' repository."
     }
 }
+$candidateBackend = @(
+    $candidatePromotion.Images | Where-Object Name -CEQ 'backend')
+$candidateWeb = @(
+    $candidatePromotion.Images | Where-Object Name -CEQ 'web')
+$privateControlIndex = Get-BunkFyVerifiedPrivateProductionControlIndex `
+    -Directory $PrivateControlIndexDirectory `
+    -ExpectedReleaseId $CandidateReleaseId `
+    -ExpectedSourceCommit $CandidateSourceCommit `
+    -ExpectedBackendDigestReference $candidateBackend[0].DigestReference `
+    -ExpectedWebDigestReference $candidateWeb[0].DigestReference `
+    -ExpectedAdmissionEvidenceReference $AdmissionEvidenceReference `
+    -AllowFixtureEvidence:$AllowFixtureEvidence
 
 $rollbackRehearsal = Get-BunkFyVerifiedDeployedRollbackRehearsal `
     -Directory $RollbackRehearsalDirectory `
@@ -98,7 +106,6 @@ $rollbackRehearsal = Get-BunkFyVerifiedDeployedRollbackRehearsal `
     -RollbackPromotion $rollbackPromotion `
     -ExpectedAdmissionEvidenceReference $AdmissionEvidenceReference `
     -AllowFixtureEvidence:$AllowFixtureEvidence
-$candidateBackend = @($candidatePromotion.Images | Where-Object Name -CEQ 'backend')
 $migration = Get-BunkFyVerifiedProductionMigrationRehearsal `
     -Path $MigrationRehearsalPath `
     -ExpectedSourceCommit $CandidateSourceCommit `
@@ -216,28 +223,18 @@ $retention = Get-BunkFyVerifiedProductionAdmissionProbe `
     -ExpectedAdmissionEvidenceReference $AdmissionEvidenceReference `
     -AllowFixtureEvidence:$AllowFixtureEvidence
 
-$privateReferences = [ordered]@{
-    'browser-workspace-onboarding' = Assert-BunkFyProductionAdmissionReference -Value $BrowserRehearsalReference -Name 'BrowserRehearsalReference'
-    'deployment-approval-alerting-and-rollback' = Assert-BunkFyProductionAdmissionReference -Value $DeploymentControlReference -Name 'DeploymentControlReference'
-    'hosted-backup-and-recovery' = Assert-BunkFyProductionAdmissionReference -Value $HostedRecoveryReference -Name 'HostedRecoveryReference'
-    'runtime-topology-restart-and-credential-rotation' = Assert-BunkFyProductionAdmissionReference -Value $RuntimeOperationsReference -Name 'RuntimeOperationsReference'
-    'workspace-access-seed-estate' = Assert-BunkFyProductionAdmissionReference -Value $WorkspaceAccessEstateReference -Name 'WorkspaceAccessEstateReference'
-}
-$_seenPrivateReferences = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
-foreach ($reference in $privateReferences.Values) {
-    if (-not $_seenPrivateReferences.Add($reference)) {
-        throw 'Each private production control must use a distinct evidence reference.'
-    }
-}
 $systemEvidenceReferences = @(
     $AdmissionEvidenceReference,
     $candidatePromotion.PromotionEvidenceReference,
     $rollbackPromotion.PromotionEvidenceReference,
     $rollbackRehearsal.Reference,
     $migration.Reference)
-foreach ($reference in $privateReferences.Values) {
+if ($systemEvidenceReferences -ccontains $privateControlIndex.Reference) {
+    throw 'Private production control index must not reuse a system evidence reference.'
+}
+foreach ($reference in $privateControlIndex.Controls.Reference) {
     if ($systemEvidenceReferences -ccontains $reference) {
-        throw 'Private production controls must not reuse a system evidence reference.'
+        throw 'Private production control records must not reuse a system evidence reference.'
     }
 }
 
@@ -254,7 +251,8 @@ if ([IO.Directory]::Exists($resolvedOutputDirectory) -or
 foreach ($directory in @(
         $candidatePromotion.Directory,
         $rollbackPromotion.Directory,
-        $rollbackRehearsal.Directory)) {
+        $rollbackRehearsal.Directory,
+        $privateControlIndex.Directory)) {
     Assert-BunkFyDisjointPromotionPaths `
         -LeftPath $directory `
         -LeftName 'source evidence' `
@@ -263,6 +261,7 @@ foreach ($directory in @(
 }
 $outputPrefix = $resolvedOutputDirectory.TrimEnd('\', '/') + [IO.Path]::DirectorySeparatorChar
 $sourceFiles = @(
+    $privateControlIndex.Path,
     $migration.Path,
     $publicEdge.Path,
     $adminAllowed.Path,
@@ -391,10 +390,14 @@ $oldestMutableEvidenceAtUtc = $orderedMutableEvidenceTimes[0]
 $newestMutableEvidenceAtUtc = $orderedMutableEvidenceTimes[-1]
 $expiresAtUtc = Get-BunkFyProductionAdmissionExpiry `
     -GeneratedAtUtc $generatedAtUtc `
-    -OldestMutableEvidenceAtUtc $oldestMutableEvidenceAtUtc
+    -OldestMutableEvidenceAtUtc $oldestMutableEvidenceAtUtc `
+    -PrivateControlIndexExpiresAtUtc `
+        $privateControlIndex.IndexExpiresAtUtc `
+    -PrivateControlEvidenceExpiresAtUtc `
+        $privateControlIndex.PrivateControlExpiresAtUtc
 
 $record = [ordered]@{
-    schemaVersion = 2
+    schemaVersion = 3
     evidenceKind = 'bunkfy-production-admission-bundle'
     admissionId = $admissionId.ToString('D')
     admissionEvidenceReference = $AdmissionEvidenceReference
@@ -413,10 +416,20 @@ $record = [ordered]@{
         migrationEvidenceSha256 = $migration.SourceSha256
         adminEvidenceSetId = [string]$adminAllowed.Record.evidenceSetId
     }
+    privateControlIndex = [ordered]@{
+        evidenceKind = 'bunkfy-private-production-control-index'
+        evidenceReference = $privateControlIndex.Reference
+        sourceSha256 = $privateControlIndex.SourceSha256
+        checksumsSha256 = $privateControlIndex.ChecksumsSha256
+        generatedAtUtc = $privateControlIndex.GeneratedAtUtc.ToString('O')
+        expiresAtUtc = $privateControlIndex.IndexExpiresAtUtc.ToString('O')
+    }
     validity = [ordered]@{
         policy = $script:BunkFyProductionAdmissionFreshnessPolicy
         mutableEvidenceMaximumAgeMinutes = [int](
             $script:BunkFyProductionAdmissionMutableEvidenceMaximumAge.TotalMinutes)
+        privateControlIndexMaximumAgeMinutes = [int](
+            $script:BunkFyPrivateProductionControlIndexMaximumAge.TotalMinutes)
         approvalWindowMinutes = [int](
             $script:BunkFyProductionAdmissionApprovalWindow.TotalMinutes)
         clockSkewSeconds = [int](
@@ -425,13 +438,20 @@ $record = [ordered]@{
             $oldestMutableEvidenceAtUtc.ToString('O')
         newestMutableEvidenceAtUtc =
             $newestMutableEvidenceAtUtc.ToString('O')
+        privateControlIndexExpiresAtUtc =
+            $privateControlIndex.IndexExpiresAtUtc.ToString('O')
+        privateControlEvidenceExpiresAtUtc =
+            $privateControlIndex.PrivateControlExpiresAtUtc.ToString('O')
         expiresAtUtc = $expiresAtUtc.ToString('O')
     }
     evidence = @($sourceEvidence | Sort-Object { $_.name })
-    privateEvidence = @($privateReferences.GetEnumerator() | Sort-Object Key | ForEach-Object {
+    privateEvidence = @($privateControlIndex.Controls | Sort-Object Control | ForEach-Object {
             [ordered]@{
-                control = $_.Key
-                reference = $_.Value
+                control = $_.Control
+                reference = $_.Reference
+                recordSha256 = $_.RecordSha256
+                observedAtUtc = $_.ObservedAtUtc.ToString('O')
+                maximumAgeMinutes = [int]$_.MaximumAge.TotalMinutes
             }
         })
     checks = @($script:BunkFyProductionAdmissionChecks | ForEach-Object {
@@ -443,12 +463,23 @@ $record = [ordered]@{
 $stagingDirectory = "$resolvedOutputDirectory.tmp-$([Guid]::NewGuid().ToString('N'))"
 try {
     [IO.Directory]::CreateDirectory($stagingDirectory) | Out-Null
+    [IO.File]::Copy(
+        $privateControlIndex.Path,
+        (Join-Path $stagingDirectory 'private-control-index.json'),
+        $false)
     $recordPath = Join-Path $stagingDirectory 'production-admission.json'
     Write-BunkFyCandidateJson -Path $recordPath -Value $record
-    $recordHash = (Get-FileHash -LiteralPath $recordPath -Algorithm SHA256).Hash.ToLowerInvariant()
+    $checksumLines = @(
+        Get-ChildItem -LiteralPath $stagingDirectory -File |
+            Sort-Object Name |
+            ForEach-Object {
+                $hash = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).
+                    Hash.ToLowerInvariant()
+                "$hash  $($_.Name)"
+            })
     [IO.File]::WriteAllText(
         (Join-Path $stagingDirectory 'checksums.sha256'),
-        "$recordHash  production-admission.json`n",
+        (($checksumLines -join "`n") + "`n"),
         [Text.UTF8Encoding]::new($false))
     [void](Get-BunkFyVerifiedProductionAdmission `
             -Directory $stagingDirectory `
