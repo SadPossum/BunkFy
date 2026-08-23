@@ -49,7 +49,10 @@ stable throughout each workflow and match across every probe and the rollback
 rehearsal; same-release evidence from another attempt is rejected. The
 migration rehearsal source commit and backend digest must match the promoted
 candidate. The rollback rehearsal must bind both supplied promotion records.
-This binding supersedes the earlier unbound schemas: public edge is v4;
+Every deployed probe and rollback rehearsal must be no more than 24 hours old
+when assembled and whenever the closed bundle is verified. Promotion and
+migration evidence are immutable candidate proof and do not expire only because
+of age. This binding supersedes the earlier unbound schemas: public edge is v4;
 Operations Notifications, Reservations and Inventory, and Retention are v3;
 the rollback rehearsal and the other deployed probes are v2.
 The Preview onboarding rehearsal's opt-in
@@ -167,9 +170,16 @@ after the candidate has been probed. It also rejects any mutable input whose
 admission identity differs from that caller-supplied value.
 
 The admission record contains release and image identities, evidence kinds,
-timestamps, check counts, SHA-256 bindings, and the five private references. It
-does not copy workspace, property, Inventory, Reservation, Staff, guest, Data
-Rights case/artifact, notification, adapter, or Retention coordinates from
+timestamps, source references, check counts, SHA-256 bindings, bounded validity,
+and the five private references. Admission schema v2 fixes the mutable-evidence
+limit at 24 hours and the approval window at four hours. Its expiry is the
+earlier of the approval-window end and the oldest mutable proof's 24-hour limit;
+the record cannot enlarge those limits. Schema v1 admission bundles are
+intentionally rejected and must be reassembled from current source evidence.
+Private references must be distinct and
+cannot reuse the admission, promotion, rollback, or migration identities. The
+record does not copy workspace, property, Inventory, Reservation, Staff, guest,
+Data Rights case/artifact, notification, adapter, or Retention coordinates from
 source evidence.
 
 ## Verify And Approve
@@ -186,11 +196,18 @@ Verify the retained bundle again before private approval:
 ```
 
 A passing record deliberately says `evidence-complete-awaiting-private-approval`.
-Its local checksum is not a signature, and the script does not inspect private
-records, registry policy after promotion, production traffic, or production
-tenant data. Store or sign the closed directory through the approved private
-release system, review those remaining controls, and make the release decision
-there.
+The verifier independently recalculates repository parity, source checksum and
+reference bindings, the mutable observation window, and expiry. If the bundle
+expires before approval, abandon that attempt, allocate a new admission identity,
+and rerun the mutable deployed probes and rollback rehearsal. The exact promotion
+and migration evidence may be reused while their candidate identities still
+match.
+
+Its local checksum is not a signature, source clocks are not independently
+attested, and the script does not inspect private records, registry policy after
+promotion, production traffic, or production tenant data. Store or sign the
+closed directory through the approved private release system, review those
+remaining controls, and make the release decision there before `expiresAtUtc`.
 
 `-AllowFixtureEvidence` exists only for the deterministic loopback repository
 test. It cannot admit HTTP, unattested, or fixture evidence for a hosted origin.

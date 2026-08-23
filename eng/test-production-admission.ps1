@@ -528,6 +528,61 @@ function Assert-TestFailure {
     throw "$Context did not reject '$ExpectedMessage'."
 }
 
+function New-TestTamperedAdmissionBundle {
+    param(
+        [Parameter(Mandatory = $true)][string] $SourceDirectory,
+        [Parameter(Mandatory = $true)][string] $DestinationDirectory,
+        [Parameter(Mandatory = $true)][scriptblock] $Mutation
+    )
+
+    Copy-Item `
+        -LiteralPath $SourceDirectory `
+        -Destination $DestinationDirectory `
+        -Recurse
+    $recordPath = Join-Path $DestinationDirectory 'production-admission.json'
+    $record = [IO.File]::ReadAllText($recordPath) |
+        ConvertFrom-Json -AsHashtable -DateKind String
+    & $Mutation $record | Out-Null
+    Write-BunkFyCandidateJson -Path $recordPath -Value $record
+    $hash = (Get-FileHash -LiteralPath $recordPath -Algorithm SHA256).
+        Hash.ToLowerInvariant()
+    [IO.File]::WriteAllText(
+        (Join-Path $DestinationDirectory 'checksums.sha256'),
+        "$hash  production-admission.json`n",
+        [Text.UTF8Encoding]::new($false))
+}
+
+function New-TestTamperedRollbackEvidence {
+    param(
+        [Parameter(Mandatory = $true)][string] $SourceDirectory,
+        [Parameter(Mandatory = $true)][string] $DestinationDirectory,
+        [Parameter(Mandatory = $true)][scriptblock] $Mutation
+    )
+
+    Copy-Item `
+        -LiteralPath $SourceDirectory `
+        -Destination $DestinationDirectory `
+        -Recurse
+    $recordPath = Join-Path $DestinationDirectory 'rollback-rehearsal.json'
+    $record = [IO.File]::ReadAllText($recordPath) |
+        ConvertFrom-Json -AsHashtable -DateKind String
+    & $Mutation $record | Out-Null
+    Write-BunkFyCandidateJson -Path $recordPath -Value $record
+    $checksumLines = @(
+        Get-ChildItem -LiteralPath $DestinationDirectory -File |
+            Where-Object Name -CNE 'checksums.sha256' |
+            Sort-Object Name |
+            ForEach-Object {
+                $hash = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).
+                    Hash.ToLowerInvariant()
+                "$hash  $($_.Name)"
+            })
+    [IO.File]::WriteAllText(
+        (Join-Path $DestinationDirectory 'checksums.sha256'),
+        (($checksumLines -join "`n") + "`n"),
+        [Text.UTF8Encoding]::new($false))
+}
+
 $temporaryRoot = Join-Path ([IO.Path]::GetTempPath()) (
     "bunkfy-production-admission-$([Guid]::NewGuid().ToString('N'))")
 try {
@@ -637,9 +692,11 @@ try {
         $assembled.AdmissionEvidenceReference -cne $verified.AdmissionEvidenceReference -or
         $verified.AdmissionEvidenceReference -cne $admissionReference -or
         $verified.ReleaseId -cne $candidateRelease -or
+        $verified.Record.schemaVersion -ne 2 -or
+        $verified.ExpiresAtUtc -le [DateTimeOffset]::UtcNow -or
         @($verified.Record.evidence).Count -ne 19 -or
         @($verified.Record.privateEvidence).Count -ne 5 -or
-        @($verified.Record.checks).Count -ne 7) {
+        @($verified.Record.checks).Count -ne 9) {
         throw 'Production admission fixture emitted invalid closed evidence.'
     }
 
@@ -673,6 +730,238 @@ try {
         -Operation { & $verifier @tamperedVerificationArguments } `
         -ExpectedMessage 'does not match checksums' `
         -Context 'tampered admission bundle'
+
+    $stalePublicEdgePath = Join-Path $temporaryRoot 'stale-public-edge.json'
+    $stalePublicEdge = [IO.File]::ReadAllText($probePaths.PublicEdge) |
+        ConvertFrom-Json -AsHashtable -DateKind String
+    $stalePublicEdge.generatedAtUtc =
+        [DateTimeOffset]::UtcNow.AddHours(-25).ToString('O')
+    Write-BunkFyCandidateJson -Path $stalePublicEdgePath -Value $stalePublicEdge
+    Assert-TestFailure `
+        -Operation {
+            Get-BunkFyVerifiedProductionAdmissionProbe `
+                -Path $stalePublicEdgePath `
+                -SpecificationName public-edge `
+                -ExpectedOrigin $origin `
+                -ExpectedReleaseId $candidateRelease `
+                -ExpectedAdmissionEvidenceReference $admissionReference `
+                -AllowFixtureEvidence | Out-Null
+        } `
+        -ExpectedMessage 'older than the 24-hour mutable evidence limit' `
+        -Context 'stale mutable deployment evidence'
+
+    $futurePublicEdgePath = Join-Path $temporaryRoot 'future-public-edge.json'
+    $futurePublicEdge = [IO.File]::ReadAllText($probePaths.PublicEdge) |
+        ConvertFrom-Json -AsHashtable -DateKind String
+    $futurePublicEdge.generatedAtUtc =
+        [DateTimeOffset]::UtcNow.AddMinutes(10).ToString('O')
+    Write-BunkFyCandidateJson `
+        -Path $futurePublicEdgePath `
+        -Value $futurePublicEdge
+    Assert-TestFailure `
+        -Operation {
+            Get-BunkFyVerifiedProductionAdmissionProbe `
+                -Path $futurePublicEdgePath `
+                -SpecificationName public-edge `
+                -ExpectedOrigin $origin `
+                -ExpectedReleaseId $candidateRelease `
+                -ExpectedAdmissionEvidenceReference $admissionReference `
+                -AllowFixtureEvidence | Out-Null
+        } `
+        -ExpectedMessage 'valid non-future UTC round-trip timestamp' `
+        -Context 'future mutable deployment evidence'
+
+    $misorderedRollbackPath = Join-Path $temporaryRoot 'misordered-rollback'
+    New-TestTamperedRollbackEvidence `
+        -SourceDirectory $rollbackRehearsalPath `
+        -DestinationDirectory $misorderedRollbackPath `
+        -Mutation {
+            param($record)
+            $baseline = [DateTimeOffset]::Parse(
+                [string]$record.timing.baselineVerifiedAtUtc,
+                [Globalization.CultureInfo]::InvariantCulture)
+            $record.timing.rollbackObservedAtUtc =
+                $baseline.AddSeconds(-1).ToString('O')
+        }
+    Assert-TestFailure `
+        -Operation {
+            Get-BunkFyVerifiedDeployedRollbackRehearsal `
+                -Directory $misorderedRollbackPath `
+                -ExpectedOrigin $origin `
+                -CandidatePromotion $candidatePromotion `
+                -RollbackPromotion $rollbackPromotion `
+                -ExpectedAdmissionEvidenceReference $admissionReference `
+                -AllowFixtureEvidence | Out-Null
+        } `
+        -ExpectedMessage 'timing is inconsistent' `
+        -Context 'misordered rollback evidence'
+
+    $duplicateRollbackCheckPath =
+        Join-Path $temporaryRoot 'duplicate-rollback-check'
+    New-TestTamperedRollbackEvidence `
+        -SourceDirectory $rollbackRehearsalPath `
+        -DestinationDirectory $duplicateRollbackCheckPath `
+        -Mutation {
+            param($record)
+            $record.checks[1] = $record.checks[0]
+        }
+    Assert-TestFailure `
+        -Operation {
+            Get-BunkFyVerifiedDeployedRollbackRehearsal `
+                -Directory $duplicateRollbackCheckPath `
+                -ExpectedOrigin $origin `
+                -CandidatePromotion $candidatePromotion `
+                -RollbackPromotion $rollbackPromotion `
+                -ExpectedAdmissionEvidenceReference $admissionReference `
+                -AllowFixtureEvidence | Out-Null
+        } `
+        -ExpectedMessage 'unsupported release check' `
+        -Context 'duplicate rollback evidence check'
+
+    $expiredAdmission = Join-Path $temporaryRoot 'expired-admission'
+    $expiredGeneratedAtUtc = [DateTimeOffset]::UtcNow.AddHours(-5)
+    New-TestTamperedAdmissionBundle `
+        -SourceDirectory $output `
+        -DestinationDirectory $expiredAdmission `
+        -Mutation {
+            param($record)
+            $timestamp = $expiredGeneratedAtUtc.ToString('O')
+            $record.generatedAtUtc = $timestamp
+            foreach ($entry in @($record.evidence)) {
+                $entry.observedAtUtc = $timestamp
+            }
+            $record.validity.oldestMutableEvidenceAtUtc = $timestamp
+            $record.validity.newestMutableEvidenceAtUtc = $timestamp
+            $record.validity.expiresAtUtc =
+                $expiredGeneratedAtUtc.AddHours(4).ToString('O')
+        }
+    $expiredVerificationArguments = $verificationArguments.Clone()
+    $expiredVerificationArguments.AdmissionDirectory = $expiredAdmission
+    Assert-TestFailure `
+        -Operation { & $verifier @expiredVerificationArguments } `
+        -ExpectedMessage 'has expired' `
+        -Context 'expired production admission bundle'
+
+    $expandedValidityAdmission =
+        Join-Path $temporaryRoot 'expanded-validity-admission'
+    New-TestTamperedAdmissionBundle `
+        -SourceDirectory $output `
+        -DestinationDirectory $expandedValidityAdmission `
+        -Mutation {
+            param($record)
+            $record.validity.mutableEvidenceMaximumAgeMinutes = 525600
+        }
+    $expandedValidityArguments = $verificationArguments.Clone()
+    $expandedValidityArguments.AdmissionDirectory = $expandedValidityAdmission
+    Assert-TestFailure `
+        -Operation { & $verifier @expandedValidityArguments } `
+        -ExpectedMessage 'validity policy is invalid' `
+        -Context 'self-expanded admission validity'
+
+    $repositoryDriftAdmission =
+        Join-Path $temporaryRoot 'repository-drift-admission'
+    New-TestTamperedAdmissionBundle `
+        -SourceDirectory $output `
+        -DestinationDirectory $repositoryDriftAdmission `
+        -Mutation {
+            param($record)
+            $backendImage = @($record.rollback.images | Where-Object {
+                    $_.name -ceq 'backend'
+                })[0]
+            $separator = $backendImage.digestReference.IndexOf('@')
+            $backendImage.digestReference =
+                'registry.fixture.invalid/bunkfy/alternate-backend' +
+                $backendImage.digestReference.Substring($separator)
+        }
+    $repositoryDriftArguments = $verificationArguments.Clone()
+    $repositoryDriftArguments.AdmissionDirectory = $repositoryDriftAdmission
+    Assert-TestFailure `
+        -Operation { & $verifier @repositoryDriftArguments } `
+        -ExpectedMessage 'promotion identities are inconsistent' `
+        -Context 'candidate and rollback repository drift'
+
+    $promotionChecksumDriftAdmission =
+        Join-Path $temporaryRoot 'promotion-checksum-drift-admission'
+    New-TestTamperedAdmissionBundle `
+        -SourceDirectory $output `
+        -DestinationDirectory $promotionChecksumDriftAdmission `
+        -Mutation {
+            param($record)
+            $summary = @($record.evidence | Where-Object {
+                    $_.name -ceq 'candidate-image-promotion'
+                })[0]
+            $summary.sourceSha256 = if (
+                $summary.sourceSha256 -ceq ('4' * 64)) {
+                '5' * 64
+            }
+            else {
+                '4' * 64
+            }
+        }
+    $promotionChecksumDriftArguments = $verificationArguments.Clone()
+    $promotionChecksumDriftArguments.AdmissionDirectory =
+        $promotionChecksumDriftAdmission
+    Assert-TestFailure `
+        -Operation { & $verifier @promotionChecksumDriftArguments } `
+        -ExpectedMessage 'checksum is not cross-bound' `
+        -Context 'promotion summary checksum drift'
+
+    $sourceReferenceDriftAdmission =
+        Join-Path $temporaryRoot 'source-reference-drift-admission'
+    New-TestTamperedAdmissionBundle `
+        -SourceDirectory $output `
+        -DestinationDirectory $sourceReferenceDriftAdmission `
+        -Mutation {
+            param($record)
+            $summary = @($record.evidence | Where-Object {
+                    $_.name -ceq 'deployed-public-edge'
+                })[0]
+            $summary.evidenceReference =
+                "admission:$([Guid]::NewGuid().ToString('N'))"
+        }
+    $sourceReferenceDriftArguments = $verificationArguments.Clone()
+    $sourceReferenceDriftArguments.AdmissionDirectory =
+        $sourceReferenceDriftAdmission
+    Assert-TestFailure `
+        -Operation { & $verifier @sourceReferenceDriftArguments } `
+        -ExpectedMessage 'has an invalid binding' `
+        -Context 'source evidence reference drift'
+
+    $duplicatePrivateAdmission =
+        Join-Path $temporaryRoot 'duplicate-private-standalone-admission'
+    New-TestTamperedAdmissionBundle `
+        -SourceDirectory $output `
+        -DestinationDirectory $duplicatePrivateAdmission `
+        -Mutation {
+            param($record)
+            $record.privateEvidence[1].reference =
+                $record.privateEvidence[0].reference
+        }
+    $duplicatePrivateVerificationArguments = $verificationArguments.Clone()
+    $duplicatePrivateVerificationArguments.AdmissionDirectory =
+        $duplicatePrivateAdmission
+    Assert-TestFailure `
+        -Operation { & $verifier @duplicatePrivateVerificationArguments } `
+        -ExpectedMessage 'private evidence references must be distinct' `
+        -Context 'standalone duplicate private evidence reference'
+
+    $systemReferenceReuseAdmission =
+        Join-Path $temporaryRoot 'system-reference-reuse-admission'
+    New-TestTamperedAdmissionBundle `
+        -SourceDirectory $output `
+        -DestinationDirectory $systemReferenceReuseAdmission `
+        -Mutation {
+            param($record)
+            $record.privateEvidence[0].reference =
+                $record.admissionEvidenceReference
+        }
+    $systemReferenceReuseVerificationArguments = $verificationArguments.Clone()
+    $systemReferenceReuseVerificationArguments.AdmissionDirectory =
+        $systemReferenceReuseAdmission
+    Assert-TestFailure `
+        -Operation { & $verifier @systemReferenceReuseVerificationArguments } `
+        -ExpectedMessage 'must not reuse a system reference' `
+        -Context 'standalone private and system evidence reference reuse'
 
     $wrongReleaseNotifications = Join-Path $temporaryRoot 'wrong-release-notifications.json'
     New-TestProbeEvidence -Path $wrongReleaseNotifications -SpecificationName operations-notifications -Origin $origin -ReleaseId $rollbackRelease -AdmissionEvidenceReference $admissionReference
@@ -875,6 +1164,20 @@ try {
     if ([IO.Directory]::Exists(
             [string]$duplicatePrivateArguments.OutputDirectory)) {
         throw 'Rejected duplicate private reference left an admission bundle.'
+    }
+
+    $systemReferenceReuseArguments = $arguments.Clone()
+    $systemReferenceReuseArguments.BrowserRehearsalReference =
+        $admissionReference
+    $systemReferenceReuseArguments.OutputDirectory =
+        Join-Path $temporaryRoot 'system-reference-reuse-assembly'
+    Assert-TestFailure `
+        -Operation { & $assembler @systemReferenceReuseArguments } `
+        -ExpectedMessage 'must not reuse a system evidence reference' `
+        -Context 'assembled private and system evidence reference reuse'
+    if ([IO.Directory]::Exists(
+            [string]$systemReferenceReuseArguments.OutputDirectory)) {
+        throw 'Rejected system-reference reuse left an admission bundle.'
     }
 
     $staleRetentionPath = Join-Path $temporaryRoot 'stale-retention.json'

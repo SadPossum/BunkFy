@@ -5,6 +5,7 @@ $script:BunkFyProductionAdmissionLimitations = @(
     'private-evidence-content-and-authenticity-not-verified',
     'registry-immutability-after-promotion-not-observed',
     'production-traffic-and-data-not-exercised',
+    'source-clock-attestation-not-verified',
     'bundle-checksum-is-not-a-signature')
 $script:BunkFyProductionAdmissionPrivateControls = @(
     'browser-workspace-onboarding',
@@ -19,7 +20,15 @@ $script:BunkFyProductionAdmissionChecks = @(
     'deployed-release-and-admin-boundary-verified',
     'deployed-domain-workflows-verified',
     'private-control-references-declared',
+    'mutable-evidence-fresh-and-coherent',
+    'source-evidence-references-bound',
     'source-evidence-hashes-bound')
+$script:BunkFyProductionAdmissionFreshnessPolicy =
+    'bounded-mutable-runtime-proof-v1'
+$script:BunkFyProductionAdmissionClockSkew = [TimeSpan]::FromMinutes(5)
+$script:BunkFyProductionAdmissionMutableEvidenceMaximumAge =
+    [TimeSpan]::FromHours(24)
+$script:BunkFyProductionAdmissionApprovalWindow = [TimeSpan]::FromHours(4)
 
 function Assert-BunkFyProductionAdmissionReference {
     param(
@@ -81,10 +90,70 @@ function ConvertTo-BunkFyProductionAdmissionTimestamp {
     if (
         $parsed.Offset -ne [TimeSpan]::Zero -or
         (-not $AllowFuture -and
-         $parsed -gt [DateTimeOffset]::UtcNow.AddMinutes(5))) {
+         $parsed -gt [DateTimeOffset]::UtcNow.Add(
+             $script:BunkFyProductionAdmissionClockSkew))) {
         throw "$Context must be $timestampRequirement."
     }
     return $parsed.ToUniversalTime()
+}
+
+function Assert-BunkFyProductionAdmissionMutableEvidenceFreshness {
+    param(
+        [Parameter(Mandatory = $true)][DateTimeOffset] $Timestamp,
+        [Parameter(Mandatory = $true)][DateTimeOffset] $EvaluationTimeUtc,
+        [Parameter(Mandatory = $true)][string] $Context
+    )
+
+    $timestampUtc = $Timestamp.ToUniversalTime()
+    $evaluationUtc = $EvaluationTimeUtc.ToUniversalTime()
+    if ($timestampUtc -gt $evaluationUtc.Add(
+            $script:BunkFyProductionAdmissionClockSkew)) {
+        throw "$Context is too far in the future."
+    }
+    if ($timestampUtc -lt $evaluationUtc.Subtract(
+            $script:BunkFyProductionAdmissionMutableEvidenceMaximumAge)) {
+        throw "$Context is older than the 24-hour mutable evidence limit."
+    }
+    return $timestampUtc
+}
+
+function Get-BunkFyProductionAdmissionExpiry {
+    param(
+        [Parameter(Mandatory = $true)][DateTimeOffset] $GeneratedAtUtc,
+        [Parameter(Mandatory = $true)][DateTimeOffset] $OldestMutableEvidenceAtUtc
+    )
+
+    $approvalExpiry = $GeneratedAtUtc.ToUniversalTime().Add(
+        $script:BunkFyProductionAdmissionApprovalWindow)
+    $sourceExpiry = $OldestMutableEvidenceAtUtc.ToUniversalTime().Add(
+        $script:BunkFyProductionAdmissionMutableEvidenceMaximumAge)
+    if ($approvalExpiry -lt $sourceExpiry) {
+        return $approvalExpiry
+    }
+    return $sourceExpiry
+}
+
+function Resolve-BunkFyProductionAdmissionDigestReference {
+    param(
+        [Parameter(Mandatory = $true)][string] $Value,
+        [Parameter(Mandatory = $true)][string] $Context
+    )
+
+    if ($Value.Length -gt 512 -or
+        $Value -cne $Value.Trim() -or
+        $Value -match '[\s\\?#]' -or
+        $Value.Contains('://', [StringComparison]::Ordinal) -or
+        $Value -cnotmatch (
+            '^(?<repository>(?:localhost|[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?)' +
+            '(?::[0-9]{1,5})?/[a-z0-9]+(?:[._/-][a-z0-9]+)*)' +
+            '@(?<digest>sha256:[a-f0-9]{64})$')) {
+        throw "$Context must be a lowercase credential-free OCI digest reference."
+    }
+
+    return [pscustomobject]@{
+        Repository = [string]$Matches.repository
+        Digest = [string]$Matches.digest
+    }
 }
 
 function Assert-BunkFyProductionAdmissionStringSequence {
@@ -996,6 +1065,10 @@ function Get-BunkFyVerifiedProductionAdmissionProbe {
     $generatedAt = ConvertTo-BunkFyProductionAdmissionTimestamp `
         -Value $record.generatedAtUtc `
         -Context "$SpecificationName generation time"
+    [void](Assert-BunkFyProductionAdmissionMutableEvidenceFreshness `
+            -Timestamp $generatedAt `
+            -EvaluationTimeUtc ([DateTimeOffset]::UtcNow) `
+            -Context "$SpecificationName deployment evidence")
     foreach ($propertyName in $spec.GuidProperties) {
         $parsed = [Guid]::Empty
         if (-not [Guid]::TryParseExact(
@@ -1079,6 +1152,7 @@ function Get-BunkFyVerifiedProductionAdmissionProbe {
         SourceSha256 = $source.Sha256
         GeneratedAtUtc = $generatedAt
         CheckCount = $checks.Count
+        Reference = [string]$record.admissionEvidenceReference
         Record = $record
         Path = $source.Path
     }
@@ -1195,6 +1269,7 @@ function Get-BunkFyVerifiedProductionMigrationRehearsal {
         SourceSha256 = $source.Sha256
         GeneratedAtUtc = $completedAt
         CheckCount = 6
+        Reference = "migration:$([string]$record.runId)"
         Record = $record
         Path = $source.Path
     }
@@ -1258,10 +1333,14 @@ function Get-BunkFyVerifiedDeployedRollbackRehearsal {
     if ($checks.Count -ne $expectedChecks.Count) {
         throw 'Deployed rollback rehearsal must contain three release checks.'
     }
+    $edgeGeneratedAt = @{}
+    $seenRollbackChecks =
+        [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
     foreach ($check in $checks) {
         Assert-BunkFyCandidateProperties -Value $check -ExpectedProperties @('name', 'result', 'releaseId', 'evidenceFile', 'evidenceSha256') -Context 'rollback release check'
         $expected = $expectedChecks[[string]$check.name]
-        if ($null -eq $expected -or
+        if (-not $seenRollbackChecks.Add([string]$check.name) -or
+            $null -eq $expected -or
             $check.result -cne 'passed' -or
             $check.releaseId -cne $expected.ReleaseId -or
             $check.evidenceFile -cne $expected.File) {
@@ -1278,23 +1357,58 @@ function Get-BunkFyVerifiedDeployedRollbackRehearsal {
         if ($check.evidenceSha256 -cne $edge.SourceSha256) {
             throw "Deployed rollback rehearsal check '$($check.name)' has the wrong evidence hash."
         }
+        $edgeGeneratedAt[[string]$check.name] = $edge.GeneratedAtUtc
     }
     Assert-BunkFyCandidateProperties -Value $record.timing -ExpectedProperties @('startedAtUtc', 'baselineVerifiedAtUtc', 'rollbackObservedAtUtc', 'rollbackVerifiedAtUtc', 'candidateRestoredObservedAtUtc', 'completedAtUtc', 'rollbackConvergenceMilliseconds', 'restorationConvergenceMilliseconds', 'totalDurationMilliseconds') -Context 'rollback timing evidence'
     $times = @{}
     foreach ($name in @('startedAtUtc', 'baselineVerifiedAtUtc', 'rollbackObservedAtUtc', 'rollbackVerifiedAtUtc', 'candidateRestoredObservedAtUtc', 'completedAtUtc')) {
         $times[$name] = ConvertTo-BunkFyProductionAdmissionTimestamp -Value $record.timing.$name -Context "rollback $name"
     }
+    $expectedRollbackConvergence = [long](
+        $times.rollbackObservedAtUtc -
+        $times.baselineVerifiedAtUtc).TotalMilliseconds
+    $expectedRestorationConvergence = [long](
+        $times.candidateRestoredObservedAtUtc -
+        $times.rollbackVerifiedAtUtc).TotalMilliseconds
+    $expectedTotalDuration = [long](
+        $times.completedAtUtc - $times.startedAtUtc).TotalMilliseconds
     if ($times.startedAtUtc -gt $times.baselineVerifiedAtUtc -or
         $times.baselineVerifiedAtUtc -gt $times.rollbackObservedAtUtc -or
         $times.rollbackObservedAtUtc -gt $times.rollbackVerifiedAtUtc -or
         $times.rollbackVerifiedAtUtc -gt $times.candidateRestoredObservedAtUtc -or
         $times.candidateRestoredObservedAtUtc -gt $times.completedAtUtc -or
-        [long]$record.timing.rollbackConvergenceMilliseconds -lt 0 -or
-        [long]$record.timing.restorationConvergenceMilliseconds -lt 0 -or
-        [long]$record.timing.totalDurationMilliseconds -lt 0 -or
+        [long]$record.timing.rollbackConvergenceMilliseconds -ne
+            $expectedRollbackConvergence -or
+        [long]$record.timing.restorationConvergenceMilliseconds -ne
+            $expectedRestorationConvergence -or
+        [long]$record.timing.totalDurationMilliseconds -ne
+            $expectedTotalDuration -or
         [string]$record.generatedAtUtc -cne [string]$record.timing.completedAtUtc) {
         throw 'Deployed rollback rehearsal timing is inconsistent.'
     }
+    $skew = $script:BunkFyProductionAdmissionClockSkew
+    if ($edgeGeneratedAt['candidate-baseline-public-edge'] -lt
+            $times.startedAtUtc.Subtract($skew) -or
+        $edgeGeneratedAt['candidate-baseline-public-edge'] -gt
+            $times.baselineVerifiedAtUtc.Add($skew) -or
+        $edgeGeneratedAt['rollback-public-edge'] -lt
+            $times.rollbackObservedAtUtc.Subtract($skew) -or
+        $edgeGeneratedAt['rollback-public-edge'] -gt
+            $times.rollbackVerifiedAtUtc.Add($skew) -or
+        $edgeGeneratedAt['candidate-restored-public-edge'] -lt
+            $times.candidateRestoredObservedAtUtc.Subtract($skew) -or
+        $edgeGeneratedAt['candidate-restored-public-edge'] -gt
+            $times.completedAtUtc.Add($skew)) {
+        throw 'Deployed rollback rehearsal public-edge observations are out of order.'
+    }
+    [void](Assert-BunkFyProductionAdmissionMutableEvidenceFreshness `
+            -Timestamp $times.startedAtUtc `
+            -EvaluationTimeUtc ([DateTimeOffset]::UtcNow) `
+            -Context 'deployed rollback rehearsal start')
+    [void](Assert-BunkFyProductionAdmissionMutableEvidenceFreshness `
+            -Timestamp $times.completedAtUtc `
+            -EvaluationTimeUtc ([DateTimeOffset]::UtcNow) `
+            -Context 'deployed rollback rehearsal completion')
     Assert-BunkFyProductionAdmissionStringSequence `
         -Actual @($record.limitations) `
         -Expected @('deployment-control-plane-and-commands-not-observed', 'worker-and-admin-release-identities-not-observed', 'public-smoke-does-not-prove-all-schema-and-domain-compatibility', 'registry-availability-and-immutability-not-reverified', 'hosted-approval-alerting-and-traffic-drain-not-observed') `
@@ -1328,33 +1442,112 @@ function ConvertTo-BunkFyProductionAdmissionPromotionSummary {
     }
 }
 
+function New-BunkFyProductionAdmissionExpectedEvidenceEntry {
+    param(
+        [Parameter(Mandatory = $true)][string] $Kind,
+        [Parameter(Mandatory = $true)][string] $ReleaseId,
+        [Parameter(Mandatory = $true)][int] $Count,
+        [Parameter(Mandatory = $true)][string] $Reference,
+        [Parameter(Mandatory = $true)]
+        [AllowNull()]
+        [AllowEmptyString()]
+        [string] $SourceSha256,
+        [Parameter(Mandatory = $true)][bool] $Mutable
+    )
+
+    return [pscustomobject]@{
+        Kind = $Kind
+        ReleaseId = $ReleaseId
+        Count = $Count
+        Reference = $Reference
+        SourceSha256 = if ([string]::IsNullOrEmpty($SourceSha256)) {
+            $null
+        }
+        else {
+            $SourceSha256
+        }
+        Mutable = $Mutable
+    }
+}
+
 function Get-BunkFyProductionAdmissionExpectedEvidence {
     param(
         [Parameter(Mandatory = $true)][string] $CandidateReleaseId,
-        [Parameter(Mandatory = $true)][string] $RollbackReleaseId
+        [Parameter(Mandatory = $true)][string] $RollbackReleaseId,
+        [Parameter(Mandatory = $true)][string] $CandidatePromotionReference,
+        [Parameter(Mandatory = $true)][string] $CandidatePromotionSha256,
+        [Parameter(Mandatory = $true)][string] $RollbackPromotionReference,
+        [Parameter(Mandatory = $true)][string] $RollbackPromotionSha256,
+        [Parameter(Mandatory = $true)][string] $RollbackEvidenceReference,
+        [Parameter(Mandatory = $true)][string] $RollbackEvidenceSha256,
+        [Parameter(Mandatory = $true)][string] $MigrationEvidenceReference,
+        [Parameter(Mandatory = $true)][string] $MigrationEvidenceSha256,
+        [Parameter(Mandatory = $true)][string] $AdmissionEvidenceReference
     )
 
-    return [ordered]@{
-        'candidate-image-promotion' = [pscustomobject]@{ Kind = 'bunkfy-image-promotion'; ReleaseId = $CandidateReleaseId; Count = 2 }
-        'deployed-adapter-host' = [pscustomobject]@{ Kind = 'bunkfy-deployed-adapter-host-probe'; ReleaseId = $CandidateReleaseId; Count = 8 }
-        'deployed-admin-allowed' = [pscustomobject]@{ Kind = 'bunkfy-deployed-admin-boundary-probe'; ReleaseId = $CandidateReleaseId; Count = 5 }
-        'deployed-admin-denied' = [pscustomobject]@{ Kind = 'bunkfy-deployed-admin-boundary-probe'; ReleaseId = $CandidateReleaseId; Count = 4 }
-        'deployed-data-rights-access-export' = [pscustomobject]@{ Kind = 'bunkfy-deployed-data-rights-access-export-probe'; ReleaseId = $CandidateReleaseId; Count = 18 }
-        'deployed-guests-stay-history' = [pscustomobject]@{ Kind = 'bunkfy-deployed-guests-stay-history-probe'; ReleaseId = $CandidateReleaseId; Count = 19 }
-        'deployed-staff-employment' = [pscustomobject]@{ Kind = 'bunkfy-deployed-staff-employment-probe'; ReleaseId = $CandidateReleaseId; Count = 21 }
-        'deployed-properties-topology' = [pscustomobject]@{ Kind = 'bunkfy-deployed-properties-topology-probe'; ReleaseId = $CandidateReleaseId; Count = 31 }
-        'deployed-ingestion-connection-lifecycle' = [pscustomobject]@{ Kind = 'bunkfy-deployed-ingestion-connection-lifecycle-probe'; ReleaseId = $CandidateReleaseId; Count = 32 }
-        'deployed-ingestion-conflict-proposal-lifecycle' = [pscustomobject]@{ Kind = 'bunkfy-deployed-ingestion-conflict-proposal-lifecycle-probe'; ReleaseId = $CandidateReleaseId; Count = 26 }
-        'deployed-operations-notifications' = [pscustomobject]@{ Kind = 'bunkfy-deployed-operations-notifications-probe'; ReleaseId = $CandidateReleaseId; Count = 10 }
-        'deployed-public-edge' = [pscustomobject]@{ Kind = 'bunkfy-deployed-public-edge-probe'; ReleaseId = $CandidateReleaseId; Count = 6 }
-        'deployed-reservations-inventory' = [pscustomobject]@{ Kind = 'bunkfy-deployed-reservations-inventory-probe'; ReleaseId = $CandidateReleaseId; Count = 12 }
-        'deployed-release-rollback' = [pscustomobject]@{ Kind = 'bunkfy-deployed-release-rollback-rehearsal'; ReleaseId = $CandidateReleaseId; Count = 3 }
-        'deployed-retention' = [pscustomobject]@{ Kind = 'bunkfy-deployed-retention-probe'; ReleaseId = $CandidateReleaseId; Count = 7 }
-        'deployed-workspace-enrollment' = [pscustomobject]@{ Kind = 'bunkfy-deployed-workspace-enrollment-probe'; ReleaseId = $CandidateReleaseId; Count = 9 }
-        'deployed-workspace-invitation' = [pscustomobject]@{ Kind = 'bunkfy-deployed-workspace-invitation-probe'; ReleaseId = $CandidateReleaseId; Count = 8 }
-        'production-migration' = [pscustomobject]@{ Kind = 'bunkfy-production-migration-rehearsal'; ReleaseId = $CandidateReleaseId; Count = 6 }
-        'rollback-image-promotion' = [pscustomobject]@{ Kind = 'bunkfy-image-promotion'; ReleaseId = $RollbackReleaseId; Count = 2 }
+    $expected = [ordered]@{
+        'candidate-image-promotion' =
+            New-BunkFyProductionAdmissionExpectedEvidenceEntry `
+                -Kind 'bunkfy-image-promotion' `
+                -ReleaseId $CandidateReleaseId `
+                -Count 2 `
+                -Reference $CandidatePromotionReference `
+                -SourceSha256 $CandidatePromotionSha256 `
+                -Mutable $false
+        'rollback-image-promotion' =
+            New-BunkFyProductionAdmissionExpectedEvidenceEntry `
+                -Kind 'bunkfy-image-promotion' `
+                -ReleaseId $RollbackReleaseId `
+                -Count 2 `
+                -Reference $RollbackPromotionReference `
+                -SourceSha256 $RollbackPromotionSha256 `
+                -Mutable $false
+        'deployed-release-rollback' =
+            New-BunkFyProductionAdmissionExpectedEvidenceEntry `
+                -Kind 'bunkfy-deployed-release-rollback-rehearsal' `
+                -ReleaseId $CandidateReleaseId `
+                -Count 3 `
+                -Reference $RollbackEvidenceReference `
+                -SourceSha256 $RollbackEvidenceSha256 `
+                -Mutable $true
+        'production-migration' =
+            New-BunkFyProductionAdmissionExpectedEvidenceEntry `
+                -Kind 'bunkfy-production-migration-rehearsal' `
+                -ReleaseId $CandidateReleaseId `
+                -Count 6 `
+                -Reference $MigrationEvidenceReference `
+                -SourceSha256 $MigrationEvidenceSha256 `
+                -Mutable $false
     }
+
+    $deployedProbeSpecifications = [ordered]@{
+        'deployed-adapter-host' = @('bunkfy-deployed-adapter-host-probe', 8)
+        'deployed-admin-allowed' = @('bunkfy-deployed-admin-boundary-probe', 5)
+        'deployed-admin-denied' = @('bunkfy-deployed-admin-boundary-probe', 4)
+        'deployed-data-rights-access-export' = @('bunkfy-deployed-data-rights-access-export-probe', 18)
+        'deployed-guests-stay-history' = @('bunkfy-deployed-guests-stay-history-probe', 19)
+        'deployed-staff-employment' = @('bunkfy-deployed-staff-employment-probe', 21)
+        'deployed-properties-topology' = @('bunkfy-deployed-properties-topology-probe', 31)
+        'deployed-ingestion-connection-lifecycle' = @('bunkfy-deployed-ingestion-connection-lifecycle-probe', 32)
+        'deployed-ingestion-conflict-proposal-lifecycle' = @('bunkfy-deployed-ingestion-conflict-proposal-lifecycle-probe', 26)
+        'deployed-operations-notifications' = @('bunkfy-deployed-operations-notifications-probe', 10)
+        'deployed-public-edge' = @('bunkfy-deployed-public-edge-probe', 6)
+        'deployed-reservations-inventory' = @('bunkfy-deployed-reservations-inventory-probe', 12)
+        'deployed-retention' = @('bunkfy-deployed-retention-probe', 7)
+        'deployed-workspace-enrollment' = @('bunkfy-deployed-workspace-enrollment-probe', 9)
+        'deployed-workspace-invitation' = @('bunkfy-deployed-workspace-invitation-probe', 8)
+    }
+    foreach ($entry in $deployedProbeSpecifications.GetEnumerator()) {
+        $expected[$entry.Key] =
+            New-BunkFyProductionAdmissionExpectedEvidenceEntry `
+                -Kind $entry.Value[0] `
+                -ReleaseId $CandidateReleaseId `
+                -Count $entry.Value[1] `
+                -Reference $AdmissionEvidenceReference `
+                -SourceSha256 $null `
+                -Mutable $true
+    }
+    return $expected
 }
 
 function Get-BunkFyVerifiedProductionAdmission {
@@ -1384,11 +1577,11 @@ function Get-BunkFyVerifiedProductionAdmission {
     $record = $source.Record
     Assert-BunkFyCandidateProperties `
         -Value $record `
-        -ExpectedProperties @('schemaVersion', 'evidenceKind', 'admissionId', 'admissionEvidenceReference', 'generatedAtUtc', 'result', 'decision', 'repository', 'profile', 'candidate', 'rollback', 'deployment', 'evidence', 'privateEvidence', 'checks', 'limitations') `
+        -ExpectedProperties @('schemaVersion', 'evidenceKind', 'admissionId', 'admissionEvidenceReference', 'generatedAtUtc', 'result', 'decision', 'repository', 'profile', 'candidate', 'rollback', 'deployment', 'validity', 'evidence', 'privateEvidence', 'checks', 'limitations') `
         -Context 'production admission record'
     $admissionId = [Guid]::Empty
     $expectedProfile = if ($AllowFixtureEvidence) { 'loopback-fixture' } else { 'production' }
-    if ($record.schemaVersion -ne 1 -or
+    if ($record.schemaVersion -ne 2 -or
         $record.evidenceKind -cne 'bunkfy-production-admission-bundle' -or
         $record.result -cne 'passed' -or
         $record.decision -cne 'evidence-complete-awaiting-private-approval' -or
@@ -1402,7 +1595,10 @@ function Get-BunkFyVerifiedProductionAdmission {
     if ($record.admissionEvidenceReference -cne $ExpectedAdmissionEvidenceReference) {
         throw 'Production admission record does not match the expected admission evidence reference.'
     }
-    [void](ConvertTo-BunkFyProductionAdmissionTimestamp -Value $record.generatedAtUtc -Context 'production admission generation time')
+    $verificationTimeUtc = [DateTimeOffset]::UtcNow
+    $generatedAtUtc = ConvertTo-BunkFyProductionAdmissionTimestamp `
+        -Value $record.generatedAtUtc `
+        -Context 'production admission generation time'
     Assert-BunkFyCandidateProperties -Value $record.candidate -ExpectedProperties @('releaseId', 'sourceCommit', 'promotionEvidenceReference', 'promotionChecksumsSha256', 'images') -Context 'admission candidate identity'
     Assert-BunkFyCandidateProperties -Value $record.rollback -ExpectedProperties @('releaseId', 'sourceCommit', 'promotionEvidenceReference', 'promotionChecksumsSha256', 'images') -Context 'admission rollback identity'
     if ($record.candidate.releaseId -cne $ExpectedReleaseId -or
@@ -1411,54 +1607,203 @@ function Get-BunkFyVerifiedProductionAdmission {
         $record.rollback.sourceCommit -ceq $ExpectedSourceCommit) {
         throw 'Production admission record does not bind a distinct rollback to the expected candidate.'
     }
+    $imageRepositories = @{}
     foreach ($identityName in @('candidate', 'rollback')) {
         $identity = $record.$identityName
         [void](Assert-BunkFyProductionAdmissionSha256 -Value ([string]$identity.promotionChecksumsSha256) -Context "$identityName promotion checksum")
         [void](Assert-BunkFyProductionAdmissionReference -Value ([string]$identity.promotionEvidenceReference) -Name "$identityName promotion reference")
+        if ([string]$identity.promotionEvidenceReference -cnotmatch
+            '^promotion:[0-9a-f]{32}$') {
+            throw "Production admission $identityName promotion reference is invalid."
+        }
         $images = @($identity.images | Sort-Object name)
         if (($images.name -join "`n") -cne "backend`nweb") {
             throw "Production admission $identityName identity must contain backend and web images."
         }
+        $repositories = @{}
         foreach ($image in $images) {
             Assert-BunkFyCandidateProperties -Value $image -ExpectedProperties @('name', 'digestReference') -Context "$identityName image identity"
-            if ([string]$image.digestReference -notmatch '@sha256:[a-f0-9]{64}$' -or
-                [string]$image.digestReference -match '[\s\\?#]' -or
-                [string]$image.digestReference -match '://') {
-                throw "Production admission $identityName image identity is invalid."
-            }
+            $resolvedImage = Resolve-BunkFyProductionAdmissionDigestReference `
+                -Value ([string]$image.digestReference) `
+                -Context "Production admission $identityName '$($image.name)' image"
+            $repositories[[string]$image.name] = $resolvedImage.Repository
         }
+        if ($repositories.backend -ceq $repositories.web) {
+            throw "Production admission $identityName images must use distinct repositories."
+        }
+        $imageRepositories[$identityName] = $repositories
     }
-    Assert-BunkFyCandidateProperties -Value $record.deployment -ExpectedProperties @('publicOrigin', 'rollbackEvidenceReference', 'adminEvidenceSetId') -Context 'admission deployment identity'
+    if ($record.candidate.promotionEvidenceReference -ceq
+            $record.rollback.promotionEvidenceReference -or
+        $imageRepositories.candidate.backend -cne
+            $imageRepositories.rollback.backend -or
+        $imageRepositories.candidate.web -cne $imageRepositories.rollback.web) {
+        throw 'Production admission candidate and rollback promotion identities are inconsistent.'
+    }
+    Assert-BunkFyCandidateProperties `
+        -Value $record.deployment `
+        -ExpectedProperties @(
+            'publicOrigin',
+            'rollbackEvidenceReference',
+            'rollbackEvidenceSha256',
+            'migrationEvidenceReference',
+            'migrationEvidenceSha256',
+            'adminEvidenceSetId') `
+        -Context 'admission deployment identity'
     if ($record.deployment.publicOrigin -cne $origin.GetLeftPart([UriPartial]::Authority)) {
         throw 'Production admission record has the wrong public origin.'
     }
     [void](Assert-BunkFyProductionAdmissionReference -Value ([string]$record.deployment.rollbackEvidenceReference) -Name 'rollback evidence reference')
+    [void](Assert-BunkFyProductionAdmissionReference -Value ([string]$record.deployment.migrationEvidenceReference) -Name 'migration evidence reference')
+    if ([string]$record.deployment.rollbackEvidenceReference -cnotmatch
+            '^rollback:[0-9a-f]{32}$' -or
+        [string]$record.deployment.migrationEvidenceReference -cnotmatch
+            '^migration:[a-f0-9]{12}$') {
+        throw 'Production admission deployment evidence references are invalid.'
+    }
+    [void](Assert-BunkFyProductionAdmissionSha256 `
+            -Value ([string]$record.deployment.rollbackEvidenceSha256) `
+            -Context 'rollback evidence checksum')
+    [void](Assert-BunkFyProductionAdmissionSha256 `
+            -Value ([string]$record.deployment.migrationEvidenceSha256) `
+            -Context 'migration evidence checksum')
     $adminEvidenceSetId = [Guid]::Empty
     if (-not [Guid]::TryParseExact([string]$record.deployment.adminEvidenceSetId, 'D', [ref]$adminEvidenceSetId) -or
         $adminEvidenceSetId -eq [Guid]::Empty) {
         throw 'Production admission record has an invalid Admin evidence set id.'
     }
 
-    $expectedEvidence = Get-BunkFyProductionAdmissionExpectedEvidence -CandidateReleaseId $ExpectedReleaseId -RollbackReleaseId ([string]$record.rollback.releaseId)
+    $systemReferences = @(
+        [string]$record.admissionEvidenceReference,
+        [string]$record.candidate.promotionEvidenceReference,
+        [string]$record.rollback.promotionEvidenceReference,
+        [string]$record.deployment.rollbackEvidenceReference,
+        [string]$record.deployment.migrationEvidenceReference)
+    if (@($systemReferences | Sort-Object -Unique).Count -ne
+        $systemReferences.Count) {
+        throw 'Production admission system evidence references must be distinct.'
+    }
+
+    $expectedEvidence = Get-BunkFyProductionAdmissionExpectedEvidence `
+        -CandidateReleaseId $ExpectedReleaseId `
+        -RollbackReleaseId ([string]$record.rollback.releaseId) `
+        -CandidatePromotionReference ([string]$record.candidate.promotionEvidenceReference) `
+        -CandidatePromotionSha256 ([string]$record.candidate.promotionChecksumsSha256) `
+        -RollbackPromotionReference ([string]$record.rollback.promotionEvidenceReference) `
+        -RollbackPromotionSha256 ([string]$record.rollback.promotionChecksumsSha256) `
+        -RollbackEvidenceReference ([string]$record.deployment.rollbackEvidenceReference) `
+        -RollbackEvidenceSha256 ([string]$record.deployment.rollbackEvidenceSha256) `
+        -MigrationEvidenceReference ([string]$record.deployment.migrationEvidenceReference) `
+        -MigrationEvidenceSha256 ([string]$record.deployment.migrationEvidenceSha256) `
+        -AdmissionEvidenceReference ([string]$record.admissionEvidenceReference)
     $evidence = @($record.evidence)
     if ($evidence.Count -ne $expectedEvidence.Count) {
         throw 'Production admission record has an incomplete source evidence catalogue.'
     }
     $seenEvidence = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+    $mutableEvidenceTimes = [Collections.Generic.List[DateTimeOffset]]::new()
     foreach ($entry in $evidence) {
-        Assert-BunkFyCandidateProperties -Value $entry -ExpectedProperties @('name', 'evidenceKind', 'boundReleaseId', 'sourceSha256', 'observedAtUtc', 'proofCount') -Context 'admission source evidence entry'
+        Assert-BunkFyCandidateProperties `
+            -Value $entry `
+            -ExpectedProperties @(
+                'name',
+                'evidenceKind',
+                'evidenceReference',
+                'boundReleaseId',
+                'sourceSha256',
+                'observedAtUtc',
+                'proofCount') `
+            -Context 'admission source evidence entry'
         if (-not $seenEvidence.Add([string]$entry.name)) {
             throw 'Production admission source evidence names must be unique.'
         }
         $expected = $expectedEvidence[[string]$entry.name]
         if ($null -eq $expected -or
             $entry.evidenceKind -cne $expected.Kind -or
+            $entry.evidenceReference -cne $expected.Reference -or
             $entry.boundReleaseId -cne $expected.ReleaseId -or
             [int]$entry.proofCount -ne $expected.Count) {
             throw "Production admission source '$($entry.name)' has an invalid binding."
         }
-        [void](Assert-BunkFyProductionAdmissionSha256 -Value ([string]$entry.sourceSha256) -Context "admission source '$($entry.name)' checksum")
-        [void](ConvertTo-BunkFyProductionAdmissionTimestamp -Value $entry.observedAtUtc -Context "admission source '$($entry.name)' observation time")
+        [void](Assert-BunkFyProductionAdmissionReference `
+                -Value ([string]$entry.evidenceReference) `
+                -Name "admission source '$($entry.name)' reference")
+        [void](Assert-BunkFyProductionAdmissionSha256 `
+                -Value ([string]$entry.sourceSha256) `
+                -Context "admission source '$($entry.name)' checksum")
+        if ($null -ne $expected.SourceSha256 -and
+            $entry.sourceSha256 -cne $expected.SourceSha256) {
+            throw "Production admission source '$($entry.name)' checksum is not cross-bound."
+        }
+        $observedAtUtc = ConvertTo-BunkFyProductionAdmissionTimestamp `
+            -Value $entry.observedAtUtc `
+            -Context "admission source '$($entry.name)' observation time"
+        if ($observedAtUtc -gt $generatedAtUtc.Add(
+                $script:BunkFyProductionAdmissionClockSkew)) {
+            throw "Production admission source '$($entry.name)' postdates the bundle."
+        }
+        if ($expected.Mutable) {
+            [void](Assert-BunkFyProductionAdmissionMutableEvidenceFreshness `
+                    -Timestamp $observedAtUtc `
+                    -EvaluationTimeUtc $verificationTimeUtc `
+                    -Context "admission source '$($entry.name)'")
+            $mutableEvidenceTimes.Add($observedAtUtc)
+        }
+    }
+
+    if ($mutableEvidenceTimes.Count -eq 0) {
+        throw 'Production admission record has no mutable runtime evidence.'
+    }
+    $orderedMutableTimes = @($mutableEvidenceTimes | Sort-Object)
+    $actualOldestMutableAtUtc = $orderedMutableTimes[0]
+    $actualNewestMutableAtUtc = $orderedMutableTimes[-1]
+    Assert-BunkFyCandidateProperties `
+        -Value $record.validity `
+        -ExpectedProperties @(
+            'policy',
+            'mutableEvidenceMaximumAgeMinutes',
+            'approvalWindowMinutes',
+            'clockSkewSeconds',
+            'oldestMutableEvidenceAtUtc',
+            'newestMutableEvidenceAtUtc',
+            'expiresAtUtc') `
+        -Context 'production admission validity'
+    if ($record.validity.policy -cne
+            $script:BunkFyProductionAdmissionFreshnessPolicy -or
+        [int]$record.validity.mutableEvidenceMaximumAgeMinutes -ne
+            [int]$script:BunkFyProductionAdmissionMutableEvidenceMaximumAge.TotalMinutes -or
+        [int]$record.validity.approvalWindowMinutes -ne
+            [int]$script:BunkFyProductionAdmissionApprovalWindow.TotalMinutes -or
+        [int]$record.validity.clockSkewSeconds -ne
+            [int]$script:BunkFyProductionAdmissionClockSkew.TotalSeconds) {
+        throw 'Production admission validity policy is invalid.'
+    }
+    $declaredOldestMutableAtUtc =
+        ConvertTo-BunkFyProductionAdmissionTimestamp `
+            -Value $record.validity.oldestMutableEvidenceAtUtc `
+            -Context 'oldest mutable evidence time'
+    $declaredNewestMutableAtUtc =
+        ConvertTo-BunkFyProductionAdmissionTimestamp `
+            -Value $record.validity.newestMutableEvidenceAtUtc `
+            -Context 'newest mutable evidence time'
+    $expiresAtUtc = ConvertTo-BunkFyProductionAdmissionTimestamp `
+        -Value $record.validity.expiresAtUtc `
+        -Context 'production admission expiry time' `
+        -AllowFuture
+    $expectedExpiryUtc = Get-BunkFyProductionAdmissionExpiry `
+        -GeneratedAtUtc $generatedAtUtc `
+        -OldestMutableEvidenceAtUtc $actualOldestMutableAtUtc
+    if ($declaredOldestMutableAtUtc -ne $actualOldestMutableAtUtc -or
+        $declaredNewestMutableAtUtc -ne $actualNewestMutableAtUtc -or
+        $declaredOldestMutableAtUtc -gt $declaredNewestMutableAtUtc -or
+        $declaredNewestMutableAtUtc -gt $generatedAtUtc.Add(
+            $script:BunkFyProductionAdmissionClockSkew) -or
+        $expiresAtUtc -ne $expectedExpiryUtc) {
+        throw 'Production admission validity does not match its mutable evidence window.'
+    }
+    if ($verificationTimeUtc -gt $expiresAtUtc.Add(
+            $script:BunkFyProductionAdmissionClockSkew)) {
+        throw 'Production admission evidence has expired.'
     }
 
     $privateEvidence = @($record.privateEvidence)
@@ -1466,12 +1811,21 @@ function Get-BunkFyVerifiedProductionAdmission {
         throw 'Production admission record has an incomplete private evidence declaration.'
     }
     $privateControls = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+    $privateReferences = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
     foreach ($entry in $privateEvidence) {
         Assert-BunkFyCandidateProperties -Value $entry -ExpectedProperties @('control', 'reference') -Context 'private evidence declaration'
         if (-not $privateControls.Add([string]$entry.control)) {
             throw 'Production admission private evidence controls must be unique.'
         }
-        [void](Assert-BunkFyProductionAdmissionReference -Value ([string]$entry.reference) -Name "private evidence '$($entry.control)'")
+        $privateReference = Assert-BunkFyProductionAdmissionReference `
+            -Value ([string]$entry.reference) `
+            -Name "private evidence '$($entry.control)'"
+        if (-not $privateReferences.Add($privateReference)) {
+            throw 'Production admission private evidence references must be distinct.'
+        }
+        if ($systemReferences -ccontains $privateReference) {
+            throw 'Production admission private evidence must not reuse a system reference.'
+        }
     }
     Assert-BunkFyProductionAdmissionStringSequence -Actual @($privateControls) -Expected $script:BunkFyProductionAdmissionPrivateControls -Context 'private evidence controls' -OrderIndependent
 
@@ -1497,6 +1851,7 @@ function Get-BunkFyVerifiedProductionAdmission {
         SourceCommit = [string]$record.candidate.sourceCommit
         RollbackReleaseId = [string]$record.rollback.releaseId
         PublicOrigin = [string]$record.deployment.publicOrigin
+        ExpiresAtUtc = $expiresAtUtc
         Record = $record
     }
 }

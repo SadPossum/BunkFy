@@ -2419,11 +2419,17 @@ foreach ($requiredToken in @(
         'Get-BunkFyVerifiedProductionMigrationRehearsal',
         'Get-BunkFyVerifiedDeployedRollbackRehearsal',
         'Get-BunkFyVerifiedProductionAdmission',
+        'BunkFyProductionAdmissionMutableEvidenceMaximumAge',
+        'Get-BunkFyProductionAdmissionExpiry',
+        'Resolve-BunkFyProductionAdmissionDigestReference',
         'ConvertFrom-Json -DateKind String',
         'Get-BunkFyClosedChecksumSet',
         "'bunkfy-production-admission-bundle'",
         "'evidence-complete-awaiting-private-approval'",
-        "'private-evidence-content-and-authenticity-not-verified'")) {
+        "'private-evidence-content-and-authenticity-not-verified'",
+        "'source-clock-attestation-not-verified'",
+        "'mutable-evidence-fresh-and-coherent'",
+        "'source-evidence-references-bound'")) {
     if (-not $productionAdmissionCommon.Contains($requiredToken, [StringComparison]::Ordinal)) {
         throw "Production admission common policy is missing '$requiredToken'."
     }
@@ -2454,6 +2460,9 @@ foreach ($requiredToken in @(
         'DeploymentControlReference',
         'RuntimeOperationsReference',
         'WorkspaceAccessEstateReference',
+        'schemaVersion = 2',
+        'evidenceReference = $EvidenceReference',
+        'mutableEvidenceMaximumAgeMinutes',
         'Get-BunkFyVerifiedProductionAdmission',
         '[IO.Directory]::Move')) {
     if (-not $productionAdmissionAssembler.Contains($requiredToken, [StringComparison]::Ordinal)) {

@@ -113,5 +113,5 @@ by the changed Public API bytes.
 
 - A real hosted admission attempt and its private approval records.
 - Independent inspection of Worker and Admin API runtime configuration.
-- Temporal freshness and standalone summary cross-binding hardening, which is
-  the next admission-boundary slice after attempt identity is closed.
+- Temporal freshness and standalone summary cross-binding are continued in the
+  [Production Admission Freshness And Cross-Binding task](production-admission-freshness-task.md).

@@ -223,8 +223,22 @@ $privateReferences = [ordered]@{
     'runtime-topology-restart-and-credential-rotation' = Assert-BunkFyProductionAdmissionReference -Value $RuntimeOperationsReference -Name 'RuntimeOperationsReference'
     'workspace-access-seed-estate' = Assert-BunkFyProductionAdmissionReference -Value $WorkspaceAccessEstateReference -Name 'WorkspaceAccessEstateReference'
 }
-if (@($privateReferences.Values | Sort-Object -Unique).Count -ne $privateReferences.Count) {
-    throw 'Each private production control must use a distinct evidence reference.'
+$_seenPrivateReferences = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+foreach ($reference in $privateReferences.Values) {
+    if (-not $_seenPrivateReferences.Add($reference)) {
+        throw 'Each private production control must use a distinct evidence reference.'
+    }
+}
+$systemEvidenceReferences = @(
+    $AdmissionEvidenceReference,
+    $candidatePromotion.PromotionEvidenceReference,
+    $rollbackPromotion.PromotionEvidenceReference,
+    $rollbackRehearsal.Reference,
+    $migration.Reference)
+foreach ($reference in $privateReferences.Values) {
+    if ($systemEvidenceReferences -ccontains $reference) {
+        throw 'Private production controls must not reuse a system evidence reference.'
+    }
 }
 
 if ([string]::IsNullOrWhiteSpace($OutputDirectory)) {
@@ -278,6 +292,7 @@ function New-BunkFyProductionAdmissionEvidenceSummary {
     param(
         [Parameter(Mandatory = $true)][string] $Name,
         [Parameter(Mandatory = $true)][string] $EvidenceKind,
+        [Parameter(Mandatory = $true)][string] $EvidenceReference,
         [Parameter(Mandatory = $true)][string] $BoundReleaseId,
         [Parameter(Mandatory = $true)][string] $SourceSha256,
         [Parameter(Mandatory = $true)][DateTimeOffset] $ObservedAtUtc,
@@ -287,6 +302,7 @@ function New-BunkFyProductionAdmissionEvidenceSummary {
     return [ordered]@{
         name = $Name
         evidenceKind = $EvidenceKind
+        evidenceReference = $EvidenceReference
         boundReleaseId = $BoundReleaseId
         sourceSha256 = $SourceSha256
         observedAtUtc = $ObservedAtUtc.ToUniversalTime().ToString('O')
@@ -295,10 +311,38 @@ function New-BunkFyProductionAdmissionEvidenceSummary {
 }
 
 $sourceEvidence = [Collections.Generic.List[object]]::new()
-$sourceEvidence.Add((New-BunkFyProductionAdmissionEvidenceSummary -Name 'candidate-image-promotion' -EvidenceKind 'bunkfy-image-promotion' -BoundReleaseId $CandidateReleaseId -SourceSha256 $candidatePromotion.ChecksumsSha256 -ObservedAtUtc $candidatePromotion.GeneratedAtUtc -ProofCount 2))
-$sourceEvidence.Add((New-BunkFyProductionAdmissionEvidenceSummary -Name 'rollback-image-promotion' -EvidenceKind 'bunkfy-image-promotion' -BoundReleaseId $RollbackReleaseId -SourceSha256 $rollbackPromotion.ChecksumsSha256 -ObservedAtUtc $rollbackPromotion.GeneratedAtUtc -ProofCount 2))
-$sourceEvidence.Add((New-BunkFyProductionAdmissionEvidenceSummary -Name $rollbackRehearsal.Name -EvidenceKind $rollbackRehearsal.EvidenceKind -BoundReleaseId $CandidateReleaseId -SourceSha256 $rollbackRehearsal.SourceSha256 -ObservedAtUtc $rollbackRehearsal.GeneratedAtUtc -ProofCount $rollbackRehearsal.CheckCount))
-$sourceEvidence.Add((New-BunkFyProductionAdmissionEvidenceSummary -Name $migration.Name -EvidenceKind $migration.EvidenceKind -BoundReleaseId $CandidateReleaseId -SourceSha256 $migration.SourceSha256 -ObservedAtUtc $migration.GeneratedAtUtc -ProofCount $migration.CheckCount))
+$sourceEvidence.Add((New-BunkFyProductionAdmissionEvidenceSummary `
+            -Name 'candidate-image-promotion' `
+            -EvidenceKind 'bunkfy-image-promotion' `
+            -EvidenceReference $candidatePromotion.PromotionEvidenceReference `
+            -BoundReleaseId $CandidateReleaseId `
+            -SourceSha256 $candidatePromotion.ChecksumsSha256 `
+            -ObservedAtUtc $candidatePromotion.GeneratedAtUtc `
+            -ProofCount 2))
+$sourceEvidence.Add((New-BunkFyProductionAdmissionEvidenceSummary `
+            -Name 'rollback-image-promotion' `
+            -EvidenceKind 'bunkfy-image-promotion' `
+            -EvidenceReference $rollbackPromotion.PromotionEvidenceReference `
+            -BoundReleaseId $RollbackReleaseId `
+            -SourceSha256 $rollbackPromotion.ChecksumsSha256 `
+            -ObservedAtUtc $rollbackPromotion.GeneratedAtUtc `
+            -ProofCount 2))
+$sourceEvidence.Add((New-BunkFyProductionAdmissionEvidenceSummary `
+            -Name $rollbackRehearsal.Name `
+            -EvidenceKind $rollbackRehearsal.EvidenceKind `
+            -EvidenceReference $rollbackRehearsal.Reference `
+            -BoundReleaseId $CandidateReleaseId `
+            -SourceSha256 $rollbackRehearsal.SourceSha256 `
+            -ObservedAtUtc $rollbackRehearsal.GeneratedAtUtc `
+            -ProofCount $rollbackRehearsal.CheckCount))
+$sourceEvidence.Add((New-BunkFyProductionAdmissionEvidenceSummary `
+            -Name $migration.Name `
+            -EvidenceKind $migration.EvidenceKind `
+            -EvidenceReference $migration.Reference `
+            -BoundReleaseId $CandidateReleaseId `
+            -SourceSha256 $migration.SourceSha256 `
+            -ObservedAtUtc $migration.GeneratedAtUtc `
+            -ProofCount $migration.CheckCount))
 foreach ($entry in @(
         [pscustomobject]@{ Name = 'deployed-public-edge'; Value = $publicEdge },
         [pscustomobject]@{ Name = 'deployed-admin-allowed'; Value = $adminAllowed },
@@ -318,18 +362,43 @@ foreach ($entry in @(
     $sourceEvidence.Add((New-BunkFyProductionAdmissionEvidenceSummary `
             -Name $entry.Name `
             -EvidenceKind $entry.Value.EvidenceKind `
+            -EvidenceReference $entry.Value.Reference `
             -BoundReleaseId $CandidateReleaseId `
             -SourceSha256 $entry.Value.SourceSha256 `
             -ObservedAtUtc $entry.Value.GeneratedAtUtc `
             -ProofCount $entry.Value.CheckCount))
 }
 
+$generatedAtUtc = [DateTimeOffset]::UtcNow
+$mutableEvidenceTimes = [Collections.Generic.List[DateTimeOffset]]::new()
+foreach ($entry in @($sourceEvidence | Where-Object {
+            $_.name.StartsWith('deployed-', [StringComparison]::Ordinal)
+        })) {
+    $observedAtUtc = ConvertTo-BunkFyProductionAdmissionTimestamp `
+        -Value $entry.observedAtUtc `
+        -Context "admission source '$($entry.name)' observation time"
+    [void](Assert-BunkFyProductionAdmissionMutableEvidenceFreshness `
+            -Timestamp $observedAtUtc `
+            -EvaluationTimeUtc $generatedAtUtc `
+            -Context "admission source '$($entry.name)'")
+    $mutableEvidenceTimes.Add($observedAtUtc)
+}
+if ($mutableEvidenceTimes.Count -eq 0) {
+    throw 'Production admission requires mutable runtime evidence.'
+}
+$orderedMutableEvidenceTimes = @($mutableEvidenceTimes | Sort-Object)
+$oldestMutableEvidenceAtUtc = $orderedMutableEvidenceTimes[0]
+$newestMutableEvidenceAtUtc = $orderedMutableEvidenceTimes[-1]
+$expiresAtUtc = Get-BunkFyProductionAdmissionExpiry `
+    -GeneratedAtUtc $generatedAtUtc `
+    -OldestMutableEvidenceAtUtc $oldestMutableEvidenceAtUtc
+
 $record = [ordered]@{
-    schemaVersion = 1
+    schemaVersion = 2
     evidenceKind = 'bunkfy-production-admission-bundle'
     admissionId = $admissionId.ToString('D')
     admissionEvidenceReference = $AdmissionEvidenceReference
-    generatedAtUtc = [DateTimeOffset]::UtcNow.ToString('O')
+    generatedAtUtc = $generatedAtUtc.ToString('O')
     result = 'passed'
     decision = 'evidence-complete-awaiting-private-approval'
     repository = 'SadPossum/BunkFy'
@@ -339,7 +408,24 @@ $record = [ordered]@{
     deployment = [ordered]@{
         publicOrigin = $origin.GetLeftPart([UriPartial]::Authority)
         rollbackEvidenceReference = $rollbackRehearsal.Reference
+        rollbackEvidenceSha256 = $rollbackRehearsal.SourceSha256
+        migrationEvidenceReference = $migration.Reference
+        migrationEvidenceSha256 = $migration.SourceSha256
         adminEvidenceSetId = [string]$adminAllowed.Record.evidenceSetId
+    }
+    validity = [ordered]@{
+        policy = $script:BunkFyProductionAdmissionFreshnessPolicy
+        mutableEvidenceMaximumAgeMinutes = [int](
+            $script:BunkFyProductionAdmissionMutableEvidenceMaximumAge.TotalMinutes)
+        approvalWindowMinutes = [int](
+            $script:BunkFyProductionAdmissionApprovalWindow.TotalMinutes)
+        clockSkewSeconds = [int](
+            $script:BunkFyProductionAdmissionClockSkew.TotalSeconds)
+        oldestMutableEvidenceAtUtc =
+            $oldestMutableEvidenceAtUtc.ToString('O')
+        newestMutableEvidenceAtUtc =
+            $newestMutableEvidenceAtUtc.ToString('O')
+        expiresAtUtc = $expiresAtUtc.ToString('O')
     }
     evidence = @($sourceEvidence | Sort-Object { $_.name })
     privateEvidence = @($privateReferences.GetEnumerator() | Sort-Object Key | ForEach-Object {
@@ -394,3 +480,4 @@ if ($PassThru) {
 Write-Host "BunkFy production admission evidence is complete for '$CandidateReleaseId'."
 Write-Host "Evidence: $resolvedOutputDirectory"
 Write-Host "Admission evidence reference: $($verified.AdmissionEvidenceReference)"
+Write-Host "Approval evidence expires at $($verified.ExpiresAtUtc.ToString('O'))."
