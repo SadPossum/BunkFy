@@ -1,6 +1,6 @@
 # Production Admission Freshness And Cross-Binding Task
 
-Status: implementation verified; publication pending
+Status: repository verification complete; hosted admission remains
 Date: 2026-08-23
 
 ## Goal
@@ -51,7 +51,7 @@ verified independently of the assembler.
    references.
 6. [x] Align operator documentation, script guards, and workspace solutions.
 7. [x] Run one consolidated end-of-slice repository gate.
-8. [ ] Publish the exact root commit and observe its required checks.
+8. [x] Publish the exact root commit and observe its required checks.
 
 ## Repository Verification
 
@@ -62,7 +62,10 @@ verified independently of the assembler.
   drift, all non-Docker .NET tests, web lint/typecheck, 59 Vitest files with 304
   tests, and the Production web build.
 - No Docker suite or remote evidence workflow was run during implementation.
-  Publication checks are intentionally deferred to the exact slice commit.
+  Those workflows are candidate/deployment evidence, not edit-by-edit checks.
+- Exact root commit `c384d326881a88bd065e761e4b64b7be7c34d435`
+  passed Validate run `32614803033`, Security Baseline run `32614803084`,
+  and CodeQL run `32614803055` for both C# and JavaScript/TypeScript.
 
 ## Verification Cadence
 
