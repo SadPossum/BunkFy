@@ -64,7 +64,11 @@ Set the public API, Admin API, and Worker
 `BunkFy:Deployment:ReleaseId` to the record's `releaseId`. Set
 `PromotionEvidenceReference` to its generated promotion reference and
 `RollbackEvidenceReference` to the separately approved rollback or recovery
-record. The deployed public-edge probe must receive the same release id.
+record. Before startup, also preallocate the attempt-specific
+`AdmissionEvidenceReference` described by the
+[Production admission runbook](production-admission-evidence.md). The deployed
+public-edge and mutable workflow probes must observe that same release and
+admission identity.
 
 Before Production admission, use a previously promoted compatible release and
 the [deployed release rollback rehearsal](deployed-release-rollback-rehearsal.md)

@@ -8,6 +8,7 @@ $fixtureRoot = Join-Path ([IO.Path]::GetTempPath()) (
 
 $fixture = [pscustomobject]@{
     ReleaseId = 'release-fixture-001'
+    AdmissionEvidenceReference = 'admission:11111111111111111111111111111111'
     WorkspaceId = '11111111-1111-4111-8111-111111111111'
     AllowedPropertyId = '22222222-2222-4222-8222-222222222222'
     DeniedPropertyId = '33333333-3333-4333-8333-333333333333'
@@ -251,6 +252,7 @@ function Start-BunkFyWorkspaceEnrollmentFixtureServer {
                             service = 'BunkFy.Host.Api'
                             status = 'ok'
                             releaseId = $Fixture.ReleaseId
+                            admissionEvidenceReference = $Fixture.AdmissionEvidenceReference
                             timestampUtc = [DateTimeOffset]::UtcNow.ToString('O')
                         }
                     }
@@ -636,11 +638,12 @@ try {
 
     $evidenceText = Get-Content -LiteralPath $validOutput -Raw
     $evidence = $evidenceText | ConvertFrom-Json -Depth 8
-    if ($evidence.schemaVersion -ne 1 -or
+    if ($evidence.schemaVersion -ne 2 -or
         $evidence.evidenceKind -cne 'bunkfy-deployed-workspace-enrollment-probe' -or
         $evidence.result -cne 'passed' -or
         $evidence.transport -cne 'loopback-http-fixture' -or
         $evidence.releaseId -cne $fixture.ReleaseId -or
+        $evidence.admissionEvidenceReference -cne $fixture.AdmissionEvidenceReference -or
         @($evidence.checks).Count -ne 9 -or
         @($evidence.limitations).Count -ne 3 -or
         [Guid]$evidence.approved.membershipId -ne [Guid]$fixture.MembershipId) {

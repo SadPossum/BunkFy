@@ -910,6 +910,7 @@
     <File Path="docs/planning/preview-trusted-https-browser-onboarding-proof-task.md" />
     <File Path="docs/planning/preview-workspace-access-administration-proof-task.md" />
     <File Path="docs/planning/preview-workspace-access-seed-estate-proof-task.md" />
+    <File Path="docs/planning/production-admission-attempt-identity-task.md" />
     <File Path="docs/planning/production-image-promotion-boundary-task.md" />
     <File Path="docs/planning/production-migration-proof-refresh-task.md" />
     <File Path="docs/planning/production-workspace-access-estate-admission-task.md" />

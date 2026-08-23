@@ -27,6 +27,7 @@ $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'deployed-public-edge.common.ps1')
 . (Join-Path $PSScriptRoot 'deployed-authenticated-smoke.common.ps1')
 
+$observedAdmissionEvidenceReference = $null
 $origin = Assert-BunkFyPublicEdgeOrigin `
     -Origin $PublicOrigin `
     -AllowLoopbackHttp:$AllowLoopbackHttp
@@ -432,7 +433,8 @@ try {
         -Client $client `
         -Origin $origin `
         -ExpectedReleaseId $ExpectedReleaseId `
-        -TimeoutSeconds $RequestTimeoutSeconds
+        -TimeoutSeconds $RequestTimeoutSeconds `
+        -ObservedAdmissionEvidenceReference ([ref]$observedAdmissionEvidenceReference)
     $actorMembership = Get-SmokeWorkspaceMembership -Token $actorToken -Label 'actor'
     $observerMembership = Get-SmokeWorkspaceMembership -Token $observerToken -Label 'observer'
     if ([string]$actorMembership.subjectId -ceq [string]$observerMembership.subjectId) {
@@ -681,7 +683,8 @@ try {
         -Client $client `
         -Origin $origin `
         -ExpectedReleaseId $ExpectedReleaseId `
-        -TimeoutSeconds $RequestTimeoutSeconds
+        -TimeoutSeconds $RequestTimeoutSeconds `
+        -ObservedAdmissionEvidenceReference ([ref]$observedAdmissionEvidenceReference)
     if ($observedReleaseId -cne $releaseIdBefore) {
         throw 'The public API release identity changed during notification verification.'
     }
@@ -700,11 +703,12 @@ finally {
 }
 
 $evidence = [ordered]@{
-    schemaVersion = 2
+    schemaVersion = 3
     evidenceKind = 'bunkfy-deployed-operations-notifications-probe'
     generatedAtUtc = [DateTimeOffset]::UtcNow.ToString('O')
     origin = $origin.GetLeftPart([UriPartial]::Authority)
     releaseId = $observedReleaseId
+    admissionEvidenceReference = $observedAdmissionEvidenceReference
     transport = if ($origin.Scheme -eq 'https') { 'trusted-https' } else { 'loopback-http-preview' }
     result = 'passed'
     workflow = [ordered]@{

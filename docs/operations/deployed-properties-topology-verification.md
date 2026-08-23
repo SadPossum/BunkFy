@@ -1,6 +1,6 @@
 # Deployed Properties Topology Verification
 
-Status: implemented, fixture verified, and exact-release Preview verified
+Status: schema-v2 implementation and fixture verified; prior Preview proof historical
 Date: 2026-08-13
 
 Use `eng/operations/verify-deployed-properties-topology.ps1` to prove the
@@ -75,8 +75,8 @@ room must finish retired, both beds must be inactive, and no parent cleanup may
 remain. Retired synthetic records remain for auditability.
 
 Passing evidence is written atomically with private permissions under
-`.tmp/deployment-probes` by default. It contains only release and transport
-identity, bounded status/version relationships, topology counts, 31 named
+`.tmp/deployment-probes` by default. Schema v2 contains only release, admission,
+and transport identity, bounded status/version relationships, topology counts, 31 named
 checks, cleanup disposition, and fixed limitations. It excludes credentials,
 identifiers, names, codes, labels, reasons, time-zone and country-policy values,
 response bodies, and workflow timestamps. Existing output is not replaced

@@ -8,6 +8,7 @@ $fixtureRoot = Join-Path ([IO.Path]::GetTempPath()) (
 
 $fixture = [pscustomobject]@{
     ReleaseId = 'release-fixture-001'
+    AdmissionEvidenceReference = 'admission:11111111111111111111111111111111'
     WorkspaceId = '11111111-1111-4111-8111-111111111111'
     PropertyId = '22222222-2222-4222-8222-222222222222'
     InventoryUnitId = '33333333-3333-4333-8333-333333333333'
@@ -351,6 +352,7 @@ function Start-BunkFyOperationsNotificationsFixtureServer {
                             service = 'BunkFy.Host.Api'
                             status = 'ok'
                             releaseId = $Fixture.ReleaseId
+                            admissionEvidenceReference = $Fixture.AdmissionEvidenceReference
                             timestampUtc = [DateTimeOffset]::UtcNow.ToString('O')
                         }
                         if ($workflowComplete) {
@@ -704,10 +706,11 @@ try {
     $validOutput = Join-Path $fixtureRoot 'valid-evidence.json'
     Invoke-BunkFyFixtureProbe -Mode valid -OutputPath $validOutput
     $evidence = Get-Content -LiteralPath $validOutput -Raw | ConvertFrom-Json -Depth 12
-    if ($evidence.schemaVersion -ne 2 -or
+    if ($evidence.schemaVersion -ne 3 -or
         $evidence.evidenceKind -cne 'bunkfy-deployed-operations-notifications-probe' -or
         $evidence.result -cne 'passed' -or
         $evidence.releaseId -cne $fixture.ReleaseId -or
+        $evidence.admissionEvidenceReference -cne $fixture.AdmissionEvidenceReference -or
         $evidence.transport -cne 'loopback-http-preview' -or
         @($evidence.checks).Count -ne 10 -or
         [string]$evidence.workflow.sourceModule -cne 'inventory' -or
@@ -733,7 +736,8 @@ try {
         -Value $evidence `
         -Expected @(
             'schemaVersion', 'evidenceKind', 'generatedAtUtc', 'origin',
-            'releaseId', 'transport', 'result', 'workflow', 'delivery',
+            'releaseId', 'admissionEvidenceReference', 'transport', 'result',
+            'workflow', 'delivery',
             'cleanup', 'checks', 'limitations') `
         -Context 'Notification evidence'
     Assert-BunkFyExactPropertyNames `

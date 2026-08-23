@@ -1326,13 +1326,18 @@ foreach ($requiredToken in @(
         'Assert-BunkFyPublicEdgeOrigin',
         'Assert-BunkFyPublicEdgeSecurityHeaders',
         'Assert-BunkFyWebReleaseIdentity',
+        'Get-BunkFySmokeDeploymentIdentity',
+        'Assert-BunkFySmokeDeploymentIdentity',
         'Assert-BunkFySmokeResponse',
+        'Assert-BunkFyPublicApiDeploymentIdentity',
         'Assert-BunkFyPublicApiReleaseIdentity',
         'New-BunkFyPublicEdgeHttpClient',
         'Invoke-BunkFyUntrustedHttpsHostRequest',
         'Get-BunkFyObservedComposedReleaseId',
         'ExpectedReleaseId',
         'releaseId',
+        'ObservedAdmissionEvidenceReference',
+        'admissionEvidenceReference',
         '$handler.AllowAutoRedirect = $false',
         'HttpCompletionOption]::ResponseHeadersRead',
         'CancellationTokenSource',
@@ -1357,9 +1362,10 @@ foreach ($requiredToken in @(
         'ExpectedReleaseId',
         'Invoke-BunkFyUntrustedHttpsHostRequest',
         '-HostHeader $UntrustedHost',
-        'schemaVersion = 3',
+        'schemaVersion = 4',
         "evidenceKind = 'bunkfy-deployed-public-edge-probe'",
         'releaseId = $observedReleaseId',
+        'admissionEvidenceReference = $observedDeployment.AdmissionEvidenceReference',
         "'registry-and-image-provenance-require-promotion-record'",
         "'private-infrastructure-not-observed'",
         "'authenticated-workflows-not-executed'")) {
@@ -1393,6 +1399,10 @@ foreach ($requiredToken in @(
         'Get-BunkFyVerifiedImagePromotion',
         'Get-BunkFyObservedComposedReleaseId',
         'verify-deployed-public-edge.ps1',
+        'AdmissionEvidenceReference',
+        'Assert-BunkFyRollbackProbeAdmissionIdentity',
+        'schemaVersion = 2',
+        'admissionEvidenceReference = $AdmissionEvidenceReference',
         'rollbackEvidenceReference',
         'checksums.sha256',
         "evidenceKind = 'bunkfy-deployed-release-rollback-rehearsal'",
@@ -1845,7 +1855,7 @@ foreach ($requiredToken in @(
         'manual-inventory-block-released',
         'initiating-actor-excluded',
         'Release-SmokeBlockBestEffort',
-        'schemaVersion = 2',
+        'schemaVersion = 3',
         "'loopback-http-preview'",
         'workflow = [ordered]',
         'delivery = [ordered]',
@@ -1895,7 +1905,7 @@ foreach ($requiredToken in @(
         'reservation-checkout-replay-current',
         'inventory-released-after-checkout',
         'Complete-SmokeReservationBestEffort',
-        'schemaVersion = 2',
+        'schemaVersion = 3',
         "'loopback-http-preview'",
         'workflow = [ordered]',
         'cleanup = [ordered]',
@@ -2323,7 +2333,7 @@ foreach ($requiredToken in @(
         'cross-workspace-retention-denied',
         'automatic-retention-occurrence-observed',
         "evidenceKind = 'bunkfy-deployed-retention-probe'",
-        'schemaVersion = 2',
+        'schemaVersion = 3',
         "'owner-data-not-seeded-or-read'",
         "'generic-task-lease-and-restart-not-observed'")) {
     if (-not $retentionProbe.Contains($requiredToken, [StringComparison]::Ordinal)) {
@@ -2346,6 +2356,34 @@ foreach ($forbiddenToken in @(
 & (Join-Path $PSScriptRoot 'test-deployed-retention.ps1')
 Write-Host 'BunkFy deployed Retention probe policy is valid.'
 
+$attemptBoundProbeScripts = @(
+    'verify-deployed-adapter-host.ps1',
+    'verify-deployed-admin-boundary.ps1',
+    'verify-deployed-data-rights-access-export.ps1',
+    'verify-deployed-guests-stay-history.ps1',
+    'verify-deployed-ingestion-conflict-proposal-lifecycle.ps1',
+    'verify-deployed-ingestion-connection-lifecycle.ps1',
+    'verify-deployed-operations-notifications.ps1',
+    'verify-deployed-properties-topology.ps1',
+    'verify-deployed-reservations-inventory.ps1',
+    'verify-deployed-retention.ps1',
+    'verify-deployed-staff-employment.ps1',
+    'verify-deployed-workspace-enrollment.ps1',
+    'verify-deployed-workspace-invitation.ps1')
+foreach ($scriptName in $attemptBoundProbeScripts) {
+    $source = Get-Content -LiteralPath (
+        Join-Path $PSScriptRoot "operations\$scriptName") -Raw
+    foreach ($requiredToken in @(
+            '$observedAdmissionEvidenceReference = $null',
+            '-ObservedAdmissionEvidenceReference ([ref]$observedAdmissionEvidenceReference)',
+            'admissionEvidenceReference = $observedAdmissionEvidenceReference')) {
+        if (-not $source.Contains($requiredToken, [StringComparison]::Ordinal)) {
+            throw "Deployed probe '$scriptName' is missing admission-attempt binding '$requiredToken'."
+        }
+    }
+}
+Write-Host 'BunkFy deployed probe admission-attempt binding is valid.'
+
 $productionAdmissionCommon = Get-Content -LiteralPath (
     Join-Path $PSScriptRoot 'production-admission.common.ps1') -Raw
 $productionAdmissionAssembler = Get-Content -LiteralPath (
@@ -2354,6 +2392,9 @@ $productionAdmissionVerifier = Get-Content -LiteralPath (
     Join-Path $PSScriptRoot 'verify-production-admission.ps1') -Raw
 foreach ($requiredToken in @(
         'Get-BunkFyVerifiedProductionAdmissionProbe',
+        'ExpectedAdmissionEvidenceReference',
+        'admissionEvidenceReference',
+        'different admission attempt',
         'Assert-BunkFyRetentionAdmissionEvidence',
         'Assert-BunkFyGuestsStayHistoryAdmissionEvidence',
         'Assert-BunkFyStaffEmploymentAdmissionEvidence',
@@ -2390,6 +2431,7 @@ foreach ($requiredToken in @(
 foreach ($requiredToken in @(
         'CandidatePromotionDirectory',
         'AdmissionEvidenceReference',
+        '-ExpectedAdmissionEvidenceReference $AdmissionEvidenceReference',
         'RollbackPromotionDirectory',
         'RollbackRehearsalDirectory',
         'MigrationRehearsalPath',

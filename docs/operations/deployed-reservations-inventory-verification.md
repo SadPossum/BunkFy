@@ -1,6 +1,6 @@
 # Deployed Reservations And Inventory Verification
 
-Status: schema-v2 implementation and fixture verified; exact-release Preview pending
+Status: schema-v3 implementation and fixture verified; exact-release Preview pending
 Date: 2026-08-13
 
 Use this mutation-bearing probe to verify one deployed BunkFy release through
@@ -85,7 +85,8 @@ active allocation. If the run fails after creation, it best-effort cancels an
 unoccupied reservation or checks out an occupied one.
 
 Passing JSON is written atomically under `.tmp/deployment-probes` by default.
-Schema v2 contains the origin, release identity, transport, named checks,
+Schema v3 contains the origin, release identity, admission evidence reference,
+transport, named checks,
 explicit limitations, and closed workflow and cleanup summaries. It records a
 direct booking that moved through confirmed, checked-in, and checked-out state;
 stable create/check-in/checkout replay; available-confirmed-released allocation;
@@ -119,5 +120,5 @@ the workspace, revoked all three sessions, and purged and closed the Mailpit
 operator window. The terminal synthetic reservation remains inside the
 archived smoke workspace as declared by the verifier. The evidence is retained
 only in ignored VPS working state and does not admit the final `f27ce996`
-candidate, satisfy the schema-v2 admission contract, prove browser behavior or
+candidate, satisfy the schema-v3 admission contract, prove browser behavior or
 durable Guest creation, or exercise concurrent overbooking contention.

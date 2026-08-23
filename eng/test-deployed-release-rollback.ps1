@@ -77,14 +77,15 @@ function New-TestPromotionEvidence {
 function Start-TestRollbackEdge {
     param(
         [Parameter(Mandatory = $true)][string] $FixtureRoot,
-        [Parameter(Mandatory = $true)][string] $InitialReleaseId
+        [Parameter(Mandatory = $true)][string] $InitialReleaseId,
+        [Parameter(Mandatory = $true)][string] $AdmissionEvidenceReference
     )
 
     $statePath = Join-Path $FixtureRoot "release-$([Guid]::NewGuid().ToString('N')).txt"
     $readyPath = Join-Path $FixtureRoot "ready-$([Guid]::NewGuid().ToString('N')).txt"
     [IO.File]::WriteAllText($statePath, $InitialReleaseId)
     $job = Start-Job -ScriptBlock {
-        param($ReadyPath, $StatePath)
+        param($ReadyPath, $StatePath, $AdmissionReference)
 
         Set-StrictMode -Version Latest
         $ErrorActionPreference = 'Stop'
@@ -176,6 +177,7 @@ function Start-TestRollbackEdge {
                             service = 'BunkFy.Host.Api'
                             status = 'ok'
                             releaseId = $releaseId
+                            admissionEvidenceReference = $AdmissionReference
                             timestampUtc = [DateTimeOffset]::UtcNow.ToString('O')
                         } | ConvertTo-Json -Compress
                     }
@@ -217,7 +219,7 @@ function Start-TestRollbackEdge {
         finally {
             $listener.Stop()
         }
-    } -ArgumentList $readyPath, $statePath
+    } -ArgumentList $readyPath, $statePath, $AdmissionEvidenceReference
 
     $readyDeadline = [DateTimeOffset]::UtcNow.AddSeconds(10)
     while (-not [IO.File]::Exists($readyPath)) {
@@ -284,6 +286,7 @@ try {
     $rollbackRelease = 'release-rollback-001'
     $candidateSource = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
     $rollbackSource = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
+    $admissionReference = "admission:$([Guid]::NewGuid().ToString('N'))"
     $candidatePromotion = Join-Path $temporaryRoot 'candidate-promotion'
     $rollbackPromotion = Join-Path $temporaryRoot 'rollback-promotion'
     New-TestPromotionEvidence `
@@ -303,6 +306,7 @@ try {
             CandidatePromotionDirectory = $candidatePromotion
             CandidateReleaseId = $candidateRelease
             CandidateSourceCommit = $candidateSource
+            AdmissionEvidenceReference = $admissionReference
             RollbackPromotionDirectory = $rollbackPromotion
             RollbackReleaseId = $rollbackRelease
             RollbackSourceCommit = $rollbackSource
@@ -313,7 +317,8 @@ try {
 
     $server = Start-TestRollbackEdge `
         -FixtureRoot $temporaryRoot `
-        -InitialReleaseId $candidateRelease
+        -InitialReleaseId $candidateRelease `
+        -AdmissionEvidenceReference $admissionReference
     $output = Join-Path $temporaryRoot 'passing-evidence'
     $transition = Start-Job -ScriptBlock {
         param($StatePath, $RollbackRelease, $CandidateRelease, $OutputDirectory)
@@ -364,6 +369,7 @@ try {
             -CandidatePromotionDirectory $candidatePromotion `
             -CandidateReleaseId $candidateRelease `
             -CandidateSourceCommit $candidateSource `
+            -AdmissionEvidenceReference $admissionReference `
             -RollbackPromotionDirectory $rollbackPromotion `
             -RollbackReleaseId $rollbackRelease `
             -RollbackSourceCommit $rollbackSource `
@@ -392,10 +398,11 @@ try {
     $record = [IO.File]::ReadAllText((Join-Path $output 'rollback-rehearsal.json')) |
         ConvertFrom-Json -Depth 12
     if ($closed.Files.Count -ne 4 -or
-        $record.schemaVersion -ne 1 -or
+        $record.schemaVersion -ne 2 -or
         $record.evidenceKind -cne 'bunkfy-deployed-release-rollback-rehearsal' -or
         $record.result -cne 'passed' -or
         $record.rollbackEvidenceReference -cnotmatch '^rollback:[0-9a-f]{32}$' -or
+        $record.admissionEvidenceReference -cne $admissionReference -or
         $record.candidate.releaseId -cne $candidateRelease -or
         $record.rollback.releaseId -cne $rollbackRelease -or
         @($record.checks).Count -ne 3 -or
@@ -409,8 +416,9 @@ try {
             'candidate-restored-public-edge.json')) {
         $edge = [IO.File]::ReadAllText((Join-Path $output $name)) |
             ConvertFrom-Json -Depth 8
-        if ($edge.schemaVersion -ne 3 -or
+        if ($edge.schemaVersion -ne 4 -or
             $edge.result -cne 'passed' -or
+            $edge.admissionEvidenceReference -cne $admissionReference -or
             @($edge.checks).Count -ne 6) {
             throw "Rollback fixture contains invalid public-edge evidence '$name'."
         }
@@ -428,6 +436,7 @@ try {
             CandidatePromotionDirectory = $candidatePromotion
             CandidateReleaseId = $candidateRelease
             CandidateSourceCommit = $candidateSource
+            AdmissionEvidenceReference = $admissionReference
             RollbackPromotionDirectory = $candidatePromotion
             RollbackReleaseId = $candidateRelease
             RollbackSourceCommit = $candidateSource
@@ -440,7 +449,8 @@ try {
 
     $timeoutServer = Start-TestRollbackEdge `
         -FixtureRoot $temporaryRoot `
-        -InitialReleaseId $candidateRelease
+        -InitialReleaseId $candidateRelease `
+        -AdmissionEvidenceReference $admissionReference
     $timeoutOutput = Join-Path $temporaryRoot 'rejected-timeout'
     try {
         Assert-TestFailure `
@@ -449,6 +459,7 @@ try {
                 CandidatePromotionDirectory = $candidatePromotion
                 CandidateReleaseId = $candidateRelease
                 CandidateSourceCommit = $candidateSource
+                AdmissionEvidenceReference = $admissionReference
                 RollbackPromotionDirectory = $rollbackPromotion
                 RollbackReleaseId = $rollbackRelease
                 RollbackSourceCommit = $rollbackSource

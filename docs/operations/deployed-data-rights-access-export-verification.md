@@ -1,6 +1,6 @@
 # Deployed Data Rights Access Export Verification
 
-Status: implemented, fixture verified, and exact-release Preview verified
+Status: schema-v2 implementation and fixture verified; prior Preview proof historical
 Date: 2026-08-12
 
 Use `eng/operations/verify-deployed-data-rights-access-export.ps1` to prove one
@@ -62,9 +62,10 @@ unassured download, `403` for the nonmember, safe download headers, strict JSON
 shape, bounded in-memory size, and stable bytes across two downloads. It
 rechecks the release identity after the workflow.
 
-Plaintext export bytes are never written to disk. The retained evidence has
-only bounded counts, format and expiry summaries, named checks, cleanup state,
-and fixed limitations. It excludes credentials, PII, response bodies, hashes,
+Plaintext export bytes are never written to disk. The schema-v2 retained
+evidence has the observed admission evidence reference, bounded counts, format
+and expiry summaries, named checks, cleanup state, and fixed limitations. It
+excludes credentials, PII, response bodies, hashes,
 and workspace, property, Guest, case, subject, and artifact identifiers. An
 existing evidence file is rejected unless the operator explicitly supplies
 `-Force`.

@@ -70,9 +70,9 @@ disabled before a workflow error is rethrown. Passing evidence requires exactly
 one superseded, one rejected, one applied, and zero pending proposals.
 
 Evidence kind
-`bunkfy-deployed-ingestion-conflict-proposal-lifecycle-probe`, schema version 1,
-is written atomically with private permissions. It retains only release and
-transport identity, adapter contract versions, the integer authority-revision
+`bunkfy-deployed-ingestion-conflict-proposal-lifecycle-probe`, schema version 2,
+is written atomically with private permissions. It retains only release,
+admission, and transport identity, adapter contract versions, the integer authority-revision
 chain, terminal proposal counts, named checks, cleanup dispositions, and fixed
 limitations. It excludes all tenant and domain identifiers, tokens, headers,
 guest data, source records, adapter names, policy values, and response bodies.

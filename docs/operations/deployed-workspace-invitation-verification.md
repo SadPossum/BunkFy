@@ -1,6 +1,6 @@
 # Deployed Workspace Invitation Verification
 
-Status: implemented, fixture verified, and VPS-preview verified
+Status: schema-v2 implementation and fixture verified; prior Preview proof historical
 Date: 2026-08-11
 
 ## Goal
@@ -76,8 +76,8 @@ left intact for explicit review and offboarding.
 ## Evidence Boundary
 
 Passing evidence is written atomically below ignored
-`.tmp/deployment-probes` by default. It records the origin, release identity,
-workspace and workflow object IDs, eight named checks, and explicit limitations.
+`.tmp/deployment-probes` by default. Schema v2 records the origin, release and
+admission evidence identities, workspace and workflow object IDs, eight named checks, and explicit limitations.
 It excludes bearer tokens, invitation secrets, email addresses, Auth subject
 IDs, response bodies, and raw headers.
 

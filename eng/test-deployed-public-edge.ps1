@@ -7,13 +7,14 @@ $probeScript = Join-Path $PSScriptRoot 'operations\verify-deployed-public-edge.p
 $fixtureRoot = Join-Path ([IO.Path]::GetTempPath()) (
     'bunkfy-edge-fixture-' + [Guid]::NewGuid().ToString('N'))
 [void](New-Item -ItemType Directory -Path $fixtureRoot)
+$admissionReference = 'admission:11111111111111111111111111111111'
 
 function Start-BunkFyEdgeFixtureServer {
     param([Parameter(Mandatory = $true)][string] $Mode)
 
     $readyPath = Join-Path $fixtureRoot ("ready-$Mode-$([Guid]::NewGuid().ToString('N')).txt")
     $job = Start-Job -ScriptBlock {
-        param($ReadyPath, $Mode)
+        param($ReadyPath, $Mode, $AdmissionReference)
 
         Set-StrictMode -Version Latest
         $ErrorActionPreference = 'Stop'
@@ -85,6 +86,7 @@ function Start-BunkFyEdgeFixtureServer {
                                 service = 'BunkFy.Host.Api'
                                 status = 'ok'
                                 releaseId = 'release-fixture-001'
+                                admissionEvidenceReference = $AdmissionReference
                                 timestampUtc = [DateTimeOffset]::UtcNow.ToString('O')
                             } | ConvertTo-Json -Compress
                         }
@@ -118,6 +120,19 @@ function Start-BunkFyEdgeFixtureServer {
                             }
                             else {
                                 'release-fixture-001'
+                            }
+                            admissionEvidenceReference = if ($Mode -eq 'MissingAdmissionReference') {
+                                $null
+                            }
+                            elseif ($Mode -eq 'InvalidAdmissionReference') {
+                                'admission:not-valid'
+                            }
+                            elseif ($Mode -eq 'AdmissionReferenceChanges' -and
+                                $requestNumber -gt 0) {
+                                'admission:22222222222222222222222222222222'
+                            }
+                            else {
+                                $AdmissionReference
                             }
                             timestampUtc = [DateTimeOffset]::UtcNow.ToString('O')
                         } | ConvertTo-Json -Compress
@@ -182,7 +197,7 @@ function Start-BunkFyEdgeFixtureServer {
         finally {
             $listener.Stop()
         }
-    } -ArgumentList $readyPath, $Mode
+    } -ArgumentList $readyPath, $Mode, $admissionReference
 
     $deadline = [DateTimeOffset]::UtcNow.AddSeconds(10)
     while (-not (Test-Path -LiteralPath $readyPath -PathType Leaf)) {
@@ -296,11 +311,12 @@ try {
         -Path $validOutput `
         -PathType Leaf `
         -Description 'Deployed public-edge fixture evidence'
-    if ($evidence.schemaVersion -ne 3 -or
+    if ($evidence.schemaVersion -ne 4 -or
         $evidence.evidenceKind -cne 'bunkfy-deployed-public-edge-probe' -or
         $evidence.result -cne 'passed' -or
         $evidence.transport -cne 'loopback-http-fixture' -or
         $evidence.releaseId -cne 'release-fixture-001' -or
+        $evidence.admissionEvidenceReference -cne $admissionReference -or
         @($evidence.checks).Count -ne 6 -or
         @($evidence.limitations).Count -ne 3) {
         throw 'Valid edge fixture emitted unexpected evidence.'
@@ -315,6 +331,12 @@ try {
     Assert-BunkFyProbeRejected `
         -Mode 'ReleaseMismatch' `
         -ExpectedMessage 'does not match'
+    Assert-BunkFyProbeRejected `
+        -Mode 'MissingAdmissionReference' `
+        -ExpectedMessage 'not bound to an admission evidence reference'
+    Assert-BunkFyProbeRejected `
+        -Mode 'InvalidAdmissionReference' `
+        -ExpectedMessage 'invalid admission evidence reference'
     Assert-BunkFyProbeRejected `
         -Mode 'MissingWebReleaseHeader' `
         -ExpectedMessage 'X-BunkFy-Release-Id'
@@ -336,6 +358,39 @@ try {
     Assert-BunkFyProbeRejected `
         -Mode 'ExtraPermissionsFeature' `
         -ExpectedMessage 'outside the checked-in BunkFy policy'
+
+    $changingServer = Start-BunkFyEdgeFixtureServer `
+        -Mode 'AdmissionReferenceChanges'
+    $changingClient = New-BunkFyPublicEdgeHttpClient
+    try {
+        $observedAdmissionReference = $null
+        [void](Assert-BunkFyPublicApiReleaseIdentity `
+                -Client $changingClient `
+                -Origin $changingServer.Origin `
+                -ExpectedReleaseId 'release-fixture-001' `
+                -TimeoutSeconds 5 `
+                -ObservedAdmissionEvidenceReference ([ref]$observedAdmissionReference))
+        try {
+            [void](Assert-BunkFyPublicApiReleaseIdentity `
+                    -Client $changingClient `
+                    -Origin $changingServer.Origin `
+                    -ExpectedReleaseId 'release-fixture-001' `
+                    -TimeoutSeconds 5 `
+                    -ObservedAdmissionEvidenceReference ([ref]$observedAdmissionReference))
+            throw 'The public API verifier accepted an admission identity change.'
+        }
+        catch {
+            if (-not $_.Exception.Message.Contains(
+                    'changed during verification',
+                    [StringComparison]::OrdinalIgnoreCase)) {
+                throw
+            }
+        }
+    }
+    finally {
+        $changingClient.Dispose()
+        Stop-BunkFyEdgeFixtureServer -Server $changingServer
+    }
 
     $insecureRemoteRejected = $false
     try {

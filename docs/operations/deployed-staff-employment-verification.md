@@ -1,6 +1,6 @@
 # Deployed Staff Employment Verification
 
-Status: implemented, fixture verified, and exact-release Preview verified
+Status: schema-v2 implementation and fixture verified; prior Preview proof historical
 Date: 2026-08-13
 
 Use `eng/operations/verify-deployed-staff-employment.ps1` to prove the
@@ -77,8 +77,8 @@ Preview parent remains responsible for retiring the selected property and its
 workspace.
 
 Passing evidence is written atomically with private permissions under
-`.tmp/deployment-probes` by default. It contains release and transport identity,
-bounded workflow summaries, 21 named checks, cleanup disposition, and fixed
+`.tmp/deployment-probes` by default. Schema v2 contains release, admission, and
+transport identity, bounded workflow summaries, 21 named checks, cleanup disposition, and fixed
 limitations. It excludes credentials, personal data, response bodies,
 identifiers, display labels, reasons, and effective dates. Existing evidence is
 never replaced without explicit `-Force`.

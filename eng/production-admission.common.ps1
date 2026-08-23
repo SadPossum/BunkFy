@@ -168,10 +168,10 @@ function Get-BunkFyProductionAdmissionProbeSpecification {
             return [pscustomobject]@{
                 Name = $Name
                 EvidenceKind = 'bunkfy-deployed-public-edge-probe'
-                SchemaVersion = 3
+                SchemaVersion = 4
                 OriginProperty = 'origin'
                 TransportProperty = 'transport'
-                Properties = @('schemaVersion', 'evidenceKind', 'generatedAtUtc', 'origin', 'releaseId', 'transport', 'result', 'checks', 'limitations')
+                Properties = @('schemaVersion', 'evidenceKind', 'generatedAtUtc', 'origin', 'releaseId', 'admissionEvidenceReference', 'transport', 'result', 'checks', 'limitations')
                 Checks = @('web-root-and-browser-policy', 'web-release-identity', 'edge-health', 'public-api-smoke', 'admin-api-absent', 'untrusted-host-rejected')
                 Limitations = @('registry-and-image-provenance-require-promotion-record', 'private-infrastructure-not-observed', 'authenticated-workflows-not-executed')
                 GuidProperties = @()
@@ -187,10 +187,10 @@ function Get-BunkFyProductionAdmissionProbeSpecification {
             return [pscustomobject]@{
                 Name = $Name
                 EvidenceKind = 'bunkfy-deployed-admin-boundary-probe'
-                SchemaVersion = 1
+                SchemaVersion = 2
                 OriginProperty = 'publicOrigin'
                 TransportProperty = 'transport'
-                Properties = @('schemaVersion', 'evidenceKind', 'generatedAtUtc', 'evidenceSetId', 'releaseId', 'expectedAdminReachability', 'publicOrigin', 'adminOrigin', 'transport', 'result', 'adminObservation', 'checks', 'limitations')
+                Properties = @('schemaVersion', 'evidenceKind', 'generatedAtUtc', 'evidenceSetId', 'releaseId', 'admissionEvidenceReference', 'expectedAdminReachability', 'publicOrigin', 'adminOrigin', 'transport', 'result', 'adminObservation', 'checks', 'limitations')
                 Checks = $checks
                 Limitations = @('single-vantage-point-observation', 'deployment-configuration-not-inspected', 'authenticated-admin-operations-not-executed')
                 GuidProperties = @('evidenceSetId')
@@ -200,10 +200,10 @@ function Get-BunkFyProductionAdmissionProbeSpecification {
             return [pscustomobject]@{
                 Name = $Name
                 EvidenceKind = 'bunkfy-deployed-workspace-invitation-probe'
-                SchemaVersion = 1
+                SchemaVersion = 2
                 OriginProperty = 'origin'
                 TransportProperty = 'transport'
-                Properties = @('schemaVersion', 'evidenceKind', 'generatedAtUtc', 'origin', 'releaseId', 'transport', 'result', 'workspaceId', 'allowedPropertyId', 'deniedPropertyId', 'sourceId', 'applicationId', 'membershipId', 'staffMemberId', 'checks', 'limitations')
+                Properties = @('schemaVersion', 'evidenceKind', 'generatedAtUtc', 'origin', 'releaseId', 'admissionEvidenceReference', 'transport', 'result', 'workspaceId', 'allowedPropertyId', 'deniedPropertyId', 'sourceId', 'applicationId', 'membershipId', 'staffMemberId', 'checks', 'limitations')
                 Checks = @('recipient-bound-source-issued', 'recipient-preview-authorized', 'separate-account-membership-created', 'staff-profile-converged', 'least-privilege-policy-evaluation', 'property-route-enforcement', 'same-subject-replay-stable', 'release-identity-continuous')
                 Limitations = @('browser-ui-not-exercised', 'registration-and-email-delivery-not-exercised', 'joined-member-not-automatically-offboarded')
                 GuidProperties = @('workspaceId', 'allowedPropertyId', 'deniedPropertyId', 'sourceId', 'applicationId', 'membershipId', 'staffMemberId')
@@ -213,10 +213,10 @@ function Get-BunkFyProductionAdmissionProbeSpecification {
             return [pscustomobject]@{
                 Name = $Name
                 EvidenceKind = 'bunkfy-deployed-workspace-enrollment-probe'
-                SchemaVersion = 1
+                SchemaVersion = 2
                 OriginProperty = 'origin'
                 TransportProperty = 'transport'
-                Properties = @('schemaVersion', 'evidenceKind', 'generatedAtUtc', 'origin', 'releaseId', 'transport', 'result', 'workspaceId', 'allowedPropertyId', 'deniedPropertyId', 'rejected', 'approved', 'checks', 'limitations')
+                Properties = @('schemaVersion', 'evidenceKind', 'generatedAtUtc', 'origin', 'releaseId', 'admissionEvidenceReference', 'transport', 'result', 'workspaceId', 'allowedPropertyId', 'deniedPropertyId', 'rejected', 'approved', 'checks', 'limitations')
                 Checks = @('approval-required-source-issued', 'pending-claim-has-no-access', 'owner-rejection-terminal', 'rejected-source-disabled', 'second-claim-owner-approved', 'staff-profile-converged', 'least-privilege-route-enforcement', 'same-subject-claim-replay-stable', 'release-identity-continuous')
                 Limitations = @('browser-ui-and-qr-rendering-not-exercised', 'registration-and-email-delivery-not-exercised', 'joined-member-not-automatically-offboarded')
                 GuidProperties = @('workspaceId', 'allowedPropertyId', 'deniedPropertyId')
@@ -226,10 +226,10 @@ function Get-BunkFyProductionAdmissionProbeSpecification {
             return [pscustomobject]@{
                 Name = $Name
                 EvidenceKind = 'bunkfy-deployed-operations-notifications-probe'
-                SchemaVersion = 2
+                SchemaVersion = 3
                 OriginProperty = 'origin'
                 TransportProperty = 'transport'
-                Properties = @('schemaVersion', 'evidenceKind', 'generatedAtUtc', 'origin', 'releaseId', 'transport', 'result', 'workflow', 'delivery', 'cleanup', 'checks', 'limitations')
+                Properties = @('schemaVersion', 'evidenceKind', 'generatedAtUtc', 'origin', 'releaseId', 'admissionEvidenceReference', 'transport', 'result', 'workflow', 'delivery', 'cleanup', 'checks', 'limitations')
                 Checks = @('distinct-scoped-identities-preflight', 'cross-workspace-history-denied', 'created-notification-live-streamed', 'created-notification-detail-and-read-state', 'released-notification-live-streamed', 'released-notification-detail-and-read-state', 'initiating-actor-excluded', 'observer-history-exactly-once', 'inventory-block-cleanup-confirmed', 'release-identity-continuous')
                 Limitations = @('browser-attention-rendering-not-exercised', 'external-delivery-adapters-not-exercised', 'released-block-and-notification-history-retained')
                 GuidProperties = @()
@@ -239,10 +239,10 @@ function Get-BunkFyProductionAdmissionProbeSpecification {
             return [pscustomobject]@{
                 Name = $Name
                 EvidenceKind = 'bunkfy-deployed-reservations-inventory-probe'
-                SchemaVersion = 2
+                SchemaVersion = 3
                 OriginProperty = 'origin'
                 TransportProperty = 'transport'
-                Properties = @('schemaVersion', 'evidenceKind', 'generatedAtUtc', 'origin', 'releaseId', 'transport', 'result', 'workflow', 'cleanup', 'checks', 'limitations')
+                Properties = @('schemaVersion', 'evidenceKind', 'generatedAtUtc', 'origin', 'releaseId', 'admissionEvidenceReference', 'transport', 'result', 'workflow', 'cleanup', 'checks', 'limitations')
                 Checks = @('cross-workspace-inventory-read-denied', 'scoped-operator-and-property-preflight', 'inventory-available-before-create', 'reservation-allocation-confirmed', 'reservation-create-replay-stable', 'allocated-inventory-unavailable', 'reservation-check-in-recorded', 'reservation-check-in-replay-stable', 'reservation-checkout-converged', 'reservation-checkout-replay-current', 'inventory-released-after-checkout', 'release-identity-continuous')
                 Limitations = @('browser-workflow-not-exercised', 'durable-guest-record-not-created', 'concurrent-overbooking-contention-not-exercised', 'synthetic-checked-out-reservation-retained')
                 GuidProperties = @()
@@ -252,10 +252,10 @@ function Get-BunkFyProductionAdmissionProbeSpecification {
             return [pscustomobject]@{
                 Name = $Name
                 EvidenceKind = 'bunkfy-deployed-guests-stay-history-probe'
-                SchemaVersion = 1
+                SchemaVersion = 2
                 OriginProperty = 'origin'
                 TransportProperty = 'transport'
-                Properties = @('schemaVersion', 'evidenceKind', 'generatedAtUtc', 'origin', 'releaseId', 'transport', 'result', 'workflow', 'cleanup', 'checks', 'limitations')
+                Properties = @('schemaVersion', 'evidenceKind', 'generatedAtUtc', 'origin', 'releaseId', 'admissionEvidenceReference', 'transport', 'result', 'workflow', 'cleanup', 'checks', 'limitations')
                 Checks = @('scoped-operator-property-and-inventory-preflight', 'nonmember-guest-directory-denied', 'guest-created-with-minimal-profile', 'guest-create-replay-stable', 'guest-create-conflict-rejected', 'guest-detail-and-active-directory-visible', 'guest-versioned-update-recorded', 'guest-update-replay-stable', 'guest-conflicting-and-stale-updates-rejected', 'guest-update-visible', 'reservation-allocation-confirmed', 'reservation-primary-guest-link-replay-stable', 'guest-stay-confirmed-projection-converged', 'guest-stay-check-in-projection-converged', 'guest-stay-checkout-projection-converged', 'terminal-reservation-retained-and-inventory-released', 'guest-archive-replay-stable', 'archived-guest-directory-and-history-consistent', 'release-identity-continuous')
                 Limitations = @('browser-guest-workflow-not-exercised', 'guest-deduplication-merge-and-consent-not-exercised', 'concurrent-participant-and-overbooking-contention-not-exercised', 'synthetic-archived-guest-and-checked-out-reservation-retained')
                 GuidProperties = @()
@@ -265,10 +265,10 @@ function Get-BunkFyProductionAdmissionProbeSpecification {
             return [pscustomobject]@{
                 Name = $Name
                 EvidenceKind = 'bunkfy-deployed-staff-employment-probe'
-                SchemaVersion = 1
+                SchemaVersion = 2
                 OriginProperty = 'origin'
                 TransportProperty = 'transport'
-                Properties = @('schemaVersion', 'evidenceKind', 'generatedAtUtc', 'origin', 'releaseId', 'transport', 'result', 'workflow', 'cleanup', 'checks', 'limitations')
+                Properties = @('schemaVersion', 'evidenceKind', 'generatedAtUtc', 'origin', 'releaseId', 'admissionEvidenceReference', 'transport', 'result', 'workflow', 'cleanup', 'checks', 'limitations')
                 Checks = @('scoped-operator-and-property-preflight', 'nonmember-staff-directory-denied', 'staff-created-with-minimal-unlinked-profile', 'staff-create-replay-stable', 'staff-create-conflict-rejected', 'staff-directory-and-sensitive-profile-coherent', 'staff-versioned-update-recorded', 'staff-update-replay-stable', 'staff-update-conflict-rejected', 'staff-stale-update-rejected', 'staff-update-visible', 'staff-property-assignment-recorded', 'staff-assignment-replay-stable', 'staff-assignment-conflict-rejected', 'staff-canonical-and-property-assignment-visible', 'staff-suspension-replay-stable-and-assignment-retained', 'staff-resume-replay-stable', 'staff-departure-replay-stable', 'staff-departure-closes-current-assignment', 'staff-active-and-departed-filters-coherent', 'release-identity-continuous')
                 Limitations = @('browser-staff-workflow-not-exercised', 'account-link-membership-and-role-lifecycle-not-exercised', 'governance-data-rights-and-retention-not-exercised', 'synthetic-departed-staff-record-retained')
                 GuidProperties = @()
@@ -278,10 +278,10 @@ function Get-BunkFyProductionAdmissionProbeSpecification {
             return [pscustomobject]@{
                 Name = $Name
                 EvidenceKind = 'bunkfy-deployed-properties-topology-probe'
-                SchemaVersion = 1
+                SchemaVersion = 2
                 OriginProperty = 'origin'
                 TransportProperty = 'transport'
-                Properties = @('schemaVersion', 'evidenceKind', 'generatedAtUtc', 'origin', 'releaseId', 'transport', 'result', 'workflow', 'cleanup', 'checks', 'limitations')
+                Properties = @('schemaVersion', 'evidenceKind', 'generatedAtUtc', 'origin', 'releaseId', 'admissionEvidenceReference', 'transport', 'result', 'workflow', 'cleanup', 'checks', 'limitations')
                 Checks = @('scoped-operator-preflight', 'nonmember-property-directory-denied', 'property-created', 'property-create-replay-stable', 'property-create-conflict-rejected', 'property-detail-and-directory-visible', 'property-versioned-update-recorded', 'property-update-replay-stable', 'property-update-conflict-and-stale-write-rejected', 'property-update-visible', 'room-created', 'room-create-replay-stable-and-conflict-rejected', 'room-versioned-update-recorded', 'room-update-replay-conflict-and-stale-write-enforced', 'room-detail-and-directory-visible', 'bed-batch-created-atomically', 'bed-batch-replay-stable-and-conflict-rejected', 'bed-directory-visible', 'bed-versioned-update-recorded', 'bed-update-replay-conflict-and-stale-write-enforced', 'bed-update-visible', 'property-retirement-blocked-by-active-room', 'direct-topology-retirement-requires-inventory', 'bed-retirement-request-replay-stable', 'bed-retirement-completed', 'room-retirement-request-replay-stable', 'room-and-beds-retirement-completed', 'property-retirement-replay-stable', 'property-retirement-conflict-rejected', 'retired-topology-directories-and-processing-consistent', 'release-identity-continuous')
                 Limitations = @('browser-properties-workflow-not-exercised', 'country-policy-activation-suspension-and-rebinding-not-exercised', 'occupied-and-blocked-topology-drain-not-exercised', 'synthetic-retired-topology-retained')
                 GuidProperties = @()
@@ -291,10 +291,10 @@ function Get-BunkFyProductionAdmissionProbeSpecification {
             return [pscustomobject]@{
                 Name = $Name
                 EvidenceKind = 'bunkfy-deployed-ingestion-connection-lifecycle-probe'
-                SchemaVersion = 1
+                SchemaVersion = 2
                 OriginProperty = 'origin'
                 TransportProperty = 'transport'
-                Properties = @('schemaVersion', 'evidenceKind', 'generatedAtUtc', 'origin', 'releaseId', 'transport', 'result', 'workflow', 'cleanup', 'checks', 'limitations')
+                Properties = @('schemaVersion', 'evidenceKind', 'generatedAtUtc', 'origin', 'releaseId', 'admissionEvidenceReference', 'transport', 'result', 'workflow', 'cleanup', 'checks', 'limitations')
                 Checks = @('scoped-operator-and-processing-preflight', 'nonmember-connections-denied', 'remote-capability-discovered', 'connection-created', 'connection-create-replay-stable', 'connection-create-conflict-rejected', 'connection-directory-detail-and-health-visible', 'connection-updated-with-secret-reference', 'connection-update-replay-stable', 'connection-update-conflict-and-stale-write-rejected', 'secret-reference-cleared', 'connection-disabled', 'connection-disable-replay-stable', 'connection-disable-conflict-and-stale-write-rejected', 'connection-enabled', 'connection-enable-replay-stable', 'connection-enable-conflict-and-stale-write-rejected', 'ingress-credential-issued-once', 'ingress-credential-replay-withholds-token', 'ingress-credential-create-conflict-rejected', 'ingress-credential-directory-visible', 'remote-lease-claimed-with-issued-credential', 'zero-observation-run-completed', 'terminal-run-and-health-visible', 'credential-authentication-telemetry-visible', 'ingress-credential-revoked', 'ingress-credential-revoke-replay-stable', 'ingress-credential-revoke-conflict-and-stale-write-rejected', 'revoked-credential-denied', 'connection-finally-disabled', 'terminal-projections-consistent', 'release-identity-continuous')
                 Limitations = @('provider-record-receipt-proposal-and-checkpoint-not-exercised', 'country-policy-activation-and-rebinding-not-exercised', 'production-secret-manager-and-orchestrator-rotation-not-exercised', 'synthetic-disabled-control-state-retained')
                 GuidProperties = @()
@@ -304,10 +304,10 @@ function Get-BunkFyProductionAdmissionProbeSpecification {
             return [pscustomobject]@{
                 Name = $Name
                 EvidenceKind = 'bunkfy-deployed-ingestion-conflict-proposal-lifecycle-probe'
-                SchemaVersion = 1
+                SchemaVersion = 2
                 OriginProperty = 'origin'
                 TransportProperty = 'transport'
-                Properties = @('schemaVersion', 'evidenceKind', 'generatedAtUtc', 'origin', 'releaseId', 'transport', 'result', 'adapterContract', 'authorityRevisions', 'proposalSummary', 'cleanup', 'checks', 'limitations')
+                Properties = @('schemaVersion', 'evidenceKind', 'generatedAtUtc', 'origin', 'releaseId', 'admissionEvidenceReference', 'transport', 'result', 'adapterContract', 'authorityRevisions', 'proposalSummary', 'cleanup', 'checks', 'limitations')
                 Checks = @('scoped-operator-processing-and-inventory-preflight', 'nonmember-proposal-read-denied', 'push-capability-discovered', 'push-connection-and-credential-created', 'adapter-ingress-requires-independent-authentication', 'initial-observation-auto-created-reservation', 'observation-replay-is-stable', 'baseline-current-update-auto-applied', 'staff-edit-established-new-authority', 'staff-conflict-created-pending-proposal', 'pending-proposal-did-not-overwrite-staff-state', 'newer-source-proposal-superseded-older-pending', 'only-newest-proposal-remains-actionable', 'superseded-proposal-decision-rejected', 'newest-proposal-rejected-with-audit-reason', 'proposal-rejection-replay-and-conflict-safe', 'later-source-update-created-fresh-proposal', 'proposal-acceptance-started-versioned-operation', 'accepted-proposal-converged-in-reservations', 'proposal-acceptance-replay-and-conflict-safe', 'stale-source-input-created-no-actionable-work', 'reservation-history-preserved-authority-provenance', 'adapter-cancellation-completed-terminally', 'credential-revoked-and-connection-disabled', 'release-identity-continuous', 'terminal-proposal-projection-consistent')
                 Limitations = @('synthetic-reservation-data-only', 'loopback-preview-is-not-hosted-production-proof', 'provider-acquisition-and-parser-correctness-not-exercised', 'proposal-acceptance-race-to-stale-covered-by-focused-integration-tests', 'production-country-policy-and-provider-credential-approval-not-exercised')
                 GuidProperties = @()
@@ -317,10 +317,10 @@ function Get-BunkFyProductionAdmissionProbeSpecification {
             return [pscustomobject]@{
                 Name = $Name
                 EvidenceKind = 'bunkfy-deployed-data-rights-access-export-probe'
-                SchemaVersion = 1
+                SchemaVersion = 2
                 OriginProperty = 'origin'
                 TransportProperty = 'transport'
-                Properties = @('schemaVersion', 'evidenceKind', 'generatedAtUtc', 'origin', 'releaseId', 'transport', 'result', 'workflow', 'artifact', 'cleanup', 'checks', 'limitations')
+                Properties = @('schemaVersion', 'evidenceKind', 'generatedAtUtc', 'origin', 'releaseId', 'admissionEvidenceReference', 'transport', 'result', 'workflow', 'artifact', 'cleanup', 'checks', 'limitations')
                 Checks = @('scoped-assured-operator-and-property-preflight', 'nonmember-case-access-denied', 'synthetic-guest-created', 'controller-initiated-case-entered-discovery', 'exact-guest-subject-discovered-and-selected', 'review-and-decision-approved', 'export-generation-requested', 'export-request-replay-stable', 'second-artifact-request-denied', 'worker-export-generation-converged', 'case-completed-with-approved-scope', 'unassured-export-download-denied', 'nonmember-export-download-denied', 'protected-download-headers-and-shape-verified', 'download-replay-stable', 'synthetic-guest-archived', 'artifact-expiry-bounded-and-scheduled', 'release-identity-continuous')
                 Limitations = @('browser-privacy-workflow-not-exercised', 'multi-subject-and-large-exports-not-exercised', 'independent-object-store-and-key-custody-not-inspected', 'case-history-and-encrypted-artifact-retained-until-configured-lifecycle')
                 GuidProperties = @()
@@ -330,10 +330,10 @@ function Get-BunkFyProductionAdmissionProbeSpecification {
             return [pscustomobject]@{
                 Name = $Name
                 EvidenceKind = 'bunkfy-deployed-adapter-host-probe'
-                SchemaVersion = 1
+                SchemaVersion = 2
                 OriginProperty = 'publicOrigin'
                 TransportProperty = 'publicTransport'
-                Properties = @('schemaVersion', 'evidenceKind', 'generatedAtUtc', 'publicOrigin', 'releaseId', 'adapterHostOrigin', 'publicTransport', 'adapterHostTransport', 'result', 'workspaceId', 'propertyId', 'connectionId', 'adapterType', 'workerId', 'statusEndpointExposure', 'run', 'receipt', 'checks', 'limitations')
+                Properties = @('schemaVersion', 'evidenceKind', 'generatedAtUtc', 'publicOrigin', 'releaseId', 'admissionEvidenceReference', 'adapterHostOrigin', 'publicTransport', 'adapterHostTransport', 'result', 'workspaceId', 'propertyId', 'connectionId', 'adapterType', 'workerId', 'statusEndpointExposure', 'run', 'receipt', 'checks', 'limitations')
                 Checks = @('adapter-host-ready-and-exposure-correct', 'remote-polling-connection-preflight', 'remote-lease-run-proof-complete', 'durable-receipt-provenance-correlated', 'server-checkpoint-advanced', 'connection-health-converged', 'adapter-host-post-cycle-healthy', 'release-identity-continuous')
                 Limitations = @('synthetic-provider-record-injection-not-performed-by-probe', 'credential-rotation-and-process-restart-not-exercised', 'production-admission-log-and-orchestrator-topology-not-observed', 'raw-payload-content-not-read')
                 GuidProperties = @('workspaceId', 'propertyId', 'connectionId', 'workerId')
@@ -343,10 +343,10 @@ function Get-BunkFyProductionAdmissionProbeSpecification {
             return [pscustomobject]@{
                 Name = $Name
                 EvidenceKind = 'bunkfy-deployed-retention-probe'
-                SchemaVersion = 2
+                SchemaVersion = 3
                 OriginProperty = 'publicOrigin'
                 TransportProperty = 'transport'
-                Properties = @('schemaVersion', 'evidenceKind', 'generatedAtUtc', 'publicOrigin', 'releaseId', 'transport', 'result', 'workspaceId', 'observedDataClassKey', 'catalogueCount', 'observation', 'schedules', 'checks', 'limitations')
+                Properties = @('schemaVersion', 'evidenceKind', 'generatedAtUtc', 'publicOrigin', 'releaseId', 'admissionEvidenceReference', 'transport', 'result', 'workspaceId', 'observedDataClassKey', 'catalogueCount', 'observation', 'schedules', 'checks', 'limitations')
                 Checks = @('retention-catalogue-present', 'cross-workspace-retention-denied', 'automatic-retention-occurrence-observed', 'retention-schedules-terminal-and-current', 'retention-summary-consistent', 'retention-outcomes-pii-minimized', 'release-identity-continuous')
                 Limitations = @('owner-data-not-seeded-or-read', 'generic-task-lease-and-restart-not-observed', 'legal-hold-and-admin-retry-not-exercised', 'private-maintenance-owner-topology-and-alerting-not-observed')
                 GuidProperties = @('workspaceId')
@@ -957,6 +957,9 @@ function Get-BunkFyVerifiedProductionAdmissionProbe {
         [Parameter(Mandatory = $true)][string] $SpecificationName,
         [Parameter(Mandatory = $true)][Uri] $ExpectedOrigin,
         [Parameter(Mandatory = $true)][string] $ExpectedReleaseId,
+        [Parameter(Mandatory = $true)]
+        [ValidatePattern('^admission:[0-9a-f]{32}$')]
+        [string] $ExpectedAdmissionEvidenceReference,
         [switch] $AllowFixtureEvidence
     )
 
@@ -976,6 +979,10 @@ function Get-BunkFyVerifiedProductionAdmissionProbe {
         [string]$record.($spec.OriginProperty) -cne
             $ExpectedOrigin.GetLeftPart([UriPartial]::Authority)) {
         throw "$SpecificationName deployment evidence does not match the candidate release."
+    }
+    if ([string]$record.admissionEvidenceReference -cne
+        $ExpectedAdmissionEvidenceReference) {
+        throw "$SpecificationName deployment evidence comes from a different admission attempt."
     }
     $expectedTransport = if ($AllowFixtureEvidence) {
         'loopback-http-fixture'
@@ -1199,6 +1206,9 @@ function Get-BunkFyVerifiedDeployedRollbackRehearsal {
         [Parameter(Mandatory = $true)][Uri] $ExpectedOrigin,
         [Parameter(Mandatory = $true)][object] $CandidatePromotion,
         [Parameter(Mandatory = $true)][object] $RollbackPromotion,
+        [Parameter(Mandatory = $true)]
+        [ValidatePattern('^admission:[0-9a-f]{32}$')]
+        [string] $ExpectedAdmissionEvidenceReference,
         [switch] $AllowFixtureEvidence
     )
 
@@ -1218,13 +1228,17 @@ function Get-BunkFyVerifiedDeployedRollbackRehearsal {
     $record = $source.Record
     Assert-BunkFyCandidateProperties `
         -Value $record `
-        -ExpectedProperties @('schemaVersion', 'evidenceKind', 'rehearsalId', 'rollbackEvidenceReference', 'generatedAtUtc', 'result', 'origin', 'candidate', 'rollback', 'timing', 'checks', 'limitations') `
+        -ExpectedProperties @('schemaVersion', 'evidenceKind', 'rehearsalId', 'rollbackEvidenceReference', 'admissionEvidenceReference', 'generatedAtUtc', 'result', 'origin', 'candidate', 'rollback', 'timing', 'checks', 'limitations') `
         -Context 'deployed rollback rehearsal record'
-    if ($record.schemaVersion -ne 1 -or
+    if ($record.schemaVersion -ne 2 -or
         $record.evidenceKind -cne 'bunkfy-deployed-release-rollback-rehearsal' -or
         $record.result -cne 'passed' -or
         $record.origin -cne $ExpectedOrigin.GetLeftPart([UriPartial]::Authority)) {
         throw 'Deployed rollback rehearsal does not match the candidate origin.'
+    }
+    if ([string]$record.admissionEvidenceReference -cne
+        $ExpectedAdmissionEvidenceReference) {
+        throw 'Deployed rollback rehearsal comes from a different admission attempt.'
     }
     $rehearsalId = [Guid]::Empty
     if (-not [Guid]::TryParseExact([string]$record.rehearsalId, 'D', [ref]$rehearsalId) -or
@@ -1259,6 +1273,7 @@ function Get-BunkFyVerifiedDeployedRollbackRehearsal {
             -SpecificationName 'public-edge' `
             -ExpectedOrigin $ExpectedOrigin `
             -ExpectedReleaseId $expected.ReleaseId `
+            -ExpectedAdmissionEvidenceReference $ExpectedAdmissionEvidenceReference `
             -AllowFixtureEvidence:$AllowFixtureEvidence
         if ($check.evidenceSha256 -cne $edge.SourceSha256) {
             throw "Deployed rollback rehearsal check '$($check.name)' has the wrong evidence hash."

@@ -8,6 +8,7 @@ $fixtureRoot = Join-Path ([IO.Path]::GetTempPath()) (
 
 $fixture = [pscustomobject]@{
     ReleaseId = 'release-fixture-001'
+    AdmissionEvidenceReference = 'admission:11111111111111111111111111111111'
     WorkspaceId = '11111111-1111-4111-8111-111111111111'
     PropertyId = '22222222-2222-4222-8222-222222222222'
     MembershipId = '33333333-3333-4333-8333-333333333333'
@@ -365,6 +366,7 @@ function Start-BunkFyDataRightsFixtureServer {
                             service = 'BunkFy.Host.Api'
                             status = 'ok'
                             releaseId = $releaseId
+                            admissionEvidenceReference = $Fixture.AdmissionEvidenceReference
                             timestampUtc = [DateTimeOffset]::UtcNow.ToString('O')
                         })
                         if ($Mode -ceq 'wrong-release' -or $guestArchived) {
@@ -787,10 +789,11 @@ try {
         'synthetic-guest-archived',
         'artifact-expiry-bounded-and-scheduled',
         'release-identity-continuous')
-    if ($evidence.schemaVersion -ne 1 -or
+    if ($evidence.schemaVersion -ne 2 -or
         $evidence.evidenceKind -cne 'bunkfy-deployed-data-rights-access-export-probe' -or
         $evidence.result -cne 'passed' -or
         $evidence.releaseId -cne $fixture.ReleaseId -or
+        $evidence.admissionEvidenceReference -cne $fixture.AdmissionEvidenceReference -or
         (@($evidence.checks.name) -join '|') -cne ($expectedChecks -join '|') -or
         @($evidence.limitations).Count -ne 4 -or
         $evidence.workflow.finalStatus -cne 'completed' -or

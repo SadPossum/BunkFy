@@ -43,18 +43,24 @@ Provide the exact retained files or directories for:
   [AdapterHost](deployed-adapter-host-verification.md), and
   [Retention](deployed-retention-verification.md) results.
 
-Every deployed proof must report the candidate release and public origin. The
+Every mutable deployed proof must report the candidate release, public origin,
+and exact preallocated `admissionEvidenceReference`. The value must remain
+stable throughout each workflow and match across every probe and the rollback
+rehearsal; same-release evidence from another attempt is rejected. The
 migration rehearsal source commit and backend digest must match the promoted
 candidate. The rollback rehearsal must bind both supplied promotion records.
+This binding supersedes the earlier unbound schemas: public edge is v4;
+Operations Notifications, Reservations and Inventory, and Retention are v3;
+the rollback rehearsal and the other deployed probes are v2.
 The Preview onboarding rehearsal's opt-in
 `*.operations-notifications.json` child is a standalone Operations
-Notifications proof. Schema v2 omits workspace, property, Inventory, block,
+Notifications proof. Schema v3 omits workspace, property, Inventory, block,
 notification, date-range, and stream-sequence coordinates while retaining
 closed delivery and cleanup semantics. A trusted-HTTPS child may be supplied
 directly; use the child file, not the onboarding umbrella, for
 `OperationsNotificationsEvidencePath`.
 The matching opt-in `*.reservations-inventory.json` child is a standalone
-Reservations and Inventory lifecycle proof. Schema v2 omits tenant and domain
+Reservations and Inventory lifecycle proof. Schema v3 omits tenant and domain
 coordinates, dates, identities, labels, and payloads while retaining closed
 direct-booking, allocation, occupancy, replay, and terminal-cleanup semantics.
 A trusted-HTTPS child may be supplied directly for
@@ -157,7 +163,8 @@ The command validates every input before creating output. It writes
 self-verifies the closed set, and then moves it into place atomically. Existing
 output is never replaced. The assembler rejects an empty admission identity and
 retains the caller-supplied identity exactly; it never substitutes a new one
-after the candidate has been probed.
+after the candidate has been probed. It also rejects any mutable input whose
+admission identity differs from that caller-supplied value.
 
 The admission record contains release and image identities, evidence kinds,
 timestamps, check counts, SHA-256 bindings, and the five private references. It

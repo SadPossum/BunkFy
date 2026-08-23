@@ -8,6 +8,7 @@ $fixtureRoot = Join-Path ([IO.Path]::GetTempPath()) (
 
 $fixture = [pscustomobject]@{
     ReleaseId = 'release-staff-fixture-001'
+    AdmissionEvidenceReference = 'admission:11111111111111111111111111111111'
     WorkspaceId = '11111111-1111-4111-8111-111111111111'
     PropertyId = '22222222-2222-4222-8222-222222222222'
     MembershipId = '33333333-3333-4333-8333-333333333333'
@@ -371,6 +372,7 @@ function Start-BunkFyStaffEmploymentFixtureServer {
                                 service = 'BunkFy.Host.Api'
                                 status = 'ok'
                                 releaseId = $Fixture.ReleaseId
+                                admissionEvidenceReference = $Fixture.AdmissionEvidenceReference
                                 timestampUtc = [DateTimeOffset]::UtcNow.ToString('O')
                             })
                         if ($script:status -eq 3) {
@@ -793,10 +795,11 @@ try {
 
     $evidence = Get-Content -LiteralPath $validOutput -Raw |
         ConvertFrom-Json -Depth 12
-    if ($evidence.schemaVersion -ne 1 -or
+    if ($evidence.schemaVersion -ne 2 -or
         $evidence.evidenceKind -cne 'bunkfy-deployed-staff-employment-probe' -or
         $evidence.result -cne 'passed' -or
         $evidence.releaseId -cne $fixture.ReleaseId -or
+        $evidence.admissionEvidenceReference -cne $fixture.AdmissionEvidenceReference -or
         $evidence.workflow.finalStatus -cne 'departed' -or
         [bool]$evidence.workflow.authSubjectLinked -or
         -not [bool]$evidence.workflow.profileVersionAdvanced -or

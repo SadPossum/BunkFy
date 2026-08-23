@@ -1,6 +1,6 @@
 # Deployed Workspace Enrollment Verification
 
-Status: implemented, fixture verified, and VPS-preview verified
+Status: schema-v2 implementation and fixture verified; prior Preview proof historical
 Date: 2026-08-11
 
 ## Goal
@@ -73,8 +73,8 @@ already approved membership is retained for explicit review and offboarding.
 ## Evidence Boundary
 
 Passing evidence is written atomically below ignored
-`.tmp/deployment-probes` by default. It contains the release identity, workflow
-object IDs, nine named checks, and limitations. It excludes bearer tokens,
+`.tmp/deployment-probes` by default. Schema v2 contains the release and admission
+evidence identities, workflow object IDs, nine named checks, and limitations. It excludes bearer tokens,
 enrollment secrets, email addresses, Auth subject IDs, response bodies, and raw
 headers.
 

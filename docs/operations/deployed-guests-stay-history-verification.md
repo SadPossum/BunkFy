@@ -1,6 +1,6 @@
 # Deployed Guests Stay-History Verification
 
-Status: implemented, fixture verified, and exact-release Preview verified
+Status: schema-v2 implementation and fixture verified; prior Preview proof historical
 Date: 2026-08-13
 
 Use `eng/operations/verify-deployed-guests-stay-history.ps1` to prove the
@@ -75,8 +75,8 @@ Preview parent then retires the dedicated room and cleans up the surrounding
 workspace.
 
 Passing evidence is written atomically with private permissions under
-`.tmp/deployment-probes` by default. It contains only release and transport
-identity, bounded workflow summaries, 19 named checks, cleanup disposition, and
+`.tmp/deployment-probes` by default. Schema v2 contains only release, admission,
+and transport identity, bounded workflow summaries, 19 named checks, cleanup disposition, and
 fixed limitations. It excludes credentials, personal data, response bodies,
 synthetic stay dates, and workspace, property, Inventory, Guest, or Reservation
 identifiers. Existing evidence is never replaced without explicit `-Force`.

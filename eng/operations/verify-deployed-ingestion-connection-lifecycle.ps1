@@ -23,6 +23,7 @@ $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'deployed-public-edge.common.ps1')
 . (Join-Path $PSScriptRoot 'deployed-authenticated-smoke.common.ps1')
 
+$observedAdmissionEvidenceReference = $null
 $origin = Assert-BunkFyPublicEdgeOrigin `
     -Origin $PublicOrigin `
     -AllowLoopbackHttp:$AllowLoopbackHttp
@@ -643,7 +644,8 @@ try {
             -Client $client `
             -Origin $origin `
             -ExpectedReleaseId $ExpectedReleaseId `
-            -TimeoutSeconds $RequestTimeoutSeconds
+            -TimeoutSeconds $RequestTimeoutSeconds `
+            -ObservedAdmissionEvidenceReference ([ref]$observedAdmissionEvidenceReference)
         Get-SmokeWorkspaceMembership
         $property = Read-SmokeJson `
             -Response (Invoke-SmokeApi `
@@ -1146,7 +1148,8 @@ try {
             -Client $client `
             -Origin $origin `
             -ExpectedReleaseId $ExpectedReleaseId `
-            -TimeoutSeconds $RequestTimeoutSeconds
+            -TimeoutSeconds $RequestTimeoutSeconds `
+            -ObservedAdmissionEvidenceReference ([ref]$observedAdmissionEvidenceReference)
         if ($observedReleaseId -cne $releaseIdBefore) {
             throw 'The public API release identity changed during Ingestion lifecycle verification.'
         }
@@ -1208,11 +1211,12 @@ if ($checks.Count -ne 32) {
 }
 
 $evidence = [ordered]@{
-    schemaVersion = 1
+    schemaVersion = 2
     evidenceKind = 'bunkfy-deployed-ingestion-connection-lifecycle-probe'
     generatedAtUtc = [DateTimeOffset]::UtcNow.ToString('O')
     origin = $origin.GetLeftPart([UriPartial]::Authority)
     releaseId = $observedReleaseId
+    admissionEvidenceReference = $observedAdmissionEvidenceReference
     transport = if ($origin.Scheme -eq 'https') { 'trusted-https' } else { 'loopback-http-fixture' }
     result = 'passed'
     workflow = [ordered]@{

@@ -73,8 +73,8 @@ the credential is revoked, and the connection is disabled before any workflow
 failure is returned. Passing evidence is impossible unless the run is terminal,
 the credential revoked, and the connection disabled.
 
-Passing JSON evidence is written atomically with private permissions. It records
-release and transport identity, protocol/schema versions, terminal status and
+Passing schema-v2 JSON evidence is written atomically with private permissions.
+It records release, admission, and transport identity, protocol/schema versions, terminal status and
 version relationships, 32 named checks, cleanup disposition, and fixed
 limitations. It excludes all workspace, property, connection, credential, run,
 lease, worker, claim, and operation identifiers; tokens and headers; adapter and

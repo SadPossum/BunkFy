@@ -96,6 +96,7 @@ $rollbackRehearsal = Get-BunkFyVerifiedDeployedRollbackRehearsal `
     -ExpectedOrigin $origin `
     -CandidatePromotion $candidatePromotion `
     -RollbackPromotion $rollbackPromotion `
+    -ExpectedAdmissionEvidenceReference $AdmissionEvidenceReference `
     -AllowFixtureEvidence:$AllowFixtureEvidence
 $candidateBackend = @($candidatePromotion.Images | Where-Object Name -CEQ 'backend')
 $migration = Get-BunkFyVerifiedProductionMigrationRehearsal `
@@ -108,18 +109,21 @@ $publicEdge = Get-BunkFyVerifiedProductionAdmissionProbe `
     -SpecificationName 'public-edge' `
     -ExpectedOrigin $origin `
     -ExpectedReleaseId $CandidateReleaseId `
+    -ExpectedAdmissionEvidenceReference $AdmissionEvidenceReference `
     -AllowFixtureEvidence:$AllowFixtureEvidence
 $adminAllowed = Get-BunkFyVerifiedProductionAdmissionProbe `
     -Path $AdminAllowedEvidencePath `
     -SpecificationName 'admin-allowed' `
     -ExpectedOrigin $origin `
     -ExpectedReleaseId $CandidateReleaseId `
+    -ExpectedAdmissionEvidenceReference $AdmissionEvidenceReference `
     -AllowFixtureEvidence:$AllowFixtureEvidence
 $adminDenied = Get-BunkFyVerifiedProductionAdmissionProbe `
     -Path $AdminDeniedEvidencePath `
     -SpecificationName 'admin-denied' `
     -ExpectedOrigin $origin `
     -ExpectedReleaseId $CandidateReleaseId `
+    -ExpectedAdmissionEvidenceReference $AdmissionEvidenceReference `
     -AllowFixtureEvidence:$AllowFixtureEvidence
 if ($adminAllowed.Path -ceq $adminDenied.Path -or
     $adminAllowed.Record.evidenceSetId -cne $adminDenied.Record.evidenceSetId -or
@@ -132,72 +136,84 @@ $invitation = Get-BunkFyVerifiedProductionAdmissionProbe `
     -SpecificationName 'workspace-invitation' `
     -ExpectedOrigin $origin `
     -ExpectedReleaseId $CandidateReleaseId `
+    -ExpectedAdmissionEvidenceReference $AdmissionEvidenceReference `
     -AllowFixtureEvidence:$AllowFixtureEvidence
 $enrollment = Get-BunkFyVerifiedProductionAdmissionProbe `
     -Path $WorkspaceEnrollmentEvidencePath `
     -SpecificationName 'workspace-enrollment' `
     -ExpectedOrigin $origin `
     -ExpectedReleaseId $CandidateReleaseId `
+    -ExpectedAdmissionEvidenceReference $AdmissionEvidenceReference `
     -AllowFixtureEvidence:$AllowFixtureEvidence
 $notifications = Get-BunkFyVerifiedProductionAdmissionProbe `
     -Path $OperationsNotificationsEvidencePath `
     -SpecificationName 'operations-notifications' `
     -ExpectedOrigin $origin `
     -ExpectedReleaseId $CandidateReleaseId `
+    -ExpectedAdmissionEvidenceReference $AdmissionEvidenceReference `
     -AllowFixtureEvidence:$AllowFixtureEvidence
 $reservationsInventory = Get-BunkFyVerifiedProductionAdmissionProbe `
     -Path $ReservationsInventoryEvidencePath `
     -SpecificationName 'reservations-inventory' `
     -ExpectedOrigin $origin `
     -ExpectedReleaseId $CandidateReleaseId `
+    -ExpectedAdmissionEvidenceReference $AdmissionEvidenceReference `
     -AllowFixtureEvidence:$AllowFixtureEvidence
 $guestsStayHistory = Get-BunkFyVerifiedProductionAdmissionProbe `
     -Path $GuestsStayHistoryEvidencePath `
     -SpecificationName 'guests-stay-history' `
     -ExpectedOrigin $origin `
     -ExpectedReleaseId $CandidateReleaseId `
+    -ExpectedAdmissionEvidenceReference $AdmissionEvidenceReference `
     -AllowFixtureEvidence:$AllowFixtureEvidence
 $staffEmployment = Get-BunkFyVerifiedProductionAdmissionProbe `
     -Path $StaffEmploymentEvidencePath `
     -SpecificationName 'staff-employment' `
     -ExpectedOrigin $origin `
     -ExpectedReleaseId $CandidateReleaseId `
+    -ExpectedAdmissionEvidenceReference $AdmissionEvidenceReference `
     -AllowFixtureEvidence:$AllowFixtureEvidence
 $propertiesTopology = Get-BunkFyVerifiedProductionAdmissionProbe `
     -Path $PropertiesTopologyEvidencePath `
     -SpecificationName 'properties-topology' `
     -ExpectedOrigin $origin `
     -ExpectedReleaseId $CandidateReleaseId `
+    -ExpectedAdmissionEvidenceReference $AdmissionEvidenceReference `
     -AllowFixtureEvidence:$AllowFixtureEvidence
 $ingestionConnectionLifecycle = Get-BunkFyVerifiedProductionAdmissionProbe `
     -Path $IngestionConnectionLifecycleEvidencePath `
     -SpecificationName 'ingestion-connection-lifecycle' `
     -ExpectedOrigin $origin `
     -ExpectedReleaseId $CandidateReleaseId `
+    -ExpectedAdmissionEvidenceReference $AdmissionEvidenceReference `
     -AllowFixtureEvidence:$AllowFixtureEvidence
 $ingestionConflictProposalLifecycle = Get-BunkFyVerifiedProductionAdmissionProbe `
     -Path $IngestionConflictProposalLifecycleEvidencePath `
     -SpecificationName 'ingestion-conflict-proposal-lifecycle' `
     -ExpectedOrigin $origin `
     -ExpectedReleaseId $CandidateReleaseId `
+    -ExpectedAdmissionEvidenceReference $AdmissionEvidenceReference `
     -AllowFixtureEvidence:$AllowFixtureEvidence
 $dataRightsAccessExport = Get-BunkFyVerifiedProductionAdmissionProbe `
     -Path $DataRightsAccessExportEvidencePath `
     -SpecificationName 'data-rights-access-export' `
     -ExpectedOrigin $origin `
     -ExpectedReleaseId $CandidateReleaseId `
+    -ExpectedAdmissionEvidenceReference $AdmissionEvidenceReference `
     -AllowFixtureEvidence:$AllowFixtureEvidence
 $adapterHost = Get-BunkFyVerifiedProductionAdmissionProbe `
     -Path $AdapterHostEvidencePath `
     -SpecificationName 'adapter-host' `
     -ExpectedOrigin $origin `
     -ExpectedReleaseId $CandidateReleaseId `
+    -ExpectedAdmissionEvidenceReference $AdmissionEvidenceReference `
     -AllowFixtureEvidence:$AllowFixtureEvidence
 $retention = Get-BunkFyVerifiedProductionAdmissionProbe `
     -Path $RetentionEvidencePath `
     -SpecificationName 'retention' `
     -ExpectedOrigin $origin `
     -ExpectedReleaseId $CandidateReleaseId `
+    -ExpectedAdmissionEvidenceReference $AdmissionEvidenceReference `
     -AllowFixtureEvidence:$AllowFixtureEvidence
 
 $privateReferences = [ordered]@{

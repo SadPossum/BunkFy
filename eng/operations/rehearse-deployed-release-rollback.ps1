@@ -8,6 +8,9 @@ param(
     [Parameter(Mandatory = $true)]
     [ValidatePattern('^[0-9a-f]{40}$')]
     [string] $CandidateSourceCommit,
+    [Parameter(Mandatory = $true)]
+    [ValidatePattern('^admission:[0-9a-f]{32}$')]
+    [string] $AdmissionEvidenceReference,
     [Parameter(Mandatory = $true)][string] $RollbackPromotionDirectory,
     [Parameter(Mandatory = $true)]
     [ValidatePattern('^[a-z0-9][a-z0-9._-]{2,127}$')]
@@ -40,6 +43,14 @@ if ($AllowFixtureEvidence -and
     (-not $AllowLoopbackHttp -or
      -not (Test-BunkFyLoopbackHost -HostName $origin.Host))) {
     throw 'Fixture promotion evidence is restricted to an explicit loopback rehearsal.'
+}
+$admissionId = [Guid]::Empty
+if (-not [Guid]::TryParseExact(
+        $AdmissionEvidenceReference.Substring(10),
+        'N',
+        [ref]$admissionId) -or
+    $admissionId -eq [Guid]::Empty) {
+    throw 'AdmissionEvidenceReference must contain a non-empty admission identity.'
 }
 
 $candidatePromotion = Get-BunkFyVerifiedImagePromotion `
@@ -116,6 +127,22 @@ function Invoke-BunkFyRollbackPublicProbe {
     & $publicProbeScript @arguments
 }
 
+function Assert-BunkFyRollbackProbeAdmissionIdentity {
+    param([Parameter(Mandatory = $true)][string] $Path)
+
+    try {
+        $record = Get-Content -LiteralPath $Path -Raw |
+            ConvertFrom-Json -Depth 8
+    }
+    catch {
+        throw "Rollback public-edge evidence '$Path' is not valid JSON."
+    }
+    if ([string]$record.admissionEvidenceReference -cne
+        $AdmissionEvidenceReference) {
+        throw 'The deployed admission evidence reference changed during rollback rehearsal.'
+    }
+}
+
 function Wait-BunkFyComposedRelease {
     param(
         [Parameter(Mandatory = $true)][Net.Http.HttpClient] $Client,
@@ -125,11 +152,13 @@ function Wait-BunkFyComposedRelease {
 
     $deadline = [DateTimeOffset]::UtcNow.AddSeconds($TransitionTimeoutSeconds)
     $lastObserved = $null
+    $observedAdmissionEvidenceReference = $AdmissionEvidenceReference
     while ([DateTimeOffset]::UtcNow -lt $deadline) {
         $observed = Get-BunkFyObservedComposedReleaseId `
             -Client $Client `
             -Origin $origin `
-            -TimeoutSeconds $RequestTimeoutSeconds
+            -TimeoutSeconds $RequestTimeoutSeconds `
+            -ObservedAdmissionEvidenceReference ([ref]$observedAdmissionEvidenceReference)
         if ($null -ne $observed -and $observed -cne $lastObserved) {
             Write-Host "Observed composed release '$observed' while waiting for $Stage."
             $lastObserved = $observed
@@ -179,6 +208,7 @@ try {
     Invoke-BunkFyRollbackPublicProbe `
         -ExpectedReleaseId $CandidateReleaseId `
         -OutputPath $baselinePath
+    Assert-BunkFyRollbackProbeAdmissionIdentity -Path $baselinePath
     $baselineVerifiedAtUtc = [DateTimeOffset]::UtcNow
 
     $client = New-BunkFyPublicEdgeHttpClient `
@@ -193,6 +223,7 @@ try {
     Invoke-BunkFyRollbackPublicProbe `
         -ExpectedReleaseId $RollbackReleaseId `
         -OutputPath $rollbackPath
+    Assert-BunkFyRollbackProbeAdmissionIdentity -Path $rollbackPath
     $rollbackVerifiedAtUtc = [DateTimeOffset]::UtcNow
 
     Write-Host (
@@ -205,6 +236,7 @@ try {
     Invoke-BunkFyRollbackPublicProbe `
         -ExpectedReleaseId $CandidateReleaseId `
         -OutputPath $restoredPath
+    Assert-BunkFyRollbackProbeAdmissionIdentity -Path $restoredPath
     $completedAtUtc = [DateTimeOffset]::UtcNow
 
     $checks = @(
@@ -230,10 +262,11 @@ try {
             evidenceSha256 = (Get-FileHash $restoredPath -Algorithm SHA256).Hash.ToLowerInvariant()
         })
     $record = [ordered]@{
-        schemaVersion = 1
+        schemaVersion = 2
         evidenceKind = 'bunkfy-deployed-release-rollback-rehearsal'
         rehearsalId = $rehearsalId.ToString('D')
         rollbackEvidenceReference = $rollbackEvidenceReference
+        admissionEvidenceReference = $AdmissionEvidenceReference
         generatedAtUtc = $completedAtUtc.ToString('O')
         result = 'passed'
         origin = $origin.GetLeftPart([UriPartial]::Authority)

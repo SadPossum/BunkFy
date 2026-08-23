@@ -8,6 +8,7 @@ $fixtureRoot = Join-Path ([IO.Path]::GetTempPath()) (
 
 $fixture = [pscustomobject]@{
     ReleaseId = 'release-properties-fixture-001'
+    AdmissionEvidenceReference = 'admission:11111111111111111111111111111111'
     WorkspaceId = '11111111-1111-4111-8111-111111111111'
     MembershipId = '12121212-1212-4212-8212-121212121212'
     SubjectId = '13131313-1313-4313-8313-131313131313'
@@ -465,6 +466,7 @@ function Start-BunkFyPropertiesTopologyFixtureServer {
                                 service = 'BunkFy.Host.Api'
                                 status = 'ok'
                                 releaseId = $Fixture.ReleaseId
+                                admissionEvidenceReference = $Fixture.AdmissionEvidenceReference
                                 timestampUtc = [DateTimeOffset]::UtcNow.ToString('O')
                             })
                         if ($script:propertyStatus -eq 2) {
@@ -1078,10 +1080,11 @@ try {
     }
 
     $evidence = Get-Content -LiteralPath $validOutput -Raw | ConvertFrom-Json -Depth 12
-    if ($evidence.schemaVersion -ne 1 -or
+    if ($evidence.schemaVersion -ne 2 -or
         $evidence.evidenceKind -cne 'bunkfy-deployed-properties-topology-probe' -or
         $evidence.result -cne 'passed' -or
         $evidence.releaseId -cne $fixture.ReleaseId -or
+        $evidence.admissionEvidenceReference -cne $fixture.AdmissionEvidenceReference -or
         $evidence.workflow.propertyFinalStatus -cne 'retired' -or
         -not [bool]$evidence.workflow.propertyVersionAdvanced -or
         $evidence.workflow.processingFinalStatus -cne 'suspended-by-retirement' -or

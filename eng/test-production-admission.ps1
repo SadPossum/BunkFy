@@ -78,6 +78,7 @@ function New-TestProbeEvidence {
         [Parameter(Mandatory = $true)][string] $SpecificationName,
         [Parameter(Mandatory = $true)][Uri] $Origin,
         [Parameter(Mandatory = $true)][string] $ReleaseId,
+        [Parameter(Mandatory = $true)][string] $AdmissionEvidenceReference,
         [Guid] $EvidenceSetId = [Guid]::Empty
     )
 
@@ -87,6 +88,7 @@ function New-TestProbeEvidence {
         evidenceKind = $spec.EvidenceKind
         generatedAtUtc = [DateTimeOffset]::UtcNow.ToString('O')
     }
+    $record['admissionEvidenceReference'] = $AdmissionEvidenceReference
     switch ($SpecificationName) {
         'public-edge' {
             $record['origin'] = $Origin.GetLeftPart([UriPartial]::Authority)
@@ -400,7 +402,8 @@ function New-TestRollbackEvidence {
         [Parameter(Mandatory = $true)][string] $Directory,
         [Parameter(Mandatory = $true)][Uri] $Origin,
         [Parameter(Mandatory = $true)][object] $CandidatePromotion,
-        [Parameter(Mandatory = $true)][object] $RollbackPromotion
+        [Parameter(Mandatory = $true)][object] $RollbackPromotion,
+        [Parameter(Mandatory = $true)][string] $AdmissionEvidenceReference
     )
 
     [IO.Directory]::CreateDirectory($Directory) | Out-Null
@@ -414,15 +417,17 @@ function New-TestRollbackEvidence {
             -Path (Join-Path $Directory $entry.Value.File) `
             -SpecificationName 'public-edge' `
             -Origin $Origin `
-            -ReleaseId $entry.Value.ReleaseId
+            -ReleaseId $entry.Value.ReleaseId `
+            -AdmissionEvidenceReference $AdmissionEvidenceReference
     }
     $rehearsalId = [Guid]::NewGuid()
     $completed = [DateTimeOffset]::UtcNow.ToString('O')
     $record = [ordered]@{
-        schemaVersion = 1
+        schemaVersion = 2
         evidenceKind = 'bunkfy-deployed-release-rollback-rehearsal'
         rehearsalId = $rehearsalId.ToString('D')
         rollbackEvidenceReference = "rollback:$($rehearsalId.ToString('N'))"
+        admissionEvidenceReference = $AdmissionEvidenceReference
         generatedAtUtc = $completed
         result = 'passed'
         origin = $Origin.GetLeftPart([UriPartial]::Authority)
@@ -541,7 +546,7 @@ try {
     $rollbackPromotion = Get-BunkFyVerifiedImagePromotion -PromotionDirectory $rollbackPromotionPath -ExpectedReleaseId $rollbackRelease -ExpectedSourceCommit $rollbackSource -AllowFixtureEvidence
 
     $rollbackRehearsalPath = Join-Path $temporaryRoot 'rollback-rehearsal'
-    New-TestRollbackEvidence -Directory $rollbackRehearsalPath -Origin $origin -CandidatePromotion $candidatePromotion -RollbackPromotion $rollbackPromotion
+    New-TestRollbackEvidence -Directory $rollbackRehearsalPath -Origin $origin -CandidatePromotion $candidatePromotion -RollbackPromotion $rollbackPromotion -AdmissionEvidenceReference $admissionReference
     $migrationPath = Join-Path $temporaryRoot 'migration.json'
     $backend = @($candidatePromotion.Images | Where-Object Name -CEQ 'backend')[0]
     New-TestMigrationEvidence -Path $migrationPath -SourceCommit $candidateSource -BackendDigest $backend.ManifestDigest
@@ -564,21 +569,21 @@ try {
         AdapterHost = Join-Path $temporaryRoot 'adapter-host.json'
         Retention = Join-Path $temporaryRoot 'retention.json'
     }
-    New-TestProbeEvidence -Path $probePaths.PublicEdge -SpecificationName public-edge -Origin $origin -ReleaseId $candidateRelease
-    New-TestProbeEvidence -Path $probePaths.AdminAllowed -SpecificationName admin-allowed -Origin $origin -ReleaseId $candidateRelease -EvidenceSetId $adminSetId
-    New-TestProbeEvidence -Path $probePaths.AdminDenied -SpecificationName admin-denied -Origin $origin -ReleaseId $candidateRelease -EvidenceSetId $adminSetId
-    New-TestProbeEvidence -Path $probePaths.Invitation -SpecificationName workspace-invitation -Origin $origin -ReleaseId $candidateRelease
-    New-TestProbeEvidence -Path $probePaths.Enrollment -SpecificationName workspace-enrollment -Origin $origin -ReleaseId $candidateRelease
-    New-TestProbeEvidence -Path $probePaths.Notifications -SpecificationName operations-notifications -Origin $origin -ReleaseId $candidateRelease
-    New-TestProbeEvidence -Path $probePaths.ReservationsInventory -SpecificationName reservations-inventory -Origin $origin -ReleaseId $candidateRelease
-    New-TestProbeEvidence -Path $probePaths.GuestsStayHistory -SpecificationName guests-stay-history -Origin $origin -ReleaseId $candidateRelease
-    New-TestProbeEvidence -Path $probePaths.StaffEmployment -SpecificationName staff-employment -Origin $origin -ReleaseId $candidateRelease
-    New-TestProbeEvidence -Path $probePaths.PropertiesTopology -SpecificationName properties-topology -Origin $origin -ReleaseId $candidateRelease
-    New-TestProbeEvidence -Path $probePaths.IngestionConnectionLifecycle -SpecificationName ingestion-connection-lifecycle -Origin $origin -ReleaseId $candidateRelease
-    New-TestProbeEvidence -Path $probePaths.IngestionConflictProposalLifecycle -SpecificationName ingestion-conflict-proposal-lifecycle -Origin $origin -ReleaseId $candidateRelease
-    New-TestProbeEvidence -Path $probePaths.DataRightsAccessExport -SpecificationName data-rights-access-export -Origin $origin -ReleaseId $candidateRelease
-    New-TestProbeEvidence -Path $probePaths.AdapterHost -SpecificationName adapter-host -Origin $origin -ReleaseId $candidateRelease
-    New-TestProbeEvidence -Path $probePaths.Retention -SpecificationName retention -Origin $origin -ReleaseId $candidateRelease
+    New-TestProbeEvidence -Path $probePaths.PublicEdge -SpecificationName public-edge -Origin $origin -ReleaseId $candidateRelease -AdmissionEvidenceReference $admissionReference
+    New-TestProbeEvidence -Path $probePaths.AdminAllowed -SpecificationName admin-allowed -Origin $origin -ReleaseId $candidateRelease -AdmissionEvidenceReference $admissionReference -EvidenceSetId $adminSetId
+    New-TestProbeEvidence -Path $probePaths.AdminDenied -SpecificationName admin-denied -Origin $origin -ReleaseId $candidateRelease -AdmissionEvidenceReference $admissionReference -EvidenceSetId $adminSetId
+    New-TestProbeEvidence -Path $probePaths.Invitation -SpecificationName workspace-invitation -Origin $origin -ReleaseId $candidateRelease -AdmissionEvidenceReference $admissionReference
+    New-TestProbeEvidence -Path $probePaths.Enrollment -SpecificationName workspace-enrollment -Origin $origin -ReleaseId $candidateRelease -AdmissionEvidenceReference $admissionReference
+    New-TestProbeEvidence -Path $probePaths.Notifications -SpecificationName operations-notifications -Origin $origin -ReleaseId $candidateRelease -AdmissionEvidenceReference $admissionReference
+    New-TestProbeEvidence -Path $probePaths.ReservationsInventory -SpecificationName reservations-inventory -Origin $origin -ReleaseId $candidateRelease -AdmissionEvidenceReference $admissionReference
+    New-TestProbeEvidence -Path $probePaths.GuestsStayHistory -SpecificationName guests-stay-history -Origin $origin -ReleaseId $candidateRelease -AdmissionEvidenceReference $admissionReference
+    New-TestProbeEvidence -Path $probePaths.StaffEmployment -SpecificationName staff-employment -Origin $origin -ReleaseId $candidateRelease -AdmissionEvidenceReference $admissionReference
+    New-TestProbeEvidence -Path $probePaths.PropertiesTopology -SpecificationName properties-topology -Origin $origin -ReleaseId $candidateRelease -AdmissionEvidenceReference $admissionReference
+    New-TestProbeEvidence -Path $probePaths.IngestionConnectionLifecycle -SpecificationName ingestion-connection-lifecycle -Origin $origin -ReleaseId $candidateRelease -AdmissionEvidenceReference $admissionReference
+    New-TestProbeEvidence -Path $probePaths.IngestionConflictProposalLifecycle -SpecificationName ingestion-conflict-proposal-lifecycle -Origin $origin -ReleaseId $candidateRelease -AdmissionEvidenceReference $admissionReference
+    New-TestProbeEvidence -Path $probePaths.DataRightsAccessExport -SpecificationName data-rights-access-export -Origin $origin -ReleaseId $candidateRelease -AdmissionEvidenceReference $admissionReference
+    New-TestProbeEvidence -Path $probePaths.AdapterHost -SpecificationName adapter-host -Origin $origin -ReleaseId $candidateRelease -AdmissionEvidenceReference $admissionReference
+    New-TestProbeEvidence -Path $probePaths.Retention -SpecificationName retention -Origin $origin -ReleaseId $candidateRelease -AdmissionEvidenceReference $admissionReference
 
     $output = Join-Path $temporaryRoot 'admission'
     $arguments = @{
@@ -670,7 +675,7 @@ try {
         -Context 'tampered admission bundle'
 
     $wrongReleaseNotifications = Join-Path $temporaryRoot 'wrong-release-notifications.json'
-    New-TestProbeEvidence -Path $wrongReleaseNotifications -SpecificationName operations-notifications -Origin $origin -ReleaseId $rollbackRelease
+    New-TestProbeEvidence -Path $wrongReleaseNotifications -SpecificationName operations-notifications -Origin $origin -ReleaseId $rollbackRelease -AdmissionEvidenceReference $admissionReference
     $mismatchArguments = $arguments.Clone()
     $mismatchArguments.OperationsNotificationsEvidencePath = $wrongReleaseNotifications
     $mismatchArguments.OutputDirectory = Join-Path $temporaryRoot 'mismatch-admission'
@@ -680,6 +685,30 @@ try {
         -Context 'cross-release source evidence'
     if ([IO.Directory]::Exists([string]$mismatchArguments.OutputDirectory)) {
         throw 'Rejected cross-release evidence left an admission bundle.'
+    }
+
+    $differentAttemptNotifications =
+        Join-Path $temporaryRoot 'different-attempt-notifications.json'
+    $differentAdmissionReference =
+        "admission:$([Guid]::NewGuid().ToString('N'))"
+    New-TestProbeEvidence `
+        -Path $differentAttemptNotifications `
+        -SpecificationName operations-notifications `
+        -Origin $origin `
+        -ReleaseId $candidateRelease `
+        -AdmissionEvidenceReference $differentAdmissionReference
+    $differentAttemptArguments = $arguments.Clone()
+    $differentAttemptArguments.OperationsNotificationsEvidencePath =
+        $differentAttemptNotifications
+    $differentAttemptArguments.OutputDirectory =
+        Join-Path $temporaryRoot 'different-attempt-admission'
+    Assert-TestFailure `
+        -Operation { & $assembler @differentAttemptArguments } `
+        -ExpectedMessage 'different admission attempt' `
+        -Context 'cross-attempt source evidence'
+    if ([IO.Directory]::Exists(
+            [string]$differentAttemptArguments.OutputDirectory)) {
+        throw 'Rejected cross-attempt evidence left an admission bundle.'
     }
 
     $invalidNotificationsPath = Join-Path $temporaryRoot 'invalid-notification-delivery.json'
@@ -738,6 +767,7 @@ try {
                 -SpecificationName data-rights-access-export `
                 -ExpectedOrigin $origin `
                 -ExpectedReleaseId $candidateRelease `
+                -ExpectedAdmissionEvidenceReference $admissionReference `
                 -AllowFixtureEvidence | Out-Null
         } `
         -ExpectedMessage 'invalid cleanup disposition' `
@@ -755,6 +785,7 @@ try {
                 -SpecificationName guests-stay-history `
                 -ExpectedOrigin $origin `
                 -ExpectedReleaseId $candidateRelease `
+                -ExpectedAdmissionEvidenceReference $admissionReference `
                 -AllowFixtureEvidence | Out-Null
         } `
         -ExpectedMessage 'invalid cleanup disposition' `
@@ -772,6 +803,7 @@ try {
                 -SpecificationName staff-employment `
                 -ExpectedOrigin $origin `
                 -ExpectedReleaseId $candidateRelease `
+                -ExpectedAdmissionEvidenceReference $admissionReference `
                 -AllowFixtureEvidence | Out-Null
         } `
         -ExpectedMessage 'invalid cleanup disposition' `
@@ -789,6 +821,7 @@ try {
                 -SpecificationName properties-topology `
                 -ExpectedOrigin $origin `
                 -ExpectedReleaseId $candidateRelease `
+                -ExpectedAdmissionEvidenceReference $admissionReference `
                 -AllowFixtureEvidence | Out-Null
         } `
         -ExpectedMessage 'invalid cleanup disposition' `
@@ -806,6 +839,7 @@ try {
                 -SpecificationName ingestion-connection-lifecycle `
                 -ExpectedOrigin $origin `
                 -ExpectedReleaseId $candidateRelease `
+                -ExpectedAdmissionEvidenceReference $admissionReference `
                 -AllowFixtureEvidence | Out-Null
         } `
         -ExpectedMessage 'invalid cleanup disposition' `
@@ -823,6 +857,7 @@ try {
                 -SpecificationName ingestion-conflict-proposal-lifecycle `
                 -ExpectedOrigin $origin `
                 -ExpectedReleaseId $candidateRelease `
+                -ExpectedAdmissionEvidenceReference $admissionReference `
                 -AllowFixtureEvidence | Out-Null
         } `
         -ExpectedMessage 'invalid terminal proposal summary' `
@@ -863,6 +898,7 @@ try {
                 -SpecificationName retention `
                 -ExpectedOrigin $origin `
                 -ExpectedReleaseId $candidateRelease `
+                -ExpectedAdmissionEvidenceReference $admissionReference `
                 -AllowFixtureEvidence | Out-Null
         } `
         -ExpectedMessage 'predates its completion lower bound' `

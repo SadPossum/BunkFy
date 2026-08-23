@@ -1,6 +1,6 @@
 # Deployed Operations Notifications Verification
 
-Status: v2 implemented, fixture verified, and exact-release Preview verified
+Status: v3 implemented and fixture verified; hosted proof remains pending
 Date: 2026-08-13
 
 Use this mutation-bearing probe to verify BunkFy's product notification path
@@ -104,7 +104,7 @@ history records; newly created smoke records must be in that bounded window.
 
 ## Evidence And Failure
 
-Passing schema-v2 JSON evidence is written atomically under
+Passing schema-v3 JSON evidence is written atomically under
 `.tmp/deployment-probes` by default. It contains deployment origin and release
 identity; fixed source module, notification names, version, and destination
 tags; counts proving two ordered live notifications, two initially unread and
@@ -136,13 +136,14 @@ SHA-256
 The enclosing rehearsal retired the notification room, removed both joined
 memberships, retired both synthetic properties, archived the workspace,
 revoked all three sessions, and purged and closed the Mailpit operator window.
-The evidence is retained only in the ignored VPS working state. Schema v2
+The evidence is retained only in the ignored VPS working state. Schema v3
+also binds the observed admission evidence reference and
 supersedes its scoped evidence shape, so it cannot satisfy current production
 admission. It also does not admit the current candidate, prove browser attention
 behavior, exercise external delivery adapters, or replace the private
 notification-retention approval required for Production activation.
 
-## Current V2 Preview Evidence
+## Historical V2 Preview Evidence
 
 On 2026-08-13, exact release
 `preview-operations-notifications-3ea29b6` passed all ten public workflow checks.

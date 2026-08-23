@@ -8,6 +8,7 @@ $fixtureRoot = Join-Path ([IO.Path]::GetTempPath()) (
 
 $fixture = [pscustomobject]@{
     ReleaseId = 'release-ingestion-lifecycle-fixture-001'
+    AdmissionEvidenceReference = 'admission:11111111111111111111111111111111'
     WorkspaceId = '11111111-1111-4111-8111-111111111111'
     PropertyId = '22222222-2222-4222-8222-222222222222'
     MembershipId = '33333333-3333-4333-8333-333333333333'
@@ -419,6 +420,7 @@ function Start-BunkFyIngestionLifecycleFixtureServer {
                             Write-FixtureResponse -Stream $stream -Status 200 -Reason 'OK' -Body ([ordered]@{
                                 application = 'BunkFy'
                                 releaseId = $Fixture.ReleaseId
+                                admissionEvidenceReference = $Fixture.AdmissionEvidenceReference
                                 service = 'BunkFy.Host.Api'
                                 status = 'ok'
                                 timestampUtc = [DateTimeOffset]::UtcNow.ToString('O')
@@ -954,10 +956,11 @@ try {
     }
 
     $evidence = Get-Content -LiteralPath $validOutput -Raw | ConvertFrom-Json -Depth 12
-    if ($evidence.schemaVersion -ne 1 -or
+    if ($evidence.schemaVersion -ne 2 -or
         $evidence.evidenceKind -cne 'bunkfy-deployed-ingestion-connection-lifecycle-probe' -or
         $evidence.result -cne 'passed' -or
         $evidence.releaseId -cne $fixture.ReleaseId -or
+        $evidence.admissionEvidenceReference -cne $fixture.AdmissionEvidenceReference -or
         $evidence.workflow.executionMode -cne 'remote-polling' -or
         [int]$evidence.workflow.protocolVersion -ne $fixture.ProtocolVersion -or
         [int]$evidence.workflow.configurationSchemaVersion -ne $fixture.ConfigurationSchemaVersion -or
