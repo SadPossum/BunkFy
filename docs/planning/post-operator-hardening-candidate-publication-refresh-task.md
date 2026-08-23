@@ -126,6 +126,36 @@ candidate, not after each edit.
 - Independent cleanup found no candidate image tag, container, network,
   volume, generated environment, or working directory after either rehearsal.
 
+## Post-Candidate Promotion Preflight
+
+Deployment-handoff hardening commit
+`064aed3ddc84f9fe23ecb1f3f80867cf3baa193e` documents the promoter's
+non-destructive `-WhatIf` path and proves that dry-run creates neither registry
+nor promotion-evidence output. It is operations tooling only and is not a
+replacement runtime or image candidate.
+
+On 2026-08-23, this VPS downloaded retained artifact `9492274872` from Product
+Image Evidence run `32635767133` and independently verified its closed bundle,
+both OCI archives, and all four GitHub attestations against exact candidate
+source `42820c0e84de91a3c0d1ab34823a1701c0babd70`. A hosted-shape promotion
+`-WhatIf` preflight then accepted the candidate and destination contract while
+creating no registry or evidence output. The downloaded 243 MB candidate was
+removed after verification.
+
+The complete root gate passed after the hardening, including every operations
+fixture, synchronized solutions and source pins, zero-warning builds, migration
+drift, all non-Docker backend and GMA suites, 113 architecture tests, 65 host
+integration tests, web typecheck and lint, 73 test files with 371 tests, and the
+3,032-module production build. Exact-head GitHub evidence also passed:
+
+- Validate run `32641078282`;
+- Security Baseline run `32641078277`; and
+- CodeQL run `32641078249`, with both C# and JavaScript/TypeScript analyses
+  successful.
+
+No approved registry destination, production infrastructure, private release
+record, or hosted admission was supplied or inferred by this preflight.
+
 This closes repository-owned exact-source and exact-image candidate evidence.
 It does not close registry promotion, hosted TLS deployment, authenticated
 hosted workflows, rollback, backup/restore, key continuity, private approval,
