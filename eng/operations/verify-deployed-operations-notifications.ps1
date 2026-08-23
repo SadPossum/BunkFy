@@ -27,9 +27,15 @@ $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'deployed-public-edge.common.ps1')
 . (Join-Path $PSScriptRoot 'deployed-authenticated-smoke.common.ps1')
 
+$observedAdmissionEvidenceReference = $null
 $origin = Assert-BunkFyPublicEdgeOrigin `
     -Origin $PublicOrigin `
     -AllowLoopbackHttp:$AllowLoopbackHttp
+if ($WorkspaceId -eq [Guid]::Empty -or
+    $PropertyId -eq [Guid]::Empty -or
+    $InventoryUnitId -eq [Guid]::Empty) {
+    throw 'WorkspaceId, PropertyId, and InventoryUnitId must not be empty GUIDs.'
+}
 $arrivalDate = $Arrival.Date
 $departureDate = $Departure.Date
 if ($arrivalDate -ge $departureDate) {
@@ -427,7 +433,8 @@ try {
         -Client $client `
         -Origin $origin `
         -ExpectedReleaseId $ExpectedReleaseId `
-        -TimeoutSeconds $RequestTimeoutSeconds
+        -TimeoutSeconds $RequestTimeoutSeconds `
+        -ObservedAdmissionEvidenceReference ([ref]$observedAdmissionEvidenceReference)
     $actorMembership = Get-SmokeWorkspaceMembership -Token $actorToken -Label 'actor'
     $observerMembership = Get-SmokeWorkspaceMembership -Token $observerToken -Label 'observer'
     if ([string]$actorMembership.subjectId -ceq [string]$observerMembership.subjectId) {
@@ -676,7 +683,8 @@ try {
         -Client $client `
         -Origin $origin `
         -ExpectedReleaseId $ExpectedReleaseId `
-        -TimeoutSeconds $RequestTimeoutSeconds
+        -TimeoutSeconds $RequestTimeoutSeconds `
+        -ObservedAdmissionEvidenceReference ([ref]$observedAdmissionEvidenceReference)
     if ($observedReleaseId -cne $releaseIdBefore) {
         throw 'The public API release identity changed during notification verification.'
     }
@@ -695,26 +703,33 @@ finally {
 }
 
 $evidence = [ordered]@{
-    schemaVersion = 1
+    schemaVersion = 3
     evidenceKind = 'bunkfy-deployed-operations-notifications-probe'
     generatedAtUtc = [DateTimeOffset]::UtcNow.ToString('O')
     origin = $origin.GetLeftPart([UriPartial]::Authority)
     releaseId = $observedReleaseId
-    transport = if ($origin.Scheme -eq 'https') { 'trusted-https' } else { 'loopback-http-fixture' }
+    admissionEvidenceReference = $observedAdmissionEvidenceReference
+    transport = if ($origin.Scheme -eq 'https') { 'trusted-https' } else { 'loopback-http-preview' }
     result = 'passed'
-    workspaceId = $WorkspaceId.ToString('D')
-    propertyId = $PropertyId.ToString('D')
-    inventoryUnitId = $InventoryUnitId.ToString('D')
-    arrival = $arrivalText
-    departure = $departureText
-    blockGroupId = $blockGroupId.ToString('D')
-    createdNotification = [ordered]@{
-        id = ([Guid]$createdNotification.id).ToString('D')
-        streamSequence = [long]$createdNotification.streamSequence
+    workflow = [ordered]@{
+        sourceModule = 'inventory'
+        createdNotificationName = 'manual-inventory-block-created'
+        releasedNotificationName = 'manual-inventory-block-released'
+        notificationVersion = 1
+        deliveryTag = 'delivery:web'
+        domainTag = 'domain:inventory'
     }
-    releasedNotification = [ordered]@{
-        id = ([Guid]$releasedNotification.id).ToString('D')
-        streamSequence = [long]$releasedNotification.streamSequence
+    delivery = [ordered]@{
+        liveNotificationCount = 2
+        initiallyUnreadCount = 2
+        durablyReadCount = 2
+        observerHistoryCount = 2
+        actorDeliveryCount = 0
+        ordered = $true
+    }
+    cleanup = [ordered]@{
+        inventoryBlock = 'released'
+        notificationHistory = 'retained-read'
     }
     checks = @($checks)
     limitations = @(

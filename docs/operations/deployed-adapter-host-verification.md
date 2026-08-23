@@ -84,8 +84,9 @@ SHA-256 and is not written to evidence.
 ## Evidence And Failure
 
 Passing JSON evidence is written atomically under `.tmp/deployment-probes` by
-default. It records deployment and runtime identifiers, bounded run and receipt
-metadata, eight check results, and explicit limitations. It excludes bearer
+default. Schema v2 records deployment and runtime identifiers, the observed
+admission evidence reference, bounded run and receipt metadata, eight check
+results, and explicit limitations. It excludes bearer
 tokens, external ids and hashes, checkpoints, runtime material references, raw
 payload content, response bodies, and headers.
 

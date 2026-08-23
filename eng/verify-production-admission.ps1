@@ -33,3 +33,4 @@ if ($PassThru) {
 Write-Host (
     "Verified production admission '$($admission.AdmissionEvidenceReference)' " +
     "for release '$($admission.ReleaseId)'.")
+Write-Host "Approval evidence expires at $($admission.ExpiresAtUtc.ToString('O'))."

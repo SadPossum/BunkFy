@@ -255,7 +255,7 @@ function Assert-BunkFyPublicEdgeSecurityHeaders {
 
     Assert-BunkFyExactHeaderValue $Response 'X-Content-Type-Options' 'nosniff'
     Assert-BunkFyExactHeaderValue $Response 'X-Frame-Options' 'DENY'
-    Assert-BunkFyExactHeaderValue $Response 'Referrer-Policy' 'strict-origin-when-cross-origin'
+    Assert-BunkFyExactHeaderValue $Response 'Referrer-Policy' 'no-referrer'
     Assert-BunkFyExactHeaderValue $Response 'Cross-Origin-Opener-Policy' 'same-origin'
     Assert-BunkFyExactHeaderValue $Response 'X-Permitted-Cross-Domain-Policies' 'none'
     Assert-BunkFyContentSecurityPolicy -Response $Response
@@ -328,7 +328,7 @@ function Get-BunkFyBoundedUtf8Body {
     }
 }
 
-function Get-BunkFySmokeReleaseIdentity {
+function Get-BunkFySmokeDeploymentIdentity {
     param([Parameter(Mandatory = $true)][object] $Response)
 
     Assert-BunkFyResponseStatus $Response 200 '/api/smoke'
@@ -342,6 +342,7 @@ function Get-BunkFySmokeReleaseIdentity {
     }
 
     $expectedNames = @(
+        'admissionEvidenceReference',
         'application',
         'releaseId',
         'service',
@@ -360,6 +361,13 @@ function Get-BunkFySmokeReleaseIdentity {
         $payload.releaseId -cnotmatch '^[a-z0-9][a-z0-9._-]{2,127}$') {
         throw 'The /api/smoke response contains an invalid release id.'
     }
+    $admissionReference = $payload.admissionEvidenceReference
+    if ($null -ne $admissionReference -and
+        ($admissionReference -isnot [string] -or
+         $admissionReference -cnotmatch '^admission:[0-9a-f]{32}$' -or
+         $admissionReference -ceq 'admission:00000000000000000000000000000000')) {
+        throw 'The /api/smoke response contains an invalid admission evidence reference.'
+    }
 
     $timestamp = [DateTimeOffset]::MinValue
     if (-not [DateTimeOffset]::TryParse(
@@ -374,7 +382,41 @@ function Get-BunkFySmokeReleaseIdentity {
         throw 'The /api/smoke timestamp is outside the allowed clock-skew window.'
     }
 
-    return [string]$payload.releaseId
+    return [pscustomobject]@{
+        ReleaseId = [string]$payload.releaseId
+        AdmissionEvidenceReference = if ($null -eq $admissionReference) {
+            $null
+        }
+        else {
+            [string]$admissionReference
+        }
+    }
+}
+
+function Get-BunkFySmokeReleaseIdentity {
+    param([Parameter(Mandatory = $true)][object] $Response)
+
+    return [string](
+        Get-BunkFySmokeDeploymentIdentity -Response $Response).ReleaseId
+}
+
+function Assert-BunkFySmokeDeploymentIdentity {
+    param(
+        [Parameter(Mandatory = $true)][object] $Response,
+        [Parameter(Mandatory = $true)]
+        [ValidatePattern('^[a-z0-9][a-z0-9._-]{2,127}$')]
+        [string] $ExpectedReleaseId
+    )
+
+    $actual = Get-BunkFySmokeDeploymentIdentity -Response $Response
+    if ($actual.ReleaseId -cne $ExpectedReleaseId) {
+        throw "The /api/smoke release id '$($actual.ReleaseId)' does not match '$ExpectedReleaseId'."
+    }
+    if ([string]::IsNullOrWhiteSpace($actual.AdmissionEvidenceReference)) {
+        throw 'The /api/smoke response is not bound to an admission evidence reference.'
+    }
+
+    return $actual
 }
 
 function Assert-BunkFySmokeResponse {
@@ -385,12 +427,10 @@ function Assert-BunkFySmokeResponse {
         [string] $ExpectedReleaseId
     )
 
-    $actual = Get-BunkFySmokeReleaseIdentity -Response $Response
-    if ($actual -cne $ExpectedReleaseId) {
-        throw "The /api/smoke release id '$actual' does not match '$ExpectedReleaseId'."
-    }
-
-    return $actual
+    return [string](
+        Assert-BunkFySmokeDeploymentIdentity `
+            -Response $Response `
+            -ExpectedReleaseId $ExpectedReleaseId).ReleaseId
 }
 
 function New-BunkFyPublicEdgeHttpClient {
@@ -567,6 +607,37 @@ function Assert-BunkFyPublicApiReleaseIdentity {
         [Parameter(Mandatory = $true)]
         [ValidatePattern('^[a-z0-9][a-z0-9._-]{2,127}$')]
         [string] $ExpectedReleaseId,
+        [Parameter(Mandatory = $true)][int] $TimeoutSeconds,
+        [ref] $ObservedAdmissionEvidenceReference
+    )
+
+    $identity = Assert-BunkFyPublicApiDeploymentIdentity `
+        -Client $Client `
+        -Origin $Origin `
+        -ExpectedReleaseId $ExpectedReleaseId `
+        -TimeoutSeconds $TimeoutSeconds
+    if ($PSBoundParameters.ContainsKey('ObservedAdmissionEvidenceReference')) {
+        if ([string]::IsNullOrWhiteSpace(
+                [string]$ObservedAdmissionEvidenceReference.Value)) {
+            $ObservedAdmissionEvidenceReference.Value =
+                $identity.AdmissionEvidenceReference
+        }
+        elseif ([string]$ObservedAdmissionEvidenceReference.Value -cne
+            $identity.AdmissionEvidenceReference) {
+            throw 'The public API admission evidence reference changed during verification.'
+        }
+    }
+
+    return [string]$identity.ReleaseId
+}
+
+function Assert-BunkFyPublicApiDeploymentIdentity {
+    param(
+        [Parameter(Mandatory = $true)][Net.Http.HttpClient] $Client,
+        [Parameter(Mandatory = $true)][Uri] $Origin,
+        [Parameter(Mandatory = $true)]
+        [ValidatePattern('^[a-z0-9][a-z0-9._-]{2,127}$')]
+        [string] $ExpectedReleaseId,
         [Parameter(Mandatory = $true)][int] $TimeoutSeconds
     )
 
@@ -574,7 +645,7 @@ function Assert-BunkFyPublicApiReleaseIdentity {
         -Client $Client `
         -Uri ([Uri]::new($Origin, '/api/smoke')) `
         -TimeoutSeconds $TimeoutSeconds
-    return Assert-BunkFySmokeResponse `
+    return Assert-BunkFySmokeDeploymentIdentity `
         -Response $response `
         -ExpectedReleaseId $ExpectedReleaseId
 }
@@ -583,9 +654,12 @@ function Get-BunkFyObservedComposedReleaseId {
     param(
         [Parameter(Mandatory = $true)][Net.Http.HttpClient] $Client,
         [Parameter(Mandatory = $true)][Uri] $Origin,
-        [Parameter(Mandatory = $true)][int] $TimeoutSeconds
+        [Parameter(Mandatory = $true)][int] $TimeoutSeconds,
+        [ref] $ObservedAdmissionEvidenceReference
     )
 
+    $webReleaseId = $null
+    $apiIdentity = $null
     try {
         $rootResponse = Invoke-BunkFyPublicEdgeRequest `
             -Client $Client `
@@ -600,13 +674,25 @@ function Get-BunkFyObservedComposedReleaseId {
             -Client $Client `
             -Uri ([Uri]::new($Origin, '/api/smoke')) `
             -TimeoutSeconds $TimeoutSeconds
-        $apiReleaseId = Get-BunkFySmokeReleaseIdentity -Response $smokeResponse
-        if ($webReleaseId -cne $apiReleaseId) {
-            return $null
-        }
-        return $webReleaseId
+        $apiIdentity = Get-BunkFySmokeDeploymentIdentity -Response $smokeResponse
     }
     catch {
         return $null
     }
+
+    if ($PSBoundParameters.ContainsKey('ObservedAdmissionEvidenceReference')) {
+        if ([string]::IsNullOrWhiteSpace(
+                [string]$ObservedAdmissionEvidenceReference.Value)) {
+            $ObservedAdmissionEvidenceReference.Value =
+                $apiIdentity.AdmissionEvidenceReference
+        }
+        elseif ([string]$ObservedAdmissionEvidenceReference.Value -cne
+            $apiIdentity.AdmissionEvidenceReference) {
+            throw 'The public API admission evidence reference changed during release convergence.'
+        }
+    }
+    if ($webReleaseId -cne $apiIdentity.ReleaseId) {
+        return $null
+    }
+    return $webReleaseId
 }

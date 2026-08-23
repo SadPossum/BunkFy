@@ -25,6 +25,7 @@ $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'deployed-public-edge.common.ps1')
 . (Join-Path $PSScriptRoot 'deployed-authenticated-smoke.common.ps1')
 
+$observedAdmissionEvidenceReference = $null
 $origin = Assert-BunkFyPublicEdgeOrigin `
     -Origin $PublicOrigin `
     -AllowLoopbackHttp:$AllowLoopbackHttp
@@ -89,6 +90,7 @@ $client.Timeout = [Threading.Timeout]::InfiniteTimeSpan
 $client.DefaultRequestHeaders.UserAgent.ParseAdd('BunkFy-Deployed-Reservations-Inventory-Probe/1')
 
 $checks = [Collections.Generic.List[object]]::new()
+$deniedWorkspaceId = [Guid]::NewGuid()
 $operationId = [Guid]::NewGuid()
 $checkInOperationId = [Guid]::NewGuid()
 $checkOutOperationId = [Guid]::NewGuid()
@@ -342,7 +344,23 @@ try {
         -Client $client `
         -Origin $origin `
         -ExpectedReleaseId $ExpectedReleaseId `
-        -TimeoutSeconds $RequestTimeoutSeconds
+        -TimeoutSeconds $RequestTimeoutSeconds `
+        -ObservedAdmissionEvidenceReference ([ref]$observedAdmissionEvidenceReference)
+
+    $crossWorkspaceAvailability = Invoke-BunkFyAuthenticatedJsonRequest `
+        -Client $client `
+        -Origin $origin `
+        -Path "/api/inventory/properties/$($PropertyId.ToString('D'))/availability?arrival=$arrivalText&departure=$departureText" `
+        -Method GET `
+        -TenantId $deniedWorkspaceId.ToString('D') `
+        -AccessToken $operatorToken `
+        -TimeoutSeconds $RequestTimeoutSeconds `
+        -Body $null
+    Assert-BunkFyAuthenticatedStatus `
+        -Response $crossWorkspaceAvailability `
+        -ExpectedStatus 403 `
+        -Operation 'Cross-workspace Inventory availability read'
+    $checks.Add([ordered]@{ name = 'cross-workspace-inventory-read-denied'; status = 'passed' })
 
     [void](Get-SmokeWorkspaceMembership)
     $property = Read-SmokeJson `
@@ -468,7 +486,8 @@ try {
         -Client $client `
         -Origin $origin `
         -ExpectedReleaseId $ExpectedReleaseId `
-        -TimeoutSeconds $RequestTimeoutSeconds
+        -TimeoutSeconds $RequestTimeoutSeconds `
+        -ObservedAdmissionEvidenceReference ([ref]$observedAdmissionEvidenceReference)
     if ($observedReleaseId -cne $releaseIdBefore) {
         throw 'The public API release identity changed during Reservation lifecycle verification.'
     }
@@ -485,13 +504,29 @@ finally {
 }
 
 $evidence = [ordered]@{
-    schemaVersion = 1
+    schemaVersion = 3
     evidenceKind = 'bunkfy-deployed-reservations-inventory-probe'
     generatedAtUtc = [DateTimeOffset]::UtcNow.ToString('O')
     origin = $origin.GetLeftPart([UriPartial]::Authority)
     releaseId = $observedReleaseId
-    transport = if ($origin.Scheme -eq 'https') { 'trusted-https' } else { 'loopback-http-fixture' }
+    admissionEvidenceReference = $observedAdmissionEvidenceReference
+    transport = if ($origin.Scheme -eq 'https') { 'trusted-https' } else { 'loopback-http-preview' }
     result = 'passed'
+    workflow = [ordered]@{
+        bookingSource = 'direct'
+        allocationLifecycle = 'available-confirmed-released'
+        occupancyLifecycle = 'confirmed-checked-in-checked-out'
+        createReplay = 'stable-current'
+        checkInReplay = 'stable-current'
+        checkOutReplay = 'stable-current'
+        durableGuestRecordCreated = $false
+    }
+    cleanup = [ordered]@{
+        reservationDisposition = 'synthetic-checked-out-retained'
+        selectedInventoryUnit = 'available'
+        activeAllocationCount = 0
+        topologyMutated = $false
+    }
     checks = @($checks)
     limitations = @(
         'browser-workflow-not-exercised',

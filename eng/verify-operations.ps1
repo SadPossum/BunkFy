@@ -14,6 +14,8 @@ $scripts = @(
     (Join-Path $PSScriptRoot 'operations\rehearse-preview-recovery.ps1'),
     (Join-Path $PSScriptRoot 'operations\protect-preview-local-state.ps1'),
     (Join-Path $PSScriptRoot 'operations\rehearse-production-migrations.ps1'),
+    (Join-Path $PSScriptRoot 'operations\rehearse-candidate-production-migrations.ps1'),
+    (Join-Path $PSScriptRoot 'operations\rehearse-candidate-preview-runtime.ps1'),
     (Join-Path $PSScriptRoot 'image-promotion.common.ps1'),
     (Join-Path $PSScriptRoot 'verify-image-promotion.ps1'),
     (Join-Path $PSScriptRoot 'production-admission.common.ps1'),
@@ -22,6 +24,7 @@ $scripts = @(
     (Join-Path $PSScriptRoot 'operations\deployed-public-edge.common.ps1'),
     (Join-Path $PSScriptRoot 'operations\deployed-authenticated-smoke.common.ps1'),
     (Join-Path $PSScriptRoot 'operations\preview-mail-capture.common.ps1'),
+    (Join-Path $PSScriptRoot 'operations\preview-totp.common.ps1'),
     (Join-Path $PSScriptRoot 'operations\preview-property-processing-fixture.common.ps1'),
     (Join-Path $PSScriptRoot 'operations\preview-sellable-room-fixture.common.ps1'),
     (Join-Path $PSScriptRoot 'operations\rehearse-preview-onboarding.ps1'),
@@ -34,6 +37,12 @@ $scripts = @(
     (Join-Path $PSScriptRoot 'operations\rehearse-deployed-release-rollback.ps1'),
     (Join-Path $PSScriptRoot 'operations\verify-deployed-operations-notifications.ps1'),
     (Join-Path $PSScriptRoot 'operations\verify-deployed-reservations-inventory.ps1'),
+    (Join-Path $PSScriptRoot 'operations\verify-deployed-guests-stay-history.ps1'),
+    (Join-Path $PSScriptRoot 'operations\verify-deployed-staff-employment.ps1'),
+    (Join-Path $PSScriptRoot 'operations\verify-deployed-properties-topology.ps1'),
+    (Join-Path $PSScriptRoot 'operations\verify-deployed-ingestion-connection-lifecycle.ps1'),
+    (Join-Path $PSScriptRoot 'operations\verify-deployed-ingestion-conflict-proposal-lifecycle.ps1'),
+    (Join-Path $PSScriptRoot 'operations\verify-deployed-data-rights-access-export.ps1'),
     (Join-Path $PSScriptRoot 'operations\verify-deployed-workspace-enrollment.ps1'),
     (Join-Path $PSScriptRoot 'operations\verify-deployed-workspace-invitation.ps1'),
     (Join-Path $PSScriptRoot 'operations\verify-deployed-retention.ps1'),
@@ -43,9 +52,16 @@ $scripts = @(
     (Join-Path $PSScriptRoot 'test-deployed-release-rollback.ps1'),
     (Join-Path $PSScriptRoot 'test-deployed-operations-notifications.ps1'),
     (Join-Path $PSScriptRoot 'test-deployed-reservations-inventory.ps1'),
+    (Join-Path $PSScriptRoot 'test-deployed-guests-stay-history.ps1'),
+    (Join-Path $PSScriptRoot 'test-deployed-staff-employment.ps1'),
+    (Join-Path $PSScriptRoot 'test-deployed-properties-topology.ps1'),
+    (Join-Path $PSScriptRoot 'test-deployed-ingestion-connection-lifecycle.ps1'),
+    (Join-Path $PSScriptRoot 'test-deployed-ingestion-conflict-proposal-lifecycle.ps1'),
+    (Join-Path $PSScriptRoot 'test-deployed-data-rights-access-export.ps1'),
     (Join-Path $PSScriptRoot 'test-deployed-workspace-enrollment.ps1'),
     (Join-Path $PSScriptRoot 'test-deployed-workspace-invitation.ps1'),
     (Join-Path $PSScriptRoot 'test-preview-mail-capture.ps1'),
+    (Join-Path $PSScriptRoot 'test-preview-totp.ps1'),
     (Join-Path $PSScriptRoot 'test-preview-browser-onboarding-rehearsal.ps1'),
     (Join-Path $PSScriptRoot 'test-preview-workspace-access-estate.ps1'),
     (Join-Path $PSScriptRoot 'test-preview-adapter-host-rehearsal.ps1'),
@@ -89,6 +105,12 @@ $deployedEvidenceWriters = @(
     'verify-deployed-operations-notifications.ps1',
     'verify-deployed-public-edge.ps1',
     'verify-deployed-reservations-inventory.ps1',
+    'verify-deployed-guests-stay-history.ps1',
+    'verify-deployed-staff-employment.ps1',
+    'verify-deployed-properties-topology.ps1',
+    'verify-deployed-ingestion-connection-lifecycle.ps1',
+    'verify-deployed-ingestion-conflict-proposal-lifecycle.ps1',
+    'verify-deployed-data-rights-access-export.ps1',
     'verify-deployed-retention.ps1',
     'verify-deployed-workspace-enrollment.ps1',
     'verify-deployed-workspace-invitation.ps1')
@@ -997,10 +1019,14 @@ foreach ($requiredToken in @(
         '-Force',
         'EnvironmentPath',
         '-NoBuild is supported only with the up action.',
+        '-NoPull is supported only with the up and open-operations actions.',
+        '-RemoveVolumes is supported only with the down action.',
         'BUNKFY_ALLOWED_HOSTS',
         'without wildcards',
         'must include the host from BUNKFY_PUBLIC_URL',
         "@('--no-build')",
+        "@('--pull', 'never')",
+        "@('--volumes')",
         'open-operations',
         'close-operations',
         'BUNKFY_RELEASE_ID',
@@ -1018,6 +1044,7 @@ Write-Host 'BunkFy preview build bootstrap is valid.'
 $newPreviewEnvironmentScript = Get-Content -LiteralPath (
     Join-Path $PSScriptRoot 'new-preview-env.ps1') -Raw
 foreach ($requiredToken in @(
+        'OutputPath',
         'local-sensitive-state.common.ps1',
         'Write-BunkFyLocalSensitiveTextFile',
         '-Overwrite:$Force')) {
@@ -1213,6 +1240,85 @@ foreach ($forbiddenToken in @(
 
 Write-Host 'BunkFy Production migration rehearsal policy is valid.'
 
+$candidateMigrationRehearsalScript = Get-Content -LiteralPath (
+    Join-Path $PSScriptRoot 'operations\rehearse-candidate-production-migrations.ps1') -Raw
+foreach ($requiredToken in @(
+        'verify-image-candidate.ps1',
+        'AttestationsVerified',
+        "bunkfy/backend:candidate-`$ExpectedSourceCommit",
+        "'image', 'load', '--input'",
+        'ManifestDigest',
+        'loadedImageId',
+        'RepoDigests',
+        'rehearse-production-migrations.ps1',
+        "'image', 'rm'",
+        'ImportedImageRemoved = $true')) {
+    if (-not $candidateMigrationRehearsalScript.Contains(
+            $requiredToken,
+            [StringComparison]::Ordinal)) {
+        throw "Candidate migration rehearsal guard is missing '$requiredToken'."
+    }
+}
+foreach ($forbiddenToken in @(
+        'AllowUnattested',
+        'docker pull',
+        'docker build',
+        "'image', 'push'",
+        "'--force'")) {
+    if ($candidateMigrationRehearsalScript.Contains(
+            $forbiddenToken,
+            [StringComparison]::OrdinalIgnoreCase)) {
+        throw "Candidate migration rehearsal contains forbidden token '$forbiddenToken'."
+    }
+}
+
+Write-Host 'BunkFy attested-candidate migration rehearsal policy is valid.'
+
+$candidateRuntimeRehearsalScript = Get-Content -LiteralPath (
+    Join-Path $PSScriptRoot 'operations\rehearse-candidate-preview-runtime.ps1') -Raw
+foreach ($requiredToken in @(
+        'verify-image-candidate.ps1',
+        'AttestationsVerified',
+        "bunkfy/backend:candidate-`$ExpectedSourceCommit",
+        "bunkfy/web:candidate-`$ExpectedSourceCommit",
+        "'image', 'load', '--input'",
+        'ManifestDigest',
+        'RepoDigests',
+        'new-preview-env.ps1',
+        '-OutputPath $environmentPath',
+        '-NoBuild',
+        '-NoPull',
+        '-Operations',
+        'verify-deployed-public-edge.ps1',
+        'verify-preview-isolation.ps1',
+        '-RemoveVolumes',
+        'com.docker.compose.project=',
+        "'image', 'rm'",
+        "evidenceKind = 'bunkfy-candidate-preview-runtime-rehearsal'",
+        "'local-preview-fixture-only'")) {
+    if (-not $candidateRuntimeRehearsalScript.Contains(
+            $requiredToken,
+            [StringComparison]::Ordinal)) {
+        throw "Candidate runtime rehearsal guard is missing '$requiredToken'."
+    }
+}
+foreach ($forbiddenToken in @(
+        'AllowUnattested',
+        'docker pull',
+        'docker build',
+        "'image', 'pull'",
+        "'image', 'build'",
+        "'image', 'push'",
+        "'--force'")) {
+    if ($candidateRuntimeRehearsalScript.Contains(
+            $forbiddenToken,
+            [StringComparison]::OrdinalIgnoreCase)) {
+        throw "Candidate runtime rehearsal contains forbidden token '$forbiddenToken'."
+    }
+}
+
+Write-Host 'BunkFy attested-candidate runtime rehearsal policy is valid.'
+
 $deployedEdgeCommon = Get-Content -LiteralPath (
     Join-Path $PSScriptRoot 'operations\deployed-public-edge.common.ps1') -Raw
 foreach ($requiredToken in @(
@@ -1220,13 +1326,18 @@ foreach ($requiredToken in @(
         'Assert-BunkFyPublicEdgeOrigin',
         'Assert-BunkFyPublicEdgeSecurityHeaders',
         'Assert-BunkFyWebReleaseIdentity',
+        'Get-BunkFySmokeDeploymentIdentity',
+        'Assert-BunkFySmokeDeploymentIdentity',
         'Assert-BunkFySmokeResponse',
+        'Assert-BunkFyPublicApiDeploymentIdentity',
         'Assert-BunkFyPublicApiReleaseIdentity',
         'New-BunkFyPublicEdgeHttpClient',
         'Invoke-BunkFyUntrustedHttpsHostRequest',
         'Get-BunkFyObservedComposedReleaseId',
         'ExpectedReleaseId',
         'releaseId',
+        'ObservedAdmissionEvidenceReference',
+        'admissionEvidenceReference',
         '$handler.AllowAutoRedirect = $false',
         'HttpCompletionOption]::ResponseHeadersRead',
         'CancellationTokenSource',
@@ -1251,9 +1362,10 @@ foreach ($requiredToken in @(
         'ExpectedReleaseId',
         'Invoke-BunkFyUntrustedHttpsHostRequest',
         '-HostHeader $UntrustedHost',
-        'schemaVersion = 3',
+        'schemaVersion = 4',
         "evidenceKind = 'bunkfy-deployed-public-edge-probe'",
         'releaseId = $observedReleaseId',
+        'admissionEvidenceReference = $observedDeployment.AdmissionEvidenceReference',
         "'registry-and-image-provenance-require-promotion-record'",
         "'private-infrastructure-not-observed'",
         "'authenticated-workflows-not-executed'")) {
@@ -1287,6 +1399,10 @@ foreach ($requiredToken in @(
         'Get-BunkFyVerifiedImagePromotion',
         'Get-BunkFyObservedComposedReleaseId',
         'verify-deployed-public-edge.ps1',
+        'AdmissionEvidenceReference',
+        'Assert-BunkFyRollbackProbeAdmissionIdentity',
+        'schemaVersion = 2',
+        'admissionEvidenceReference = $AdmissionEvidenceReference',
         'rollbackEvidenceReference',
         'checksums.sha256',
         "evidenceKind = 'bunkfy-deployed-release-rollback-rehearsal'",
@@ -1478,6 +1594,19 @@ foreach ($requiredToken in @(
     }
 }
 
+$previewTotpCommon = Get-Content -LiteralPath (
+    Join-Path $PSScriptRoot 'operations\preview-totp.common.ps1') -Raw
+foreach ($requiredToken in @(
+        'ConvertFrom-BunkFyPreviewBase32',
+        'Get-BunkFyPreviewTotpCode',
+        '[Security.Cryptography.HMACSHA1]::new',
+        '[Security.Cryptography.CryptographicOperations]::ZeroMemory')) {
+    if (-not $previewTotpCommon.Contains($requiredToken, [StringComparison]::Ordinal)) {
+        throw "Preview TOTP helper policy is missing '$requiredToken'."
+    }
+}
+& (Join-Path $PSScriptRoot 'test-preview-totp.ps1')
+
 $previewOnboardingRehearsal = Get-Content -LiteralPath (
     Join-Path $PSScriptRoot 'operations\rehearse-preview-onboarding.ps1') -Raw
 foreach ($requiredToken in @(
@@ -1509,6 +1638,50 @@ foreach ($requiredToken in @(
         'IncludeReservationsInventory',
         'verify-deployed-reservations-inventory.ps1',
         'reservations-inventory-child-proof-passed',
+        'reservationsInventoryEvidencePath',
+        "`$cleanup['reservationsInventoryFixture'] = 'room-retired'",
+        'IncludeGuestsStayHistory',
+        'verify-deployed-guests-stay-history.ps1',
+        'guests-stay-history-child-proof-passed',
+        'guestsStayHistoryEvidencePath',
+        "`$cleanup['guestsStayHistoryFixture'] = 'room-retired'",
+        'IncludeStaffEmployment',
+        'verify-deployed-staff-employment.ps1',
+        'staff-employment-child-proof-passed',
+        'staffEmploymentEvidencePath',
+        "`$cleanup['staffEmployment'] = 'synthetic-departed-retained'",
+        'IncludePropertiesTopology',
+        'verify-deployed-properties-topology.ps1',
+        'properties-topology-child-proof-passed',
+        'propertiesTopologyEvidencePath',
+        "`$cleanup['propertiesTopology'] = 'synthetic-topology-retired-retained'",
+        'IncludeIngestionConnectionLifecycle',
+        'verify-deployed-ingestion-connection-lifecycle.ps1',
+        'ingestion-connection-lifecycle-child-proof-passed',
+        'ingestionConnectionLifecycleEvidencePath',
+        "`$cleanup['ingestionConnectionLifecycle'] = 'synthetic-connection-disabled-credential-revoked-run-terminal'",
+        'IncludeIngestionConflictProposalLifecycle',
+        'verify-deployed-ingestion-conflict-proposal-lifecycle.ps1',
+        'ingestion-conflict-proposal-lifecycle-child-proof-passed',
+        'ingestionConflictProposalLifecycleEvidencePath',
+        "`$cleanup['ingestionConflictProposalFixture'] = 'room-retired'",
+        'IncludeDataRightsAccessExport',
+        'New-RehearsalDataRightsSessions',
+        'preview-totp.common.ps1',
+        '/api/auth/mfa/totp/enrollment',
+        '/api/auth/mfa/totp/activate',
+        '/api/auth/mfa/totp/disable',
+        "codeType = 'recovery-code'",
+        'Remove-RehearsalDataRightsMfa',
+        'verify-deployed-data-rights-access-export.ps1',
+        'data-rights-access-export-child-proof-passed',
+        'dataRightsAccessExportEvidencePath',
+        "`$cleanup['dataRightsAccessExport'] =",
+        'guest-archived-artifact-scheduled-expiry',
+        "`$cleanup['dataRightsMfa'] =",
+        'disabled-sessions-revoked',
+        '-RetainPassword:$IncludeDataRightsAccessExport',
+        '$owner.Password.Dispose()',
         'IncludeRetention',
         'verify-deployed-retention.ps1',
         'CompletionNotBeforeUtc',
@@ -1547,9 +1720,14 @@ foreach ($requiredToken in @(
         throw "Preview onboarding rehearsal policy is missing '$requiredToken'."
     }
 }
+if ($previewOnboardingRehearsal -notmatch
+    "(?s)-ExpectedKind 'bunkfy-deployed-operations-notifications-probe'.{0,160}-WorkspaceBinding Forbidden") {
+    throw 'Preview onboarding must reject a workspace-bound Operations Notifications child.'
+}
+# Multiline '$' stops before LF but leaves CR unmatched on Windows checkouts.
 $propertyProcessingActivationCalls = [regex]::Matches(
     $previewOnboardingRehearsal,
-    '(?m)^\s*\[void\]\(Enable-BunkFyPreviewEngineeringPropertyProcessing\s*`?$').Count
+    '(?m)^\s*\[void\]\(Enable-BunkFyPreviewEngineeringPropertyProcessing\s*`?\r?$').Count
 if ($propertyProcessingActivationCalls -ne 1) {
     throw 'Preview onboarding must activate shared room-backed property processing exactly once.'
 }
@@ -1677,6 +1855,11 @@ foreach ($requiredToken in @(
         'manual-inventory-block-released',
         'initiating-actor-excluded',
         'Release-SmokeBlockBestEffort',
+        'schemaVersion = 3',
+        "'loopback-http-preview'",
+        'workflow = [ordered]',
+        'delivery = [ordered]',
+        'cleanup = [ordered]',
         "evidenceKind = 'bunkfy-deployed-operations-notifications-probe'",
         "'browser-attention-rendering-not-exercised'",
         "'released-block-and-notification-history-retained'")) {
@@ -1689,7 +1872,13 @@ foreach ($forbiddenToken in @(
         'ServerCertificateCustomValidationCallback',
         '-SkipCertificateCheck',
         '$handler.AllowAutoRedirect = $true',
-        '/api/notifications/read-all')) {
+        '/api/notifications/read-all',
+        'workspaceId = $WorkspaceId.ToString(''D'')',
+        'propertyId = $PropertyId.ToString(''D'')',
+        'inventoryUnitId = $InventoryUnitId.ToString(''D'')',
+        'blockGroupId = $blockGroupId.ToString(''D'')',
+        'createdNotification = [ordered]',
+        'releasedNotification = [ordered]')) {
     if ($operationsNotificationsProbe.Contains($forbiddenToken, [StringComparison]::OrdinalIgnoreCase)) {
         throw "Deployed Operations Notifications probe contains forbidden token '$forbiddenToken'."
     }
@@ -1709,12 +1898,17 @@ foreach ($requiredToken in @(
         '/api/inventory/properties/',
         '/api/reservations/properties/',
         'Reservations.CountryPolicyDenied.MissingBinding',
+        'cross-workspace-inventory-read-denied',
         'reservation-create-replay-stable',
         'reservation-check-in-replay-stable',
         'reservation-checkout-converged',
         'reservation-checkout-replay-current',
         'inventory-released-after-checkout',
         'Complete-SmokeReservationBestEffort',
+        'schemaVersion = 3',
+        "'loopback-http-preview'",
+        'workflow = [ordered]',
+        'cleanup = [ordered]',
         "evidenceKind = 'bunkfy-deployed-reservations-inventory-probe'",
         "'durable-guest-record-not-created'",
         "'synthetic-checked-out-reservation-retained'")) {
@@ -1728,7 +1922,11 @@ foreach ($forbiddenToken in @(
         '-SkipCertificateCheck',
         '$handler.AllowAutoRedirect = $true',
         '/api/admin/',
-        '/api/guests')) {
+        '/api/guests',
+        'workspaceId = $WorkspaceId.ToString(''D'')',
+        'propertyId = $PropertyId.ToString(''D'')',
+        'inventoryUnitId = $InventoryUnitId.ToString(''D'')',
+        'reservationId = $reservationId.ToString(''D'')')) {
     if ($reservationsInventoryProbe.Contains($forbiddenToken, [StringComparison]::OrdinalIgnoreCase)) {
         throw "Deployed Reservations and Inventory probe contains forbidden token '$forbiddenToken'."
     }
@@ -1736,6 +1934,301 @@ foreach ($forbiddenToken in @(
 
 & (Join-Path $PSScriptRoot 'test-deployed-reservations-inventory.ps1')
 Write-Host 'BunkFy deployed Reservations and Inventory probe policy is valid.'
+
+$guestsStayHistoryProbe = Get-Content -LiteralPath (
+    Join-Path $PSScriptRoot 'operations\verify-deployed-guests-stay-history.ps1') -Raw
+foreach ($requiredToken in @(
+        "SupportsShouldProcess = `$true",
+        '$handler.AllowAutoRedirect = $false',
+        'ExpectedReleaseId',
+        'release-identity-continuous',
+        'BUNKFY_SMOKE_GUESTS_OPERATOR_TOKEN',
+        'BUNKFY_SMOKE_GUESTS_DENIED_TOKEN',
+        '/api/guests/properties/',
+        '/api/reservations/properties/',
+        '/api/inventory/properties/',
+        'Guests.CreationOperationConflict',
+        'Guests.ManagementOperationConflict',
+        'Guests.VersionConflict',
+        'Reservations.GuestNotLinkable',
+        'guest-create-replay-stable',
+        'guest-update-replay-stable',
+        'guest-stay-checkout-projection-converged',
+        'guest-archive-replay-stable',
+        'Complete-SmokeReservationCleanup',
+        'Archive-SmokeGuestCleanup',
+        'Write-BunkFyPrivateJsonEvidence',
+        "evidenceKind = 'bunkfy-deployed-guests-stay-history-probe'",
+        "'guest-deduplication-merge-and-consent-not-exercised'",
+        "'synthetic-archived-guest-and-checked-out-reservation-retained'")) {
+    if (-not $guestsStayHistoryProbe.Contains($requiredToken, [StringComparison]::Ordinal)) {
+        throw "Deployed Guests stay-history probe policy is missing '$requiredToken'."
+    }
+}
+foreach ($forbiddenToken in @(
+        'DangerousAcceptAnyServerCertificateValidator',
+        'ServerCertificateCustomValidationCallback',
+        '-SkipCertificateCheck',
+        '$handler.AllowAutoRedirect = $true',
+        'WriteAllBytes',
+        'Set-Content',
+        'Out-File',
+        '/api/admin/')) {
+    if ($guestsStayHistoryProbe.Contains($forbiddenToken, [StringComparison]::OrdinalIgnoreCase)) {
+        throw "Deployed Guests stay-history probe contains forbidden token '$forbiddenToken'."
+    }
+}
+
+& (Join-Path $PSScriptRoot 'test-deployed-guests-stay-history.ps1')
+Write-Host 'BunkFy deployed Guests stay-history probe policy is valid.'
+
+$staffEmploymentProbe = Get-Content -LiteralPath (
+    Join-Path $PSScriptRoot 'operations\verify-deployed-staff-employment.ps1') -Raw
+foreach ($requiredToken in @(
+        "SupportsShouldProcess = `$true",
+        '$handler.AllowAutoRedirect = $false',
+        'ExpectedReleaseId',
+        'release-identity-continuous',
+        'BUNKFY_SMOKE_STAFF_OPERATOR_TOKEN',
+        'BUNKFY_SMOKE_STAFF_DENIED_TOKEN',
+        '/api/staff/members',
+        '/api/staff/properties/',
+        'Staff.PropertyUnavailable',
+        'Staff.CreationOperationConflict',
+        'Staff.ProfileUpdateOperationConflict',
+        'Staff.AssignmentOperationConflict',
+        'Staff.VersionConflict',
+        'staff-suspension-replay-stable-and-assignment-retained',
+        'staff-departure-closes-current-assignment',
+        'Complete-SmokeStaffCleanup',
+        'Write-BunkFyPrivateJsonEvidence',
+        "evidenceKind = 'bunkfy-deployed-staff-employment-probe'",
+        "'account-link-membership-and-role-lifecycle-not-exercised'",
+        "'synthetic-departed-staff-record-retained'")) {
+    if (-not $staffEmploymentProbe.Contains($requiredToken, [StringComparison]::Ordinal)) {
+        throw "Deployed Staff employment probe policy is missing '$requiredToken'."
+    }
+}
+foreach ($forbiddenToken in @(
+        'DangerousAcceptAnyServerCertificateValidator',
+        'ServerCertificateCustomValidationCallback',
+        '-SkipCertificateCheck',
+        '$handler.AllowAutoRedirect = $true',
+        'WriteAllBytes',
+        'Set-Content',
+        'Out-File',
+        '/api/admin/',
+        '/auth-subject')) {
+    if ($staffEmploymentProbe.Contains($forbiddenToken, [StringComparison]::OrdinalIgnoreCase)) {
+        throw "Deployed Staff employment probe contains forbidden token '$forbiddenToken'."
+    }
+}
+
+& (Join-Path $PSScriptRoot 'test-deployed-staff-employment.ps1')
+Write-Host 'BunkFy deployed Staff employment probe policy is valid.'
+
+$propertiesTopologyProbe = Get-Content -LiteralPath (
+    Join-Path $PSScriptRoot 'operations\verify-deployed-properties-topology.ps1') -Raw
+foreach ($requiredToken in @(
+        "SupportsShouldProcess = `$true",
+        '$handler.AllowAutoRedirect = $false',
+        'ExpectedReleaseId',
+        'release-identity-continuous',
+        'BUNKFY_SMOKE_PROPERTIES_OPERATOR_TOKEN',
+        'BUNKFY_SMOKE_PROPERTIES_DENIED_TOKEN',
+        '/api/properties',
+        '/api/inventory/properties/',
+        'Properties.CreationOperationConflict',
+        'Properties.ManagementOperationConflict',
+        'Properties.VersionConflict',
+        'Properties.PropertyHasActiveRooms',
+        'Properties.BedRetirementRequiresInventory',
+        'Properties.RoomRetirementRequiresInventory',
+        'Inventory.InventoryUnitNotFound',
+        'Inventory.RoomNotFound',
+        'Inventory.BedRetirementInProgress',
+        'bed-batch-created-atomically',
+        'room-and-beds-retirement-completed',
+        'retired-topology-directories-and-processing-consistent',
+        'Complete-SmokePropertiesCleanup',
+        'Write-BunkFyPrivateJsonEvidence',
+        "evidenceKind = 'bunkfy-deployed-properties-topology-probe'",
+        "'country-policy-activation-suspension-and-rebinding-not-exercised'",
+        "'synthetic-retired-topology-retained'")) {
+    if (-not $propertiesTopologyProbe.Contains($requiredToken, [StringComparison]::Ordinal)) {
+        throw "Deployed Properties topology probe policy is missing '$requiredToken'."
+    }
+}
+foreach ($forbiddenToken in @(
+        'DangerousAcceptAnyServerCertificateValidator',
+        'ServerCertificateCustomValidationCallback',
+        '-SkipCertificateCheck',
+        '$handler.AllowAutoRedirect = $true',
+        'WriteAllBytes',
+        'Set-Content',
+        'Out-File',
+        '/api/admin/',
+        '/processing/activate',
+        '/country-policies')) {
+    if ($propertiesTopologyProbe.Contains($forbiddenToken, [StringComparison]::OrdinalIgnoreCase)) {
+        throw "Deployed Properties topology probe contains forbidden token '$forbiddenToken'."
+    }
+}
+
+& (Join-Path $PSScriptRoot 'test-deployed-properties-topology.ps1')
+Write-Host 'BunkFy deployed Properties topology probe policy is valid.'
+
+$ingestionConnectionLifecycleProbe = Get-Content -LiteralPath (
+    Join-Path $PSScriptRoot 'operations\verify-deployed-ingestion-connection-lifecycle.ps1') -Raw
+foreach ($requiredToken in @(
+        "SupportsShouldProcess = `$true",
+        '$handler.AllowAutoRedirect = $false',
+        'ExpectedReleaseId',
+        'release-identity-continuous',
+        'BUNKFY_SMOKE_INGESTION_LIFECYCLE_OPERATOR_TOKEN',
+        'BUNKFY_SMOKE_INGESTION_LIFECYCLE_DENIED_TOKEN',
+        '/api/ingestion/properties/',
+        '/api/ingestion/adapter-ingress/connections/',
+        "'BunkFy-Adapter'",
+        'Ingestion.ConnectionManagementOperationConflict',
+        'Ingestion.VersionConflict',
+        'Ingestion.CountryPolicyDenied.MissingBinding',
+        'ingress-credential-replay-withholds-token',
+        'revoked-credential-denied',
+        'terminal-projections-consistent',
+        'Complete-SmokeLeaseForCleanup',
+        'Revoke-SmokeCredentialForCleanup',
+        'Disable-SmokeConnectionForCleanup',
+        'Write-BunkFyPrivateJsonEvidence',
+        "evidenceKind = 'bunkfy-deployed-ingestion-connection-lifecycle-probe'",
+        "'country-policy-activation-and-rebinding-not-exercised'",
+        "'synthetic-disabled-control-state-retained'")) {
+    if (-not $ingestionConnectionLifecycleProbe.Contains(
+            $requiredToken,
+            [StringComparison]::Ordinal)) {
+        throw "Deployed Ingestion connection lifecycle probe policy is missing '$requiredToken'."
+    }
+}
+foreach ($forbiddenToken in @(
+        'DangerousAcceptAnyServerCertificateValidator',
+        'ServerCertificateCustomValidationCallback',
+        '-SkipCertificateCheck',
+        '$handler.AllowAutoRedirect = $true',
+        'WriteAllBytes',
+        'Set-Content',
+        'Out-File',
+        '/api/admin/',
+        '/processing/activate',
+        '/country-policies',
+        'json.file-drop')) {
+    if ($ingestionConnectionLifecycleProbe.Contains(
+            $forbiddenToken,
+            [StringComparison]::OrdinalIgnoreCase)) {
+        throw "Deployed Ingestion connection lifecycle probe contains forbidden token '$forbiddenToken'."
+    }
+}
+
+& (Join-Path $PSScriptRoot 'test-deployed-ingestion-connection-lifecycle.ps1')
+Write-Host 'BunkFy deployed Ingestion connection lifecycle probe policy is valid.'
+
+$ingestionConflictProposalProbe = Get-Content -LiteralPath (
+    Join-Path $PSScriptRoot 'operations\verify-deployed-ingestion-conflict-proposal-lifecycle.ps1') -Raw
+foreach ($requiredToken in @(
+        "SupportsShouldProcess = `$true",
+        '$handler.AllowAutoRedirect = $false',
+        'ExpectedReleaseId',
+        'release-identity-continuous',
+        'BUNKFY_SMOKE_INGESTION_PROPOSAL_OPERATOR_TOKEN',
+        'BUNKFY_SMOKE_INGESTION_PROPOSAL_DENIED_TOKEN',
+        '/api/ingestion/properties/',
+        '/api/ingestion/adapter-ingress/connections/',
+        '/api/reservations/properties/',
+        "'BunkFy-Adapter'",
+        'Ingestion.ProposalDecisionConflict',
+        'Ingestion.CountryPolicyDenied.MissingBinding',
+        'newer-source-proposal-superseded-older-pending',
+        'proposal-acceptance-replay-and-conflict-safe',
+        'reservation-history-preserved-authority-provenance',
+        'Reject-PendingProposalsForCleanup',
+        'Cancel-SmokeReservationForCleanup',
+        'Revoke-SmokeCredentialForCleanup',
+        'Disable-SmokeConnectionForCleanup',
+        'Write-BunkFyPrivateJsonEvidence',
+        "evidenceKind = 'bunkfy-deployed-ingestion-conflict-proposal-lifecycle-probe'",
+        "'proposal-acceptance-race-to-stale-covered-by-focused-integration-tests'",
+        "'production-country-policy-and-provider-credential-approval-not-exercised'")) {
+    if (-not $ingestionConflictProposalProbe.Contains(
+            $requiredToken,
+            [StringComparison]::Ordinal)) {
+        throw "Deployed Ingestion conflict proposal probe policy is missing '$requiredToken'."
+    }
+}
+foreach ($forbiddenToken in @(
+        'DangerousAcceptAnyServerCertificateValidator',
+        'ServerCertificateCustomValidationCallback',
+        '-SkipCertificateCheck',
+        '$handler.AllowAutoRedirect = $true',
+        'WriteAllBytes',
+        'Set-Content',
+        'Out-File',
+        '/api/admin/',
+        '/processing/activate',
+        '/country-policies',
+        'json.file-drop')) {
+    if ($ingestionConflictProposalProbe.Contains(
+            $forbiddenToken,
+            [StringComparison]::OrdinalIgnoreCase)) {
+        throw "Deployed Ingestion conflict proposal probe contains forbidden token '$forbiddenToken'."
+    }
+}
+
+& (Join-Path $PSScriptRoot 'test-deployed-ingestion-conflict-proposal-lifecycle.ps1')
+Write-Host 'BunkFy deployed Ingestion conflict proposal probe policy is valid.'
+
+$dataRightsAccessExportProbe = Get-Content -LiteralPath (
+    Join-Path $PSScriptRoot 'operations\verify-deployed-data-rights-access-export.ps1') -Raw
+foreach ($requiredToken in @(
+        "SupportsShouldProcess = `$true",
+        '$handler.AllowAutoRedirect = $false',
+        'ExpectedReleaseId',
+        'release-identity-continuous',
+        'BUNKFY_SMOKE_DATA_RIGHTS_ASSURED_TOKEN',
+        'BUNKFY_SMOKE_DATA_RIGHTS_UNASSURED_TOKEN',
+        'BUNKFY_SMOKE_DATA_RIGHTS_DENIED_TOKEN',
+        '/api/data-rights/properties/',
+        '/api/guests/properties/',
+        'DataRights.ExportArtifactAlreadyRequested',
+        'Security.InsufficientAuthentication',
+        'Test-SmokeTimestampReplayEquivalent',
+        '$script:MaximumExportBodyBytes = 1MB',
+        'ResponseHeadersRead',
+        'CryptographicOperations]::FixedTimeEquals',
+        'Clear-SmokeResponseBody',
+        'Write-BunkFyPrivateJsonEvidence',
+        "evidenceKind = 'bunkfy-deployed-data-rights-access-export-probe'",
+        "'browser-privacy-workflow-not-exercised'",
+        "'case-history-and-encrypted-artifact-retained-until-configured-lifecycle'")) {
+    if (-not $dataRightsAccessExportProbe.Contains($requiredToken, [StringComparison]::Ordinal)) {
+        throw "Deployed Data Rights access export probe policy is missing '$requiredToken'."
+    }
+}
+foreach ($forbiddenToken in @(
+        'DangerousAcceptAnyServerCertificateValidator',
+        'ServerCertificateCustomValidationCallback',
+        '-SkipCertificateCheck',
+        '$handler.AllowAutoRedirect = $true',
+        'ReadAsByteArrayAsync',
+        'WriteAllBytes',
+        'Set-Content',
+        'Out-File',
+        '/api/admin/')) {
+    if ($dataRightsAccessExportProbe.Contains($forbiddenToken, [StringComparison]::OrdinalIgnoreCase)) {
+        throw "Deployed Data Rights access export probe contains forbidden token '$forbiddenToken'."
+    }
+}
+
+& (Join-Path $PSScriptRoot 'test-deployed-data-rights-access-export.ps1')
+Write-Host 'BunkFy deployed Data Rights access export probe policy is valid.'
 
 $previewAdapterHostRehearsal = Get-Content -LiteralPath (
     Join-Path $PSScriptRoot 'operations\rehearse-preview-adapter-host.ps1') -Raw
@@ -1840,7 +2333,7 @@ foreach ($requiredToken in @(
         'cross-workspace-retention-denied',
         'automatic-retention-occurrence-observed',
         "evidenceKind = 'bunkfy-deployed-retention-probe'",
-        'schemaVersion = 2',
+        'schemaVersion = 3',
         "'owner-data-not-seeded-or-read'",
         "'generic-task-lease-and-restart-not-observed'")) {
     if (-not $retentionProbe.Contains($requiredToken, [StringComparison]::Ordinal)) {
@@ -1863,6 +2356,34 @@ foreach ($forbiddenToken in @(
 & (Join-Path $PSScriptRoot 'test-deployed-retention.ps1')
 Write-Host 'BunkFy deployed Retention probe policy is valid.'
 
+$attemptBoundProbeScripts = @(
+    'verify-deployed-adapter-host.ps1',
+    'verify-deployed-admin-boundary.ps1',
+    'verify-deployed-data-rights-access-export.ps1',
+    'verify-deployed-guests-stay-history.ps1',
+    'verify-deployed-ingestion-conflict-proposal-lifecycle.ps1',
+    'verify-deployed-ingestion-connection-lifecycle.ps1',
+    'verify-deployed-operations-notifications.ps1',
+    'verify-deployed-properties-topology.ps1',
+    'verify-deployed-reservations-inventory.ps1',
+    'verify-deployed-retention.ps1',
+    'verify-deployed-staff-employment.ps1',
+    'verify-deployed-workspace-enrollment.ps1',
+    'verify-deployed-workspace-invitation.ps1')
+foreach ($scriptName in $attemptBoundProbeScripts) {
+    $source = Get-Content -LiteralPath (
+        Join-Path $PSScriptRoot "operations\$scriptName") -Raw
+    foreach ($requiredToken in @(
+            '$observedAdmissionEvidenceReference = $null',
+            '-ObservedAdmissionEvidenceReference ([ref]$observedAdmissionEvidenceReference)',
+            'admissionEvidenceReference = $observedAdmissionEvidenceReference')) {
+        if (-not $source.Contains($requiredToken, [StringComparison]::Ordinal)) {
+            throw "Deployed probe '$scriptName' is missing admission-attempt binding '$requiredToken'."
+        }
+    }
+}
+Write-Host 'BunkFy deployed probe admission-attempt binding is valid.'
+
 $productionAdmissionCommon = Get-Content -LiteralPath (
     Join-Path $PSScriptRoot 'production-admission.common.ps1') -Raw
 $productionAdmissionAssembler = Get-Content -LiteralPath (
@@ -1871,17 +2392,50 @@ $productionAdmissionVerifier = Get-Content -LiteralPath (
     Join-Path $PSScriptRoot 'verify-production-admission.ps1') -Raw
 foreach ($requiredToken in @(
         'Get-BunkFyVerifiedProductionAdmissionProbe',
+        'ExpectedAdmissionEvidenceReference',
+        'admissionEvidenceReference',
+        'different admission attempt',
         'Assert-BunkFyRetentionAdmissionEvidence',
+        'Assert-BunkFyGuestsStayHistoryAdmissionEvidence',
+        'Assert-BunkFyStaffEmploymentAdmissionEvidence',
+        'Assert-BunkFyPropertiesTopologyAdmissionEvidence',
+        'Assert-BunkFyIngestionConnectionLifecycleAdmissionEvidence',
+        'Assert-BunkFyIngestionConflictProposalLifecycleAdmissionEvidence',
+        'Assert-BunkFyDataRightsAccessExportAdmissionEvidence',
+        "'guests-stay-history'",
+        "'bunkfy-deployed-guests-stay-history-probe'",
+        "'staff-employment'",
+        "'bunkfy-deployed-staff-employment-probe'",
+        "'properties-topology'",
+        "'bunkfy-deployed-properties-topology-probe'",
+        "'ingestion-connection-lifecycle'",
+        "'bunkfy-deployed-ingestion-connection-lifecycle-probe'",
+        "'ingestion-conflict-proposal-lifecycle'",
+        "'bunkfy-deployed-ingestion-conflict-proposal-lifecycle-probe'",
+        "'data-rights-access-export'",
+        "'bunkfy-deployed-data-rights-access-export-probe'",
         "'completed-after-lower-bound'",
         'Retention schedule evidence predates its completion lower bound.',
         'Get-BunkFyVerifiedProductionMigrationRehearsal',
         'Get-BunkFyVerifiedDeployedRollbackRehearsal',
         'Get-BunkFyVerifiedProductionAdmission',
+        'Get-BunkFyVerifiedPrivateProductionControlIndex',
+        'Get-BunkFyVerifiedPrivateProductionControlIndexRecord',
+        'BunkFyPrivateProductionControlIndexMaximumAge',
+        'BunkFyPrivateProductionControlMaximumAges',
+        'BunkFyProductionAdmissionMutableEvidenceMaximumAge',
+        'Get-BunkFyProductionAdmissionExpiry',
+        'Resolve-BunkFyProductionAdmissionDigestReference',
         'ConvertFrom-Json -DateKind String',
         'Get-BunkFyClosedChecksumSet',
         "'bunkfy-production-admission-bundle'",
         "'evidence-complete-awaiting-private-approval'",
-        "'private-evidence-content-and-authenticity-not-verified'")) {
+        "'private-evidence-content-and-authenticity-not-verified'",
+        "'private-records-not-retained-in-public-admission-bundle'",
+        "'source-clock-attestation-not-verified'",
+        "'private-control-index-bound'",
+        "'mutable-evidence-fresh-and-coherent'",
+        "'source-evidence-references-bound'")) {
     if (-not $productionAdmissionCommon.Contains($requiredToken, [StringComparison]::Ordinal)) {
         throw "Production admission common policy is missing '$requiredToken'."
     }
@@ -1889,20 +2443,50 @@ foreach ($requiredToken in @(
 foreach ($requiredToken in @(
         'CandidatePromotionDirectory',
         'AdmissionEvidenceReference',
+        '-ExpectedAdmissionEvidenceReference $AdmissionEvidenceReference',
         'RollbackPromotionDirectory',
         'RollbackRehearsalDirectory',
         'MigrationRehearsalPath',
         'AdminAllowedEvidencePath',
         'AdminDeniedEvidencePath',
+        'GuestsStayHistoryEvidencePath',
+        "'deployed-guests-stay-history'",
+        'StaffEmploymentEvidencePath',
+        "'deployed-staff-employment'",
+        'PropertiesTopologyEvidencePath',
+        "'deployed-properties-topology'",
+        'IngestionConnectionLifecycleEvidencePath',
+        "'deployed-ingestion-connection-lifecycle'",
+        'IngestionConflictProposalLifecycleEvidencePath',
+        "'deployed-ingestion-conflict-proposal-lifecycle'",
+        'DataRightsAccessExportEvidencePath',
+        "'deployed-data-rights-access-export'",
+        'PrivateControlIndexDirectory',
+        'Get-BunkFyVerifiedPrivateProductionControlIndex',
+        "'private-control-index.json'",
+        'schemaVersion = 3',
+        'privateControlIndexMaximumAgeMinutes',
+        'privateControlEvidenceExpiresAtUtc',
+        'recordSha256 = $_.RecordSha256',
+        'evidenceReference = $EvidenceReference',
+        'mutableEvidenceMaximumAgeMinutes',
+        'Get-BunkFyVerifiedProductionAdmission',
+        '[IO.Directory]::Move')) {
+    if (-not $productionAdmissionAssembler.Contains($requiredToken, [StringComparison]::Ordinal)) {
+        throw "Production admission assembler policy is missing '$requiredToken'."
+    }
+}
+foreach ($retiredToken in @(
         'BrowserRehearsalReference',
         'HostedRecoveryReference',
         'DeploymentControlReference',
         'RuntimeOperationsReference',
         'WorkspaceAccessEstateReference',
-        'Get-BunkFyVerifiedProductionAdmission',
-        '[IO.Directory]::Move')) {
-    if (-not $productionAdmissionAssembler.Contains($requiredToken, [StringComparison]::Ordinal)) {
-        throw "Production admission assembler policy is missing '$requiredToken'."
+        'schemaVersion = 2')) {
+    if ($productionAdmissionAssembler.Contains(
+            $retiredToken,
+            [StringComparison]::Ordinal)) {
+        throw "Production admission assembler retains retired token '$retiredToken'."
     }
 }
 foreach ($requiredToken in @(

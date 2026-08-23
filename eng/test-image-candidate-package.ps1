@@ -354,6 +354,27 @@ try {
     $releaseId = 'release-fixture-001'
     $fixtureRegistry = Join-Path $temporaryRoot 'fixture-registry'
     $promotionDirectory = Join-Path $temporaryRoot 'promotion'
+    $dryRunRegistry = Join-Path $temporaryRoot 'dry-run-registry'
+    $dryRunPromotion = Join-Path $temporaryRoot 'dry-run-promotion'
+    $dryRunResult = @(& $promoter `
+            -BundleDirectory $bundleDirectory `
+            -ExpectedSourceCommit $sourceCommit `
+            -ReleaseId $releaseId `
+            -BackendDestination "registry.fixture.invalid/bunkfy/backend:$releaseId" `
+            -WebDestination "registry.fixture.invalid/bunkfy/web:$releaseId" `
+            -OutputDirectory $dryRunPromotion `
+            -FixtureRegistryDirectory $dryRunRegistry `
+            -AllowUnattested `
+            -PassThru `
+            -WhatIf 6>$null)
+    if ($dryRunResult.Count -ne 0 -or
+        [IO.Directory]::Exists($dryRunRegistry) -or
+        [IO.Directory]::Exists($dryRunPromotion) -or
+        [IO.File]::Exists($dryRunRegistry) -or
+        [IO.File]::Exists($dryRunPromotion)) {
+        throw 'Candidate promotion dry-run created registry or evidence output.'
+    }
+
     $promotion = & $promoter `
         -BundleDirectory $bundleDirectory `
         -ExpectedSourceCommit $sourceCommit `

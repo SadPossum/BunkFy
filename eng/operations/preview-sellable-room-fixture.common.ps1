@@ -26,7 +26,11 @@ function Get-BunkFyPreviewSellableRoomFixture {
             -Path "/api/inventory/properties/$($PropertyId.ToString('D'))/rooms?page=$page&pageSize=100" `
             -Method 'GET' `
             -Body $null `
-            -Operation 'Read preview sellable-room fixture Inventory topology'
+            -Operation 'Read preview sellable-room fixture Inventory topology' `
+            -AllowNotFound
+        if ($null -eq $response) {
+            return $null
+        }
         $matches = @($response.rooms | Where-Object { [Guid]$_.roomId -eq $RoomId })
         if ($matches.Count -gt 1) {
             throw 'The preview sellable-room fixture was projected more than once.'
@@ -221,6 +225,15 @@ function Remove-BunkFyPreviewSellableRoomFixture {
     }
 
     if ([Guid]$Fixture.TopologyChangeId -eq [Guid]::Empty) {
+        if ([string]$Fixture.Status -ceq 'room-created') {
+            [void](Wait-BunkFyPreviewSellableRoomFixture `
+                    -InvokeApi $InvokeApi `
+                    -PropertyId $propertyId `
+                    -RoomId $roomId `
+                    -State 'unconfigured' `
+                    -ConvergenceTimeoutSeconds $ConvergenceTimeoutSeconds `
+                    -PollIntervalMilliseconds $PollIntervalMilliseconds)
+        }
         $retirement = & $InvokeApi `
             -Path "/api/inventory/properties/$($propertyId.ToString('D'))/rooms/$($roomId.ToString('D'))/retirement" `
             -Method 'POST' `

@@ -72,7 +72,8 @@ default with operator-only access (`0600` on Unix or a protected
 current-operator ACL on Windows). It includes the public origin, release
 identity, workspace id, observed data class, catalogue count, the two expected
 schedule coordinates, run ids, timestamps, bounded counts, outcome codes, seven
-checks, explicit limitations, and a schema-v2 observation record. The
+checks, explicit limitations, an admission evidence reference, and a schema-v3
+observation record. The
 observation identifies whether the proof advanced beyond a baseline or
 satisfied a supplied lower bound, including the baseline run identity and
 bounded clock-skew allowance.

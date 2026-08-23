@@ -14,7 +14,13 @@ param(
     [switch] $AllowLoopbackHttp,
     [switch] $IncludeOperationsNotifications,
     [switch] $IncludeReservationsInventory,
+    [switch] $IncludeGuestsStayHistory,
+    [switch] $IncludeStaffEmployment,
+    [switch] $IncludePropertiesTopology,
+    [switch] $IncludeIngestionConnectionLifecycle,
+    [switch] $IncludeIngestionConflictProposalLifecycle,
     [switch] $IncludeRetention,
+    [switch] $IncludeDataRightsAccessExport,
     [switch] $IncludeAdapterHost,
     [string] $AdapterHostBackendImage,
     [string] $AdapterHostBackendSourceCommitSha,
@@ -29,6 +35,7 @@ $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'deployed-public-edge.common.ps1')
 . (Join-Path $PSScriptRoot 'preview-state.common.ps1')
 . (Join-Path $PSScriptRoot 'preview-mail-capture.common.ps1')
+. (Join-Path $PSScriptRoot 'preview-totp.common.ps1')
 . (Join-Path $PSScriptRoot 'preview-property-processing-fixture.common.ps1')
 . (Join-Path $PSScriptRoot 'preview-sellable-room-fixture.common.ps1')
 
@@ -81,9 +88,27 @@ $operationsNotificationsEvidencePath = Join-Path `
 $reservationsInventoryEvidencePath = Join-Path `
     $outputDirectory `
     "$outputBaseName.reservations-inventory.json"
+$guestsStayHistoryEvidencePath = Join-Path `
+    $outputDirectory `
+    "$outputBaseName.guests-stay-history.json"
+$staffEmploymentEvidencePath = Join-Path `
+    $outputDirectory `
+    "$outputBaseName.staff-employment.json"
+$propertiesTopologyEvidencePath = Join-Path `
+    $outputDirectory `
+    "$outputBaseName.properties-topology.json"
+$ingestionConnectionLifecycleEvidencePath = Join-Path `
+    $outputDirectory `
+    "$outputBaseName.ingestion-connection-lifecycle.json"
+$ingestionConflictProposalLifecycleEvidencePath = Join-Path `
+    $outputDirectory `
+    "$outputBaseName.ingestion-conflict-proposal-lifecycle.json"
 $retentionEvidencePath = Join-Path `
     $outputDirectory `
     "$outputBaseName.retention.json"
+$dataRightsAccessExportEvidencePath = Join-Path `
+    $outputDirectory `
+    "$outputBaseName.data-rights-access-export.json"
 $adapterHostUpsertEvidencePath = Join-Path `
     $outputDirectory `
     "$outputBaseName.adapter-host-upsert.json"
@@ -114,8 +139,26 @@ if ($IncludeOperationsNotifications) {
 if ($IncludeReservationsInventory) {
     $evidencePaths += $reservationsInventoryEvidencePath
 }
+if ($IncludeGuestsStayHistory) {
+    $evidencePaths += $guestsStayHistoryEvidencePath
+}
+if ($IncludeStaffEmployment) {
+    $evidencePaths += $staffEmploymentEvidencePath
+}
+if ($IncludePropertiesTopology) {
+    $evidencePaths += $propertiesTopologyEvidencePath
+}
+if ($IncludeIngestionConnectionLifecycle) {
+    $evidencePaths += $ingestionConnectionLifecycleEvidencePath
+}
+if ($IncludeIngestionConflictProposalLifecycle) {
+    $evidencePaths += $ingestionConflictProposalLifecycleEvidencePath
+}
 if ($IncludeRetention) {
     $evidencePaths += $retentionEvidencePath
+}
+if ($IncludeDataRightsAccessExport) {
+    $evidencePaths += $dataRightsAccessExportEvidencePath
 }
 if ($IncludeAdapterHost) {
     $evidencePaths += @(
@@ -225,6 +268,54 @@ $cleanup = [ordered]@{
     else {
         'not-requested'
     }
+    guestsStayHistoryFixture = if ($IncludeGuestsStayHistory) {
+        'not-created'
+    }
+    else {
+        'not-requested'
+    }
+    staffEmployment = if ($IncludeStaffEmployment) {
+        'not-started'
+    }
+    else {
+        'not-requested'
+    }
+    propertiesTopology = if ($IncludePropertiesTopology) {
+        'not-started'
+    }
+    else {
+        'not-requested'
+    }
+    ingestionConnectionLifecycle = if ($IncludeIngestionConnectionLifecycle) {
+        'not-started'
+    }
+    else {
+        'not-requested'
+    }
+    ingestionConflictProposalLifecycle = if ($IncludeIngestionConflictProposalLifecycle) {
+        'not-started'
+    }
+    else {
+        'not-requested'
+    }
+    ingestionConflictProposalFixture = if ($IncludeIngestionConflictProposalLifecycle) {
+        'not-created'
+    }
+    else {
+        'not-requested'
+    }
+    dataRightsAccessExport = if ($IncludeDataRightsAccessExport) {
+        'not-started'
+    }
+    else {
+        'not-requested'
+    }
+    dataRightsMfa = if ($IncludeDataRightsAccessExport) {
+        'not-started'
+    }
+    else {
+        'not-requested'
+    }
     adapterHostFixture = if ($IncludeAdapterHost) {
         'not-created'
     }
@@ -253,7 +344,12 @@ $invitationEvidence = $null
 $enrollmentEvidence = $null
 $operationsNotificationsFixture = $null
 $reservationsInventoryFixture = $null
+$guestsStayHistoryFixture = $null
+$ingestionConflictProposalFixture = $null
 $adapterHostFixture = $null
+$dataRightsAssuredToken = $null
+$dataRightsUnassuredToken = $null
+$dataRightsMfaState = $null
 $proofError = $null
 $proofStage = 'not-started'
 $releaseIdBefore = $null
@@ -362,6 +458,16 @@ function Read-RehearsalJson {
     }
     catch {
         throw "$Operation returned invalid JSON."
+    }
+}
+
+function Clear-RehearsalResponseBody {
+    param([AllowNull()][object] $Response)
+
+    if ($null -ne $Response -and
+        $null -ne $Response.Body -and
+        $Response.Body.Length -gt 0) {
+        [Array]::Clear($Response.Body, 0, $Response.Body.Length)
     }
 }
 
@@ -600,11 +706,24 @@ function Get-RehearsalFingerprint {
     }
 }
 
+function ConvertFrom-RehearsalSecureString {
+    param([Parameter(Mandatory = $true)][Security.SecureString] $Value)
+
+    $pointer = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($Value)
+    try {
+        return [Runtime.InteropServices.Marshal]::PtrToStringBSTR($pointer)
+    }
+    finally {
+        [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($pointer)
+    }
+}
+
 function New-RehearsalIdentity {
     param(
         [Parameter(Mandatory = $true)][string] $Role,
         [Parameter(Mandatory = $true)][string] $BatchId,
-        [Parameter(Mandatory = $true)][ref] $State
+        [Parameter(Mandatory = $true)][ref] $State,
+        [switch] $RetainPassword
     )
 
     $identitySuffix = [Guid]::NewGuid().ToString('N').Substring(0, 12)
@@ -614,12 +733,19 @@ function New-RehearsalIdentity {
         Email = $email
         Fingerprint = Get-RehearsalFingerprint -Value $email.ToLowerInvariant()
         AccessToken = $null
+        Password = $null
         CapturedMessageCount = 0
         RegistrationOutcome = 'attempted'
     }
     $State.Value = $identity
     $password = 'Bf9!' + [Guid]::NewGuid().ToString('N') + [Guid]::NewGuid().ToString('N')
     try {
+        if ($RetainPassword) {
+            $identity.Password = ConvertTo-SecureString `
+                -String $password `
+                -AsPlainText `
+                -Force
+        }
         $registration = Read-RehearsalJson `
             -Response (Invoke-RehearsalApi `
                 -Path '/api/auth/browser/register' `
@@ -712,6 +838,191 @@ function New-RehearsalIdentity {
     }
     finally {
         $password = $null
+    }
+}
+
+function New-RehearsalDataRightsSessions {
+    param(
+        [Parameter(Mandatory = $true)][object] $Identity,
+        [Parameter(Mandatory = $true)][ref] $State
+    )
+
+    if ($Identity.Password -isnot [Security.SecureString] -or
+        [string]::IsNullOrWhiteSpace([string]$Identity.Email)) {
+        throw 'The Data Rights rehearsal owner password was not retained securely.'
+    }
+
+    $sessions = [pscustomobject]@{
+        UnassuredAccessToken = $null
+        AssuredAccessToken = $null
+        MfaRefreshToken = $null
+        MfaRecoveryCode = $null
+        MfaActivated = $false
+    }
+    $State.Value = $sessions
+    $password = $null
+    $loginResponse = $null
+    $enrollmentResponse = $null
+    $activationResponse = $null
+    $login = $null
+    $enrollment = $null
+    $activation = $null
+    $unassuredAccessToken = $null
+    $assuredAccessToken = $null
+    $refreshToken = $null
+    $activationRefreshToken = $null
+    $recoveryCode = $null
+    $totpCode = $null
+    $secret = $null
+    try {
+        $password = ConvertFrom-RehearsalSecureString -Value $Identity.Password
+        $loginResponse = Invoke-RehearsalApi `
+            -Path '/api/auth/login' `
+            -Method POST `
+            -TenantId 'global' `
+            -Token $null `
+            -Body @{
+                username = [string]$Identity.Email
+                password = $password
+            }
+        $login = Read-RehearsalJson `
+            -Response $loginResponse `
+            -ExpectedStatus 200 `
+            -Operation 'Create a fresh unassured Data Rights operator session'
+        $unassuredAccessToken = [string]$login.accessToken
+        $refreshToken = [string]$login.refreshToken
+        if ([string]::IsNullOrWhiteSpace($unassuredAccessToken) -or
+            [string]::IsNullOrWhiteSpace($refreshToken)) {
+            throw 'Fresh Data Rights operator login did not return both tokens.'
+        }
+        $sessions.UnassuredAccessToken = ConvertTo-SecureString `
+            -String $unassuredAccessToken `
+            -AsPlainText `
+            -Force
+
+        $enrollmentResponse = Invoke-RehearsalApi `
+            -Path '/api/auth/mfa/totp/enrollment' `
+            -Method POST `
+            -TenantId 'global' `
+            -Token $unassuredAccessToken `
+            -Body $null
+        $enrollment = Read-RehearsalJson `
+            -Response $enrollmentResponse `
+            -ExpectedStatus 200 `
+            -Operation 'Begin temporary Data Rights TOTP enrollment'
+        $secret = [string]$enrollment.secret
+        $totpCode = Get-BunkFyPreviewTotpCode -Secret $secret
+
+        $activationResponse = Invoke-RehearsalApi `
+            -Path '/api/auth/mfa/totp/activate' `
+            -Method POST `
+            -TenantId 'global' `
+            -Token $unassuredAccessToken `
+            -Body @{
+                code = $totpCode
+                refreshToken = $refreshToken
+            }
+        $activation = Read-RehearsalJson `
+            -Response $activationResponse `
+            -ExpectedStatus 200 `
+            -Operation 'Activate temporary Data Rights TOTP assurance'
+        $sessions.MfaActivated = $true
+        $assuredAccessToken = [string]$activation.accessToken
+        $activationRefreshToken = [string]$activation.refreshToken
+        $recoveryCodes = @($activation.recoveryCodes)
+        $recoveryCode = if ($recoveryCodes.Count -gt 0) {
+            [string]$recoveryCodes[0]
+        }
+        else {
+            $null
+        }
+        if ([string]::IsNullOrWhiteSpace($assuredAccessToken) -or
+            [string]::IsNullOrWhiteSpace($activationRefreshToken) -or
+            [string]::IsNullOrWhiteSpace($recoveryCode) -or
+            $assuredAccessToken -ceq $unassuredAccessToken) {
+            throw 'TOTP activation did not return complete, distinct assurance material.'
+        }
+        $sessions.AssuredAccessToken = ConvertTo-SecureString `
+            -String $assuredAccessToken `
+            -AsPlainText `
+            -Force
+        $sessions.MfaRefreshToken = ConvertTo-SecureString `
+            -String $activationRefreshToken `
+            -AsPlainText `
+            -Force
+        $sessions.MfaRecoveryCode = ConvertTo-SecureString `
+            -String $recoveryCode `
+            -AsPlainText `
+            -Force
+        return $sessions
+    }
+    finally {
+        Clear-RehearsalResponseBody -Response $loginResponse
+        Clear-RehearsalResponseBody -Response $enrollmentResponse
+        Clear-RehearsalResponseBody -Response $activationResponse
+        $password = $null
+        $login = $null
+        $enrollment = $null
+        if ($null -ne $activation -and
+            $null -ne $activation.PSObject.Properties['recoveryCodes']) {
+            $activation.recoveryCodes = @()
+        }
+        $activation = $null
+        $unassuredAccessToken = $null
+        $assuredAccessToken = $null
+        $refreshToken = $null
+        $activationRefreshToken = $null
+        $recoveryCode = $null
+        $totpCode = $null
+        $secret = $null
+    }
+}
+
+function Remove-RehearsalDataRightsMfa {
+    param([Parameter(Mandatory = $true)][object] $State)
+
+    if (-not [bool]$State.MfaActivated) {
+        return 'not-activated'
+    }
+    foreach ($propertyName in @(
+            'AssuredAccessToken',
+            'MfaRefreshToken',
+            'MfaRecoveryCode')) {
+        if ($State.$propertyName -isnot [Security.SecureString]) {
+            throw 'Temporary Data Rights MFA cleanup material is incomplete.'
+        }
+    }
+
+    $accessToken = $null
+    $refreshToken = $null
+    $recoveryCode = $null
+    $response = $null
+    try {
+        $accessToken = ConvertFrom-RehearsalSecureString -Value $State.AssuredAccessToken
+        $refreshToken = ConvertFrom-RehearsalSecureString -Value $State.MfaRefreshToken
+        $recoveryCode = ConvertFrom-RehearsalSecureString -Value $State.MfaRecoveryCode
+        $response = Invoke-RehearsalApi `
+            -Path '/api/auth/mfa/totp/disable' `
+            -Method POST `
+            -TenantId 'global' `
+            -Token $accessToken `
+            -Body @{
+                codeType = 'recovery-code'
+                code = $recoveryCode
+                refreshToken = $refreshToken
+            }
+        Assert-RehearsalStatus `
+            -Response $response `
+            -ExpectedStatus 204 `
+            -Operation 'Disable temporary Data Rights TOTP assurance'
+        $State.MfaActivated = $false
+        return 'disabled-sessions-revoked'
+    }
+    finally {
+        Clear-RehearsalResponseBody -Response $response
+        $accessToken = $null
+        $refreshToken = $null
+        $recoveryCode = $null
     }
 }
 
@@ -1192,8 +1503,26 @@ if ($IncludeOperationsNotifications) {
 if ($IncludeReservationsInventory) {
     $rehearsalAction += ', exercise Reservations and Inventory'
 }
+if ($IncludeGuestsStayHistory) {
+    $rehearsalAction += ', exercise durable Guests and stay history'
+}
+if ($IncludeStaffEmployment) {
+    $rehearsalAction += ', exercise Staff employment and assignment lifecycle'
+}
+if ($IncludePropertiesTopology) {
+    $rehearsalAction += ', exercise Properties topology and coordinated retirement'
+}
+if ($IncludeIngestionConnectionLifecycle) {
+    $rehearsalAction += ', exercise Ingestion connection and credential lifecycle'
+}
+if ($IncludeIngestionConflictProposalLifecycle) {
+    $rehearsalAction += ', exercise Ingestion conflict and proposal authority lifecycle'
+}
 if ($IncludeRetention) {
     $rehearsalAction += ', exercise automatic Retention'
+}
+if ($IncludeDataRightsAccessExport) {
+    $rehearsalAction += ', exercise a protected Data Rights access export'
 }
 if ($IncludeAdapterHost) {
     $rehearsalAction += ', exercise AdapterHost'
@@ -1220,7 +1549,8 @@ try {
     $owner = New-RehearsalIdentity `
         -Role 'owner' `
         -BatchId $batchId `
-        -State ([ref]$owner)
+        -State ([ref]$owner) `
+        -RetainPassword:$IncludeDataRightsAccessExport
     $cleanup['ownerSessions'] = 'active'
     $invitationApplicant = New-RehearsalIdentity `
         -Role 'invite' `
@@ -1345,20 +1675,308 @@ try {
             [Parameter(Mandatory = $true)][string] $Path,
             [Parameter(Mandatory = $true)][string] $Method,
             [AllowNull()][object] $Body,
-            [Parameter(Mandatory = $true)][string] $Operation
+            [Parameter(Mandatory = $true)][string] $Operation,
+            [switch] $AllowNotFound
         )
 
-        return Read-RehearsalJson `
-            -Response (Invoke-RehearsalApi `
+        $response = Invoke-RehearsalApi `
                 -Path $Path `
                 -Method $Method `
                 -TenantId $workspaceId.ToString('D') `
                 -Token ([string]$owner.AccessToken) `
-                -Body $Body) `
+                -Body $Body
+        if ($AllowNotFound -and $response.StatusCode -eq 404) {
+            Clear-RehearsalResponseBody -Response $response
+            return $null
+        }
+
+        return Read-RehearsalJson `
+            -Response $response `
             -ExpectedStatus 200 `
             -Operation $Operation
     }
     try {
+        if ($IncludeDataRightsAccessExport -or
+            $IncludeReservationsInventory -or
+            $IncludeGuestsStayHistory -or
+            $IncludeIngestionConnectionLifecycle -or
+            $IncludeIngestionConflictProposalLifecycle -or
+            $IncludeAdapterHost) {
+            $proofStage = 'room-backed-domain-processing'
+            [void](Enable-BunkFyPreviewEngineeringPropertyProcessing `
+                    -InvokeApi $invokeSellableRoomFixtureApi `
+                    -PropertyId $allowedPropertyId `
+                    -ConvergenceTimeoutSeconds $ConvergenceTimeoutSeconds `
+                    -PollIntervalMilliseconds $PollIntervalMilliseconds)
+            $checks.Add([ordered]@{
+                    name = 'preview-engineering-country-policy-activated'
+                    status = 'passed'
+                })
+        }
+
+        if ($IncludePropertiesTopology) {
+            $proofStage = 'properties-topology-proof'
+            $cleanup['propertiesTopology'] = 'child-running-cleanup-authoritative'
+            try {
+                & (Join-Path $PSScriptRoot 'verify-deployed-properties-topology.ps1') `
+                    -PublicOrigin $origin `
+                    -ExpectedReleaseId $ExpectedReleaseId `
+                    -WorkspaceId $workspaceId `
+                    -OperatorAccessToken $ownerToken `
+                    -DeniedAccessToken $invitationToken `
+                    -RequestTimeoutSeconds $RequestTimeoutSeconds `
+                    -ConvergenceTimeoutSeconds ([Math]::Min($ConvergenceTimeoutSeconds, 300)) `
+                    -PollIntervalMilliseconds $PollIntervalMilliseconds `
+                    -OutputPath $propertiesTopologyEvidencePath `
+                    -AllowLoopbackHttp:$AllowLoopbackHttp `
+                    -Force `
+                    -Confirm:$false
+                [void](Read-RehearsalChildEvidence `
+                        -Path $propertiesTopologyEvidencePath `
+                        -ExpectedKind 'bunkfy-deployed-properties-topology-probe' `
+                        -WorkspaceBinding Forbidden)
+                $cleanup['propertiesTopology'] = 'synthetic-topology-retired-retained'
+                $checks.Add([ordered]@{
+                        name = 'properties-topology-child-proof-passed'
+                        status = 'passed'
+                    })
+            }
+            catch {
+                $cleanup['propertiesTopology'] = 'child-failed-review-required'
+                throw
+            }
+        }
+
+        if ($IncludeIngestionConnectionLifecycle) {
+            $proofStage = 'ingestion-connection-lifecycle-proof'
+            $cleanup['ingestionConnectionLifecycle'] = 'child-running-cleanup-authoritative'
+            try {
+                & (Join-Path $PSScriptRoot 'verify-deployed-ingestion-connection-lifecycle.ps1') `
+                    -PublicOrigin $origin `
+                    -ExpectedReleaseId $ExpectedReleaseId `
+                    -WorkspaceId $workspaceId `
+                    -PropertyId $allowedPropertyId `
+                    -OperatorAccessToken $ownerToken `
+                    -DeniedAccessToken $invitationToken `
+                    -RequestTimeoutSeconds $RequestTimeoutSeconds `
+                    -ConvergenceTimeoutSeconds ([Math]::Min($ConvergenceTimeoutSeconds, 300)) `
+                    -PollIntervalMilliseconds $PollIntervalMilliseconds `
+                    -OutputPath $ingestionConnectionLifecycleEvidencePath `
+                    -AllowLoopbackHttp:$AllowLoopbackHttp `
+                    -Force `
+                    -Confirm:$false
+                [void](Read-RehearsalChildEvidence `
+                        -Path $ingestionConnectionLifecycleEvidencePath `
+                        -ExpectedKind 'bunkfy-deployed-ingestion-connection-lifecycle-probe' `
+                        -WorkspaceBinding Forbidden)
+                $cleanup['ingestionConnectionLifecycle'] = 'synthetic-connection-disabled-credential-revoked-run-terminal'
+                $checks.Add([ordered]@{
+                    name = 'ingestion-connection-lifecycle-child-proof-passed'
+                    status = 'passed'
+                })
+            }
+            catch {
+                $cleanup['ingestionConnectionLifecycle'] = 'child-failed-review-required'
+                throw
+            }
+        }
+
+        if ($IncludeIngestionConflictProposalLifecycle) {
+            $ingestionProposalProofError = $null
+            try {
+                $proofStage = 'ingestion-conflict-proposal-fixture'
+                $ingestionConflictProposalFixture = `
+                    New-BunkFyPreviewSellableRoomFixture `
+                        -InvokeApi $invokeSellableRoomFixtureApi `
+                        -PropertyId $allowedPropertyId `
+                        -RoomName "Preview ingestion proposal room $batchId" `
+                        -State ([ref]$ingestionConflictProposalFixture) `
+                        -ConvergenceTimeoutSeconds $ConvergenceTimeoutSeconds `
+                        -PollIntervalMilliseconds $PollIntervalMilliseconds
+                $cleanup['ingestionConflictProposalFixture'] = 'active-room'
+
+                $proofStage = 'ingestion-conflict-proposal-lifecycle-proof'
+                $cleanup['ingestionConflictProposalLifecycle'] =
+                    'child-running-cleanup-authoritative'
+                $arrival = [DateTime]::UtcNow.Date.AddDays(165)
+                $departure = $arrival.AddDays(2)
+                & (Join-Path $PSScriptRoot 'verify-deployed-ingestion-conflict-proposal-lifecycle.ps1') `
+                    -PublicOrigin $origin `
+                    -ExpectedReleaseId $ExpectedReleaseId `
+                    -WorkspaceId $workspaceId `
+                    -PropertyId $allowedPropertyId `
+                    -InventoryUnitId ([Guid]$ingestionConflictProposalFixture.InventoryUnitId) `
+                    -Arrival $arrival `
+                    -Departure $departure `
+                    -OperatorAccessToken $ownerToken `
+                    -DeniedAccessToken $invitationToken `
+                    -RequestTimeoutSeconds $RequestTimeoutSeconds `
+                    -ConvergenceTimeoutSeconds ([Math]::Min($ConvergenceTimeoutSeconds, 300)) `
+                    -PollIntervalMilliseconds $PollIntervalMilliseconds `
+                    -OutputPath $ingestionConflictProposalLifecycleEvidencePath `
+                    -AllowLoopbackHttp:$AllowLoopbackHttp `
+                    -Force `
+                    -Confirm:$false
+                [void](Read-RehearsalChildEvidence `
+                        -Path $ingestionConflictProposalLifecycleEvidencePath `
+                        -ExpectedKind 'bunkfy-deployed-ingestion-conflict-proposal-lifecycle-probe' `
+                        -WorkspaceBinding Forbidden)
+                $cleanup['ingestionConflictProposalLifecycle'] =
+                    'reservation-cancelled-credential-revoked-connection-disabled'
+                $checks.Add([ordered]@{
+                        name = 'ingestion-conflict-proposal-lifecycle-child-proof-passed'
+                        status = 'passed'
+                    })
+            }
+            catch {
+                $cleanup['ingestionConflictProposalLifecycle'] =
+                    'child-failed-review-required'
+                $ingestionProposalProofError = $_.Exception
+            }
+            finally {
+                if ($null -ne $ingestionConflictProposalFixture) {
+                    try {
+                        [void](Remove-BunkFyPreviewSellableRoomFixture `
+                                -InvokeApi $invokeSellableRoomFixtureApi `
+                                -Fixture $ingestionConflictProposalFixture `
+                                -ConvergenceTimeoutSeconds $ConvergenceTimeoutSeconds `
+                                -PollIntervalMilliseconds $PollIntervalMilliseconds)
+                        $cleanup['ingestionConflictProposalFixture'] = 'room-retired'
+                    }
+                    catch {
+                        $cleanup['ingestionConflictProposalFixture'] = 'failed'
+                        Add-RehearsalCleanupFailure `
+                            -Name 'ingestion-conflict-proposal-fixture' `
+                            -Message 'The synthetic Ingestion proposal room could not be retired.'
+                        if ($null -eq $ingestionProposalProofError) {
+                            $ingestionProposalProofError = $_.Exception
+                        }
+                    }
+                }
+            }
+            if ($null -ne $ingestionProposalProofError) {
+                throw $ingestionProposalProofError
+            }
+        }
+
+        if ($IncludeDataRightsAccessExport) {
+            $proofStage = 'data-rights-access-export-mfa-enrollment'
+            $cleanup['dataRightsMfa'] = 'enrolling-temporary'
+            $dataRightsMfaState = New-RehearsalDataRightsSessions `
+                -Identity $owner `
+                -State ([ref]$dataRightsMfaState)
+            $dataRightsUnassuredToken = $dataRightsMfaState.UnassuredAccessToken
+            $dataRightsAssuredToken = $dataRightsMfaState.AssuredAccessToken
+            $cleanup['dataRightsMfa'] = 'active-temporary'
+            $owner.Password.Dispose()
+            $owner.Password = $null
+            $proofStage = 'data-rights-access-export-proof'
+            $cleanup['dataRightsAccessExport'] = 'child-running-cleanup-authoritative'
+            try {
+                & (Join-Path $PSScriptRoot 'verify-deployed-data-rights-access-export.ps1') `
+                    -PublicOrigin $origin `
+                    -ExpectedReleaseId $ExpectedReleaseId `
+                    -WorkspaceId $workspaceId `
+                    -PropertyId $allowedPropertyId `
+                    -AssuredOperatorAccessToken $dataRightsAssuredToken `
+                    -UnassuredOperatorAccessToken $dataRightsUnassuredToken `
+                    -DeniedAccessToken $invitationToken `
+                    -RequestTimeoutSeconds $RequestTimeoutSeconds `
+                    -ConvergenceTimeoutSeconds ([Math]::Min($ConvergenceTimeoutSeconds, 300)) `
+                    -PollIntervalMilliseconds $PollIntervalMilliseconds `
+                    -OutputPath $dataRightsAccessExportEvidencePath `
+                    -AllowLoopbackHttp:$AllowLoopbackHttp `
+                    -Force `
+                    -Confirm:$false
+                [void](Read-RehearsalChildEvidence `
+                        -Path $dataRightsAccessExportEvidencePath `
+                        -ExpectedKind 'bunkfy-deployed-data-rights-access-export-probe' `
+                        -WorkspaceBinding Forbidden)
+                $cleanup['dataRightsAccessExport'] =
+                    'guest-archived-artifact-scheduled-expiry'
+                $checks.Add([ordered]@{
+                        name = 'data-rights-access-export-child-proof-passed'
+                        status = 'passed'
+                    })
+            }
+            catch {
+                $cleanup['dataRightsAccessExport'] = 'child-failed-review-required'
+                throw
+            }
+        }
+
+        if ($IncludeGuestsStayHistory) {
+            $guestsProofError = $null
+            try {
+                $proofStage = 'guests-stay-history-fixture'
+                $guestsStayHistoryFixture = `
+                    New-BunkFyPreviewSellableRoomFixture `
+                        -InvokeApi $invokeSellableRoomFixtureApi `
+                        -PropertyId $allowedPropertyId `
+                        -RoomName "Preview guest room $batchId" `
+                        -State ([ref]$guestsStayHistoryFixture) `
+                        -ConvergenceTimeoutSeconds $ConvergenceTimeoutSeconds `
+                        -PollIntervalMilliseconds $PollIntervalMilliseconds
+                $cleanup['guestsStayHistoryFixture'] = 'active-room'
+
+                $proofStage = 'guests-stay-history-proof'
+                $arrival = [DateTime]::UtcNow.Date.AddDays(75)
+                $departure = $arrival.AddDays(2)
+                & (Join-Path $PSScriptRoot 'verify-deployed-guests-stay-history.ps1') `
+                    -PublicOrigin $origin `
+                    -ExpectedReleaseId $ExpectedReleaseId `
+                    -WorkspaceId $workspaceId `
+                    -PropertyId $allowedPropertyId `
+                    -InventoryUnitId ([Guid]$guestsStayHistoryFixture.InventoryUnitId) `
+                    -Arrival $arrival `
+                    -Departure $departure `
+                    -OperatorAccessToken $ownerToken `
+                    -DeniedAccessToken $invitationToken `
+                    -RequestTimeoutSeconds $RequestTimeoutSeconds `
+                    -ConvergenceTimeoutSeconds ([Math]::Min($ConvergenceTimeoutSeconds, 300)) `
+                    -PollIntervalMilliseconds $PollIntervalMilliseconds `
+                    -OutputPath $guestsStayHistoryEvidencePath `
+                    -AllowLoopbackHttp:$AllowLoopbackHttp `
+                    -Force `
+                    -Confirm:$false
+                [void](Read-RehearsalChildEvidence `
+                        -Path $guestsStayHistoryEvidencePath `
+                        -ExpectedKind 'bunkfy-deployed-guests-stay-history-probe' `
+                        -WorkspaceBinding Forbidden)
+                $checks.Add([ordered]@{
+                        name = 'guests-stay-history-child-proof-passed'
+                        status = 'passed'
+                    })
+            }
+            catch {
+                $guestsProofError = $_.Exception
+            }
+            finally {
+                if ($null -ne $guestsStayHistoryFixture) {
+                    try {
+                        [void](Remove-BunkFyPreviewSellableRoomFixture `
+                                -InvokeApi $invokeSellableRoomFixtureApi `
+                                -Fixture $guestsStayHistoryFixture `
+                                -ConvergenceTimeoutSeconds $ConvergenceTimeoutSeconds `
+                                -PollIntervalMilliseconds $PollIntervalMilliseconds)
+                        $cleanup['guestsStayHistoryFixture'] = 'room-retired'
+                    }
+                    catch {
+                        $cleanup['guestsStayHistoryFixture'] = 'failed'
+                        Add-RehearsalCleanupFailure `
+                            -Name 'guests-stay-history-fixture' `
+                            -Message 'The synthetic Guests stay-history room could not be retired.'
+                        if ($null -eq $guestsProofError) {
+                            $guestsProofError = $_.Exception
+                        }
+                    }
+                }
+            }
+            if ($null -ne $guestsProofError) {
+                throw $guestsProofError
+            }
+        }
+
         if ($IncludeRetention) {
             $proofStage = 'retention-proof'
             & (Join-Path $PSScriptRoot 'verify-deployed-retention.ps1') `
@@ -1381,6 +1999,40 @@ try {
                     name = 'retention-child-proof-passed'
                     status = 'passed'
                 })
+        }
+
+        if ($IncludeStaffEmployment) {
+            $proofStage = 'staff-employment-proof'
+            $cleanup['staffEmployment'] = 'child-running-cleanup-authoritative'
+            try {
+                & (Join-Path $PSScriptRoot 'verify-deployed-staff-employment.ps1') `
+                    -PublicOrigin $origin `
+                    -ExpectedReleaseId $ExpectedReleaseId `
+                    -WorkspaceId $workspaceId `
+                    -PropertyId $allowedPropertyId `
+                    -OperatorAccessToken $ownerToken `
+                    -DeniedAccessToken $invitationToken `
+                    -RequestTimeoutSeconds $RequestTimeoutSeconds `
+                    -ConvergenceTimeoutSeconds ([Math]::Min($ConvergenceTimeoutSeconds, 300)) `
+                    -PollIntervalMilliseconds $PollIntervalMilliseconds `
+                    -OutputPath $staffEmploymentEvidencePath `
+                    -AllowLoopbackHttp:$AllowLoopbackHttp `
+                    -Force `
+                    -Confirm:$false
+                [void](Read-RehearsalChildEvidence `
+                        -Path $staffEmploymentEvidencePath `
+                        -ExpectedKind 'bunkfy-deployed-staff-employment-probe' `
+                        -WorkspaceBinding Forbidden)
+                $cleanup['staffEmployment'] = 'synthetic-departed-retained'
+                $checks.Add([ordered]@{
+                        name = 'staff-employment-child-proof-passed'
+                        status = 'passed'
+                    })
+            }
+            catch {
+                $cleanup['staffEmployment'] = 'child-failed-review-required'
+                throw
+            }
         }
 
         $proofStage = 'invitation-proof'
@@ -1468,7 +2120,7 @@ try {
                 [void](Read-RehearsalChildEvidence `
                         -Path $operationsNotificationsEvidencePath `
                         -ExpectedKind 'bunkfy-deployed-operations-notifications-probe' `
-                        -WorkspaceBinding Required)
+                        -WorkspaceBinding Forbidden)
                 $checks.Add([ordered]@{
                         name = 'operations-notifications-child-proof-passed'
                         status = 'passed'
@@ -1501,19 +2153,6 @@ try {
             if ($null -ne $operationsProofError) {
                 throw $operationsProofError
             }
-        }
-
-        if ($IncludeReservationsInventory -or $IncludeAdapterHost) {
-            $proofStage = 'room-backed-domain-processing'
-            [void](Enable-BunkFyPreviewEngineeringPropertyProcessing `
-                    -InvokeApi $invokeSellableRoomFixtureApi `
-                    -PropertyId $allowedPropertyId `
-                    -ConvergenceTimeoutSeconds $ConvergenceTimeoutSeconds `
-                    -PollIntervalMilliseconds $PollIntervalMilliseconds)
-            $checks.Add([ordered]@{
-                    name = 'preview-engineering-country-policy-activated'
-                    status = 'passed'
-                })
         }
 
         if ($IncludeReservationsInventory) {
@@ -1722,6 +2361,33 @@ finally {
         }
     }
 
+    if ($IncludeDataRightsAccessExport -and $null -ne $dataRightsMfaState) {
+        try {
+            $cleanup['dataRightsMfa'] = Remove-RehearsalDataRightsMfa `
+                -State $dataRightsMfaState
+        }
+        catch {
+            $cleanup['dataRightsMfa'] = 'failed'
+            Add-RehearsalCleanupFailure `
+                -Name 'data-rights-mfa' `
+                -Message 'The temporary Data Rights TOTP factor could not be disabled.'
+        }
+        finally {
+            foreach ($propertyName in @(
+                    'UnassuredAccessToken',
+                    'AssuredAccessToken',
+                    'MfaRefreshToken',
+                    'MfaRecoveryCode')) {
+                if ($dataRightsMfaState.$propertyName -is [Security.SecureString]) {
+                    $dataRightsMfaState.$propertyName.Dispose()
+                    $dataRightsMfaState.$propertyName = $null
+                }
+            }
+            $dataRightsAssuredToken = $null
+            $dataRightsUnassuredToken = $null
+        }
+    }
+
     foreach ($identityCleanup in @(
             [pscustomobject]@{
                 Identity = $invitationApplicant
@@ -1785,6 +2451,10 @@ finally {
     }
 
     if ($null -ne $owner) {
+        if ($owner.Password -is [Security.SecureString]) {
+            $owner.Password.Dispose()
+            $owner.Password = $null
+        }
         $owner.AccessToken = $null
         $owner.Email = $null
     }
@@ -1847,10 +2517,46 @@ if ($IncludeReservationsInventory) {
         Path = $reservationsInventoryEvidencePath
     }
 }
+if ($IncludeGuestsStayHistory) {
+    $childRecords += [pscustomobject]@{
+        Name = 'guestsStayHistory'
+        Path = $guestsStayHistoryEvidencePath
+    }
+}
+if ($IncludeStaffEmployment) {
+    $childRecords += [pscustomobject]@{
+        Name = 'staffEmployment'
+        Path = $staffEmploymentEvidencePath
+    }
+}
+if ($IncludePropertiesTopology) {
+    $childRecords += [pscustomobject]@{
+        Name = 'propertiesTopology'
+        Path = $propertiesTopologyEvidencePath
+    }
+}
+if ($IncludeIngestionConnectionLifecycle) {
+    $childRecords += [pscustomobject]@{
+        Name = 'ingestionConnectionLifecycle'
+        Path = $ingestionConnectionLifecycleEvidencePath
+    }
+}
+if ($IncludeIngestionConflictProposalLifecycle) {
+    $childRecords += [pscustomobject]@{
+        Name = 'ingestionConflictProposalLifecycle'
+        Path = $ingestionConflictProposalLifecycleEvidencePath
+    }
+}
 if ($IncludeRetention) {
     $childRecords += [pscustomobject]@{
         Name = 'retention'
         Path = $retentionEvidencePath
+    }
+}
+if ($IncludeDataRightsAccessExport) {
+    $childRecords += [pscustomobject]@{
+        Name = 'dataRightsAccessExport'
+        Path = $dataRightsAccessExportEvidencePath
     }
 }
 if ($IncludeAdapterHost) {

@@ -7,6 +7,7 @@ $fixtureRoot = Join-Path ([IO.Path]::GetTempPath()) (
 [void](New-Item -ItemType Directory -Path $fixtureRoot)
 $evidenceSetId = [Guid]'11111111-1111-4111-8111-111111111111'
 $releaseId = 'release-fixture-001'
+$admissionReference = 'admission:11111111111111111111111111111111'
 
 function Start-BunkFyAdminBoundaryFixtureServer {
     param(
@@ -24,7 +25,7 @@ function Start-BunkFyAdminBoundaryFixtureServer {
     $readyPath = Join-Path $fixtureRoot (
         "ready-$Mode-$([Guid]::NewGuid().ToString('N')).json")
     $job = Start-Job -ScriptBlock {
-        param($ReadyPath, $Mode, $ReleaseId)
+        param($ReadyPath, $Mode, $ReleaseId, $AdmissionReference)
 
         Set-StrictMode -Version Latest
         $ErrorActionPreference = 'Stop'
@@ -152,6 +153,7 @@ function Start-BunkFyAdminBoundaryFixtureServer {
                                 service = 'BunkFy.Host.Api'
                                 status = 'ok'
                                 releaseId = $ReleaseId
+                                admissionEvidenceReference = $AdmissionReference
                                 timestampUtc = [DateTimeOffset]::UtcNow.ToString('O')
                             } | ConvertTo-Json -Compress
                         }
@@ -238,7 +240,7 @@ function Start-BunkFyAdminBoundaryFixtureServer {
             }
             $publicListener.Stop()
         }
-    } -ArgumentList $readyPath, $Mode, $releaseId
+    } -ArgumentList $readyPath, $Mode, $releaseId, $admissionReference
 
     $deadline = [DateTimeOffset]::UtcNow.AddSeconds(10)
     while (-not (Test-Path -LiteralPath $readyPath -PathType Leaf)) {
@@ -377,11 +379,12 @@ try {
     $allowed = Get-Content -LiteralPath $allowedOutput -Raw | ConvertFrom-Json -Depth 8
     $denied = Get-Content -LiteralPath $deniedOutput -Raw | ConvertFrom-Json -Depth 8
     $unreachable = Get-Content -LiteralPath $unreachableOutput -Raw | ConvertFrom-Json -Depth 8
-    if ($allowed.schemaVersion -ne 1 -or
+    if ($allowed.schemaVersion -ne 2 -or
         $allowed.evidenceKind -cne 'bunkfy-deployed-admin-boundary-probe' -or
         $allowed.expectedAdminReachability -cne 'allowed' -or
         $allowed.adminObservation.classification -cne 'private-reachable-auth-gated' -or
         $allowed.releaseId -cne $releaseId -or
+        $allowed.admissionEvidenceReference -cne $admissionReference -or
         @($allowed.checks).Count -ne 5 -or
         @($allowed.limitations).Count -ne 3) {
         throw 'Valid allowed fixture emitted unexpected evidence.'
@@ -389,12 +392,14 @@ try {
     if ($denied.expectedAdminReachability -cne 'denied' -or
         $denied.adminObservation.classification -cne 'private-network-policy-denial' -or
         $denied.releaseId -cne $releaseId -or
+        $denied.admissionEvidenceReference -cne $admissionReference -or
         @($denied.checks).Count -ne 4) {
         throw 'Valid denied HTTP fixture emitted unexpected evidence.'
     }
     if ($unreachable.adminObservation.classification -cne 'network-unreachable' -or
         $unreachable.adminObservation.outcome -notin @('connection-unreachable', 'timeout') -or
         $unreachable.releaseId -cne $releaseId -or
+        $unreachable.admissionEvidenceReference -cne $admissionReference -or
         @($unreachable.checks).Count -ne 4) {
         throw 'Valid unreachable fixture emitted unexpected evidence.'
     }

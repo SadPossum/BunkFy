@@ -5,6 +5,7 @@ $script:BunkFyProductionAdmissionLimitations = @(
     'private-evidence-content-and-authenticity-not-verified',
     'registry-immutability-after-promotion-not-observed',
     'production-traffic-and-data-not-exercised',
+    'source-clock-attestation-not-verified',
     'bundle-checksum-is-not-a-signature')
 $script:BunkFyProductionAdmissionPrivateControls = @(
     'browser-workspace-onboarding',
@@ -12,14 +13,35 @@ $script:BunkFyProductionAdmissionPrivateControls = @(
     'hosted-backup-and-recovery',
     'runtime-topology-restart-and-credential-rotation',
     'workspace-access-seed-estate')
+$script:BunkFyPrivateProductionControlIndexLimitations = @(
+    'private-record-content-and-authenticity-not-verified',
+    'private-records-not-retained-in-public-admission-bundle',
+    'source-clock-attestation-not-verified')
 $script:BunkFyProductionAdmissionChecks = @(
     'candidate-and-rollback-promotions-verified',
     'deployed-rollback-rehearsal-verified',
     'production-migration-rehearsal-verified',
     'deployed-release-and-admin-boundary-verified',
     'deployed-domain-workflows-verified',
-    'private-control-references-declared',
+    'private-control-index-bound',
+    'mutable-evidence-fresh-and-coherent',
+    'source-evidence-references-bound',
     'source-evidence-hashes-bound')
+$script:BunkFyProductionAdmissionFreshnessPolicy =
+    'bounded-mutable-and-private-control-proof-v2'
+$script:BunkFyProductionAdmissionClockSkew = [TimeSpan]::FromMinutes(5)
+$script:BunkFyProductionAdmissionMutableEvidenceMaximumAge =
+    [TimeSpan]::FromHours(24)
+$script:BunkFyPrivateProductionControlIndexMaximumAge =
+    [TimeSpan]::FromHours(24)
+$script:BunkFyPrivateProductionControlMaximumAges = [ordered]@{
+    'browser-workspace-onboarding' = [TimeSpan]::FromHours(24)
+    'deployment-approval-alerting-and-rollback' = [TimeSpan]::FromHours(24)
+    'hosted-backup-and-recovery' = [TimeSpan]::FromDays(30)
+    'runtime-topology-restart-and-credential-rotation' = [TimeSpan]::FromDays(30)
+    'workspace-access-seed-estate' = [TimeSpan]::FromHours(24)
+}
+$script:BunkFyProductionAdmissionApprovalWindow = [TimeSpan]::FromHours(4)
 
 function Assert-BunkFyProductionAdmissionReference {
     param(
@@ -81,10 +103,93 @@ function ConvertTo-BunkFyProductionAdmissionTimestamp {
     if (
         $parsed.Offset -ne [TimeSpan]::Zero -or
         (-not $AllowFuture -and
-         $parsed -gt [DateTimeOffset]::UtcNow.AddMinutes(5))) {
+         $parsed -gt [DateTimeOffset]::UtcNow.Add(
+             $script:BunkFyProductionAdmissionClockSkew))) {
         throw "$Context must be $timestampRequirement."
     }
     return $parsed.ToUniversalTime()
+}
+
+function Assert-BunkFyProductionAdmissionMutableEvidenceFreshness {
+    param(
+        [Parameter(Mandatory = $true)][DateTimeOffset] $Timestamp,
+        [Parameter(Mandatory = $true)][DateTimeOffset] $EvaluationTimeUtc,
+        [Parameter(Mandatory = $true)][string] $Context
+    )
+
+    $timestampUtc = $Timestamp.ToUniversalTime()
+    $evaluationUtc = $EvaluationTimeUtc.ToUniversalTime()
+    if ($timestampUtc -gt $evaluationUtc.Add(
+            $script:BunkFyProductionAdmissionClockSkew)) {
+        throw "$Context is too far in the future."
+    }
+    if ($timestampUtc -lt $evaluationUtc.Subtract(
+            $script:BunkFyProductionAdmissionMutableEvidenceMaximumAge)) {
+        throw "$Context is older than the 24-hour mutable evidence limit."
+    }
+    return $timestampUtc
+}
+
+function Get-BunkFyProductionAdmissionExpiry {
+    param(
+        [Parameter(Mandatory = $true)][DateTimeOffset] $GeneratedAtUtc,
+        [Parameter(Mandatory = $true)][DateTimeOffset] $OldestMutableEvidenceAtUtc,
+        [Parameter(Mandatory = $true)][DateTimeOffset] $PrivateControlIndexExpiresAtUtc,
+        [Parameter(Mandatory = $true)][DateTimeOffset] $PrivateControlEvidenceExpiresAtUtc
+    )
+
+    $expiries = @(
+        $GeneratedAtUtc.ToUniversalTime().Add(
+            $script:BunkFyProductionAdmissionApprovalWindow),
+        $OldestMutableEvidenceAtUtc.ToUniversalTime().Add(
+            $script:BunkFyProductionAdmissionMutableEvidenceMaximumAge),
+        $PrivateControlIndexExpiresAtUtc.ToUniversalTime(),
+        $PrivateControlEvidenceExpiresAtUtc.ToUniversalTime()) |
+        Sort-Object
+    return $expiries[0]
+}
+
+function Assert-BunkFyProductionAdmissionBoundedFreshness {
+    param(
+        [Parameter(Mandatory = $true)][DateTimeOffset] $Timestamp,
+        [Parameter(Mandatory = $true)][DateTimeOffset] $EvaluationTimeUtc,
+        [Parameter(Mandatory = $true)][TimeSpan] $MaximumAge,
+        [Parameter(Mandatory = $true)][string] $Context
+    )
+
+    $timestampUtc = $Timestamp.ToUniversalTime()
+    $evaluationUtc = $EvaluationTimeUtc.ToUniversalTime()
+    if ($timestampUtc -gt $evaluationUtc.Add(
+            $script:BunkFyProductionAdmissionClockSkew)) {
+        throw "$Context is too far in the future."
+    }
+    if ($timestampUtc -lt $evaluationUtc.Subtract($MaximumAge)) {
+        throw "$Context is older than its $([int]$MaximumAge.TotalMinutes)-minute freshness limit."
+    }
+    return $timestampUtc
+}
+
+function Resolve-BunkFyProductionAdmissionDigestReference {
+    param(
+        [Parameter(Mandatory = $true)][string] $Value,
+        [Parameter(Mandatory = $true)][string] $Context
+    )
+
+    if ($Value.Length -gt 512 -or
+        $Value -cne $Value.Trim() -or
+        $Value -match '[\s\\?#]' -or
+        $Value.Contains('://', [StringComparison]::Ordinal) -or
+        $Value -cnotmatch (
+            '^(?<repository>(?:localhost|[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?)' +
+            '(?::[0-9]{1,5})?/[a-z0-9]+(?:[._/-][a-z0-9]+)*)' +
+            '@(?<digest>sha256:[a-f0-9]{64})$')) {
+        throw "$Context must be a lowercase credential-free OCI digest reference."
+    }
+
+    return [pscustomobject]@{
+        Repository = [string]$Matches.repository
+        Digest = [string]$Matches.digest
+    }
 }
 
 function Assert-BunkFyProductionAdmissionStringSequence {
@@ -141,6 +246,274 @@ function Get-BunkFyProductionAdmissionEvidenceFile {
     }
 }
 
+function Get-BunkFyPrivateProductionControlIndexChecksumsSha256 {
+    param(
+        [Parameter(Mandatory = $true)][string] $RecordSha256
+    )
+
+    [void](Assert-BunkFyProductionAdmissionSha256 `
+            -Value $RecordSha256 `
+            -Context 'private production control index record checksum')
+    $content = "$RecordSha256  private-control-index.json`n"
+    $bytes = [Text.UTF8Encoding]::new($false).GetBytes($content)
+    $digest = [Security.Cryptography.SHA256]::HashData($bytes)
+    return [Convert]::ToHexString($digest).ToLowerInvariant()
+}
+
+function Get-BunkFyVerifiedPrivateProductionControlIndexRecord {
+    param(
+        [Parameter(Mandatory = $true)][string] $Path,
+        [Parameter(Mandatory = $true)][string] $ExpectedReleaseId,
+        [Parameter(Mandatory = $true)][string] $ExpectedSourceCommit,
+        [Parameter(Mandatory = $true)][string] $ExpectedBackendDigestReference,
+        [Parameter(Mandatory = $true)][string] $ExpectedWebDigestReference,
+        [Parameter(Mandatory = $true)][string] $ExpectedAdmissionEvidenceReference,
+        [Parameter(Mandatory = $true)][string] $ExpectedChecksumsSha256,
+        [switch] $AllowFixtureEvidence
+    )
+
+    [void](Assert-BunkFyProductionAdmissionSha256 `
+            -Value $ExpectedChecksumsSha256 `
+            -Context 'private production control index closed checksum')
+    $source = Get-BunkFyProductionAdmissionEvidenceFile `
+        -Path $Path `
+        -Context 'private production control index record' `
+        -MaximumBytes 512KB
+    $canonicalChecksumsSha256 =
+        Get-BunkFyPrivateProductionControlIndexChecksumsSha256 `
+            -RecordSha256 $source.Sha256
+    if ($canonicalChecksumsSha256 -cne $ExpectedChecksumsSha256) {
+        throw 'Private production control index does not match its canonical closed checksum.'
+    }
+
+    $record = $source.Record
+    Assert-BunkFyCandidateProperties `
+        -Value $record `
+        -ExpectedProperties @(
+            'schemaVersion',
+            'evidenceKind',
+            'indexId',
+            'privateControlIndexReference',
+            'generatedAtUtc',
+            'repository',
+            'profile',
+            'result',
+            'admissionEvidenceReference',
+            'candidate',
+            'controls',
+            'limitations') `
+        -Context 'private production control index record'
+    $indexId = [Guid]::Empty
+    $expectedProfile = if ($AllowFixtureEvidence) {
+        'loopback-fixture'
+    }
+    else {
+        'production'
+    }
+    $indexReference = Assert-BunkFyProductionAdmissionReference `
+        -Value ([string]$record.privateControlIndexReference) `
+        -Name 'private production control index reference'
+    if ($record.schemaVersion -ne 1 -or
+        $record.evidenceKind -cne 'bunkfy-private-production-control-index' -or
+        $record.repository -cne 'SadPossum/BunkFy' -or
+        $record.profile -cne $expectedProfile -or
+        $record.result -cne 'recorded-awaiting-private-approval' -or
+        -not [Guid]::TryParseExact([string]$record.indexId, 'D', [ref]$indexId) -or
+        $indexId -eq [Guid]::Empty -or
+        $indexReference -cne "private-controls:$($indexId.ToString('N'))") {
+        throw 'Private production control index has an invalid identity or result.'
+    }
+    if ($record.admissionEvidenceReference -cne
+            $ExpectedAdmissionEvidenceReference) {
+        throw 'Private production control index belongs to a different admission attempt.'
+    }
+    if ($indexReference -ceq $ExpectedAdmissionEvidenceReference) {
+        throw 'Private production control index reference must be distinct from the admission reference.'
+    }
+
+    $verificationTimeUtc = [DateTimeOffset]::UtcNow
+    $generatedAtUtc = ConvertTo-BunkFyProductionAdmissionTimestamp `
+        -Value $record.generatedAtUtc `
+        -Context 'private production control index generation time'
+    [void](Assert-BunkFyProductionAdmissionBoundedFreshness `
+            -Timestamp $generatedAtUtc `
+            -EvaluationTimeUtc $verificationTimeUtc `
+            -MaximumAge $script:BunkFyPrivateProductionControlIndexMaximumAge `
+            -Context 'private production control index')
+
+    Assert-BunkFyCandidateProperties `
+        -Value $record.candidate `
+        -ExpectedProperties @('releaseId', 'sourceCommit', 'images') `
+        -Context 'private production control index candidate'
+    if ($record.candidate.releaseId -cne $ExpectedReleaseId -or
+        $record.candidate.sourceCommit -cne $ExpectedSourceCommit) {
+        throw 'Private production control index belongs to a different candidate.'
+    }
+    $expectedImageReferences = [ordered]@{
+        backend = $ExpectedBackendDigestReference
+        web = $ExpectedWebDigestReference
+    }
+    $images = @($record.candidate.images | Sort-Object name)
+    if (($images.name -join "`n") -cne "backend`nweb") {
+        throw 'Private production control index candidate must contain backend and web images.'
+    }
+    $imageRepositories = [Collections.Generic.HashSet[string]]::new(
+        [StringComparer]::Ordinal)
+    foreach ($image in $images) {
+        Assert-BunkFyCandidateProperties `
+            -Value $image `
+            -ExpectedProperties @('name', 'digestReference') `
+            -Context 'private production control index candidate image'
+        $resolvedImage = Resolve-BunkFyProductionAdmissionDigestReference `
+            -Value ([string]$image.digestReference) `
+            -Context "Private production control index '$($image.name)' image"
+        if ($image.digestReference -cne
+                $expectedImageReferences[[string]$image.name]) {
+            throw "Private production control index '$($image.name)' image belongs to a different candidate."
+        }
+        [void]$imageRepositories.Add($resolvedImage.Repository)
+    }
+    if ($imageRepositories.Count -ne 2) {
+        throw 'Private production control index candidate images must use distinct repositories.'
+    }
+
+    $controls = @($record.controls)
+    if ($controls.Count -ne
+        $script:BunkFyProductionAdmissionPrivateControls.Count) {
+        throw 'Private production control index has an incomplete control set.'
+    }
+    $seenControls = [Collections.Generic.HashSet[string]]::new(
+        [StringComparer]::Ordinal)
+    $seenReferences = [Collections.Generic.HashSet[string]]::new(
+        [StringComparer]::Ordinal)
+    $seenHashes = [Collections.Generic.HashSet[string]]::new(
+        [StringComparer]::Ordinal)
+    $verifiedControls = [Collections.Generic.List[object]]::new()
+    $controlExpiries = [Collections.Generic.List[DateTimeOffset]]::new()
+    foreach ($control in $controls) {
+        Assert-BunkFyCandidateProperties `
+            -Value $control `
+            -ExpectedProperties @(
+                'control',
+                'reference',
+                'recordSha256',
+                'observedAtUtc') `
+            -Context 'private production control index entry'
+        $controlName = [string]$control.control
+        if (-not $seenControls.Add($controlName)) {
+            throw 'Private production control index controls must be unique.'
+        }
+        $maximumAge =
+            $script:BunkFyPrivateProductionControlMaximumAges[$controlName]
+        if ($null -eq $maximumAge) {
+            throw "Private production control index contains unsupported control '$controlName'."
+        }
+        $reference = Assert-BunkFyProductionAdmissionReference `
+            -Value ([string]$control.reference) `
+            -Name "private production control '$controlName' reference"
+        if (-not $seenReferences.Add($reference)) {
+            throw 'Private production control index references must be distinct.'
+        }
+        if ($reference -ceq $ExpectedAdmissionEvidenceReference -or
+            $reference -ceq $indexReference) {
+            throw 'Private production control index records must not reuse an index or admission reference.'
+        }
+        $recordSha256 = Assert-BunkFyProductionAdmissionSha256 `
+            -Value ([string]$control.recordSha256) `
+            -Context "private production control '$controlName' record checksum"
+        if (-not $seenHashes.Add($recordSha256)) {
+            throw 'Private production control index record checksums must be distinct.'
+        }
+        $observedAtUtc = ConvertTo-BunkFyProductionAdmissionTimestamp `
+            -Value $control.observedAtUtc `
+            -Context "private production control '$controlName' observation time"
+        if ($observedAtUtc -gt $generatedAtUtc.Add(
+                $script:BunkFyProductionAdmissionClockSkew)) {
+            throw "Private production control '$controlName' postdates its index."
+        }
+        [void](Assert-BunkFyProductionAdmissionBoundedFreshness `
+                -Timestamp $observedAtUtc `
+                -EvaluationTimeUtc $verificationTimeUtc `
+                -MaximumAge $maximumAge `
+                -Context "private production control '$controlName'")
+        $controlExpiresAtUtc = $observedAtUtc.Add($maximumAge)
+        $controlExpiries.Add($controlExpiresAtUtc)
+        $verifiedControls.Add([pscustomobject]@{
+                Control = $controlName
+                Reference = $reference
+                RecordSha256 = $recordSha256
+                ObservedAtUtc = $observedAtUtc
+                MaximumAge = $maximumAge
+                ExpiresAtUtc = $controlExpiresAtUtc
+            })
+    }
+    Assert-BunkFyProductionAdmissionStringSequence `
+        -Actual @($seenControls) `
+        -Expected $script:BunkFyProductionAdmissionPrivateControls `
+        -Context 'private production control index controls' `
+        -OrderIndependent
+    Assert-BunkFyProductionAdmissionStringSequence `
+        -Actual @($record.limitations) `
+        -Expected $script:BunkFyPrivateProductionControlIndexLimitations `
+        -Context 'private production control index limitations'
+
+    $indexExpiresAtUtc = $generatedAtUtc.Add(
+        $script:BunkFyPrivateProductionControlIndexMaximumAge)
+    $privateControlExpiresAtUtc = @($controlExpiries | Sort-Object)[0]
+    $expiresAtUtc = @(
+        $indexExpiresAtUtc,
+        $privateControlExpiresAtUtc) | Sort-Object | Select-Object -First 1
+    return [pscustomobject]@{
+        Path = $source.Path
+        SourceSha256 = $source.Sha256
+        ChecksumsSha256 = $canonicalChecksumsSha256
+        IndexId = $indexId
+        Reference = $indexReference
+        GeneratedAtUtc = $generatedAtUtc
+        IndexExpiresAtUtc = $indexExpiresAtUtc
+        PrivateControlExpiresAtUtc = $privateControlExpiresAtUtc
+        ExpiresAtUtc = $expiresAtUtc
+        Controls = @($verifiedControls | Sort-Object Control)
+        Record = $record
+    }
+}
+
+function Get-BunkFyVerifiedPrivateProductionControlIndex {
+    param(
+        [Parameter(Mandatory = $true)][string] $Directory,
+        [Parameter(Mandatory = $true)][string] $ExpectedReleaseId,
+        [Parameter(Mandatory = $true)][string] $ExpectedSourceCommit,
+        [Parameter(Mandatory = $true)][string] $ExpectedBackendDigestReference,
+        [Parameter(Mandatory = $true)][string] $ExpectedWebDigestReference,
+        [Parameter(Mandatory = $true)][string] $ExpectedAdmissionEvidenceReference,
+        [switch] $AllowFixtureEvidence
+    )
+
+    $resolvedDirectory = [IO.Path]::GetFullPath($Directory)
+    $closed = Get-BunkFyClosedChecksumSet `
+        -Directory $resolvedDirectory `
+        -MaximumPayloadBytes 1MB `
+        -Context 'private production control index'
+    if ($closed.Files.Count -ne 1 -or
+        $closed.Files[0].RelativePath -cne 'private-control-index.json') {
+        throw 'Private production control index must contain only private-control-index.json and checksums.sha256.'
+    }
+    $verified = Get-BunkFyVerifiedPrivateProductionControlIndexRecord `
+        -Path (Join-Path $resolvedDirectory 'private-control-index.json') `
+        -ExpectedReleaseId $ExpectedReleaseId `
+        -ExpectedSourceCommit $ExpectedSourceCommit `
+        -ExpectedBackendDigestReference $ExpectedBackendDigestReference `
+        -ExpectedWebDigestReference $ExpectedWebDigestReference `
+        -ExpectedAdmissionEvidenceReference $ExpectedAdmissionEvidenceReference `
+        -ExpectedChecksumsSha256 $closed.ChecksumsSha256 `
+        -AllowFixtureEvidence:$AllowFixtureEvidence
+    $verified | Add-Member `
+        -MemberType NoteProperty `
+        -Name Directory `
+        -Value $resolvedDirectory
+    return $verified
+}
+
 function Get-BunkFyProductionAdmissionProbeSpecification {
     param(
         [Parameter(Mandatory = $true)]
@@ -152,6 +525,12 @@ function Get-BunkFyProductionAdmissionProbeSpecification {
             'workspace-enrollment',
             'operations-notifications',
             'reservations-inventory',
+            'guests-stay-history',
+            'staff-employment',
+            'properties-topology',
+            'ingestion-connection-lifecycle',
+            'ingestion-conflict-proposal-lifecycle',
+            'data-rights-access-export',
             'adapter-host',
             'retention')]
         [string] $Name
@@ -162,10 +541,10 @@ function Get-BunkFyProductionAdmissionProbeSpecification {
             return [pscustomobject]@{
                 Name = $Name
                 EvidenceKind = 'bunkfy-deployed-public-edge-probe'
-                SchemaVersion = 3
+                SchemaVersion = 4
                 OriginProperty = 'origin'
                 TransportProperty = 'transport'
-                Properties = @('schemaVersion', 'evidenceKind', 'generatedAtUtc', 'origin', 'releaseId', 'transport', 'result', 'checks', 'limitations')
+                Properties = @('schemaVersion', 'evidenceKind', 'generatedAtUtc', 'origin', 'releaseId', 'admissionEvidenceReference', 'transport', 'result', 'checks', 'limitations')
                 Checks = @('web-root-and-browser-policy', 'web-release-identity', 'edge-health', 'public-api-smoke', 'admin-api-absent', 'untrusted-host-rejected')
                 Limitations = @('registry-and-image-provenance-require-promotion-record', 'private-infrastructure-not-observed', 'authenticated-workflows-not-executed')
                 GuidProperties = @()
@@ -181,10 +560,10 @@ function Get-BunkFyProductionAdmissionProbeSpecification {
             return [pscustomobject]@{
                 Name = $Name
                 EvidenceKind = 'bunkfy-deployed-admin-boundary-probe'
-                SchemaVersion = 1
+                SchemaVersion = 2
                 OriginProperty = 'publicOrigin'
                 TransportProperty = 'transport'
-                Properties = @('schemaVersion', 'evidenceKind', 'generatedAtUtc', 'evidenceSetId', 'releaseId', 'expectedAdminReachability', 'publicOrigin', 'adminOrigin', 'transport', 'result', 'adminObservation', 'checks', 'limitations')
+                Properties = @('schemaVersion', 'evidenceKind', 'generatedAtUtc', 'evidenceSetId', 'releaseId', 'admissionEvidenceReference', 'expectedAdminReachability', 'publicOrigin', 'adminOrigin', 'transport', 'result', 'adminObservation', 'checks', 'limitations')
                 Checks = $checks
                 Limitations = @('single-vantage-point-observation', 'deployment-configuration-not-inspected', 'authenticated-admin-operations-not-executed')
                 GuidProperties = @('evidenceSetId')
@@ -194,10 +573,10 @@ function Get-BunkFyProductionAdmissionProbeSpecification {
             return [pscustomobject]@{
                 Name = $Name
                 EvidenceKind = 'bunkfy-deployed-workspace-invitation-probe'
-                SchemaVersion = 1
+                SchemaVersion = 2
                 OriginProperty = 'origin'
                 TransportProperty = 'transport'
-                Properties = @('schemaVersion', 'evidenceKind', 'generatedAtUtc', 'origin', 'releaseId', 'transport', 'result', 'workspaceId', 'allowedPropertyId', 'deniedPropertyId', 'sourceId', 'applicationId', 'membershipId', 'staffMemberId', 'checks', 'limitations')
+                Properties = @('schemaVersion', 'evidenceKind', 'generatedAtUtc', 'origin', 'releaseId', 'admissionEvidenceReference', 'transport', 'result', 'workspaceId', 'allowedPropertyId', 'deniedPropertyId', 'sourceId', 'applicationId', 'membershipId', 'staffMemberId', 'checks', 'limitations')
                 Checks = @('recipient-bound-source-issued', 'recipient-preview-authorized', 'separate-account-membership-created', 'staff-profile-converged', 'least-privilege-policy-evaluation', 'property-route-enforcement', 'same-subject-replay-stable', 'release-identity-continuous')
                 Limitations = @('browser-ui-not-exercised', 'registration-and-email-delivery-not-exercised', 'joined-member-not-automatically-offboarded')
                 GuidProperties = @('workspaceId', 'allowedPropertyId', 'deniedPropertyId', 'sourceId', 'applicationId', 'membershipId', 'staffMemberId')
@@ -207,10 +586,10 @@ function Get-BunkFyProductionAdmissionProbeSpecification {
             return [pscustomobject]@{
                 Name = $Name
                 EvidenceKind = 'bunkfy-deployed-workspace-enrollment-probe'
-                SchemaVersion = 1
+                SchemaVersion = 2
                 OriginProperty = 'origin'
                 TransportProperty = 'transport'
-                Properties = @('schemaVersion', 'evidenceKind', 'generatedAtUtc', 'origin', 'releaseId', 'transport', 'result', 'workspaceId', 'allowedPropertyId', 'deniedPropertyId', 'rejected', 'approved', 'checks', 'limitations')
+                Properties = @('schemaVersion', 'evidenceKind', 'generatedAtUtc', 'origin', 'releaseId', 'admissionEvidenceReference', 'transport', 'result', 'workspaceId', 'allowedPropertyId', 'deniedPropertyId', 'rejected', 'approved', 'checks', 'limitations')
                 Checks = @('approval-required-source-issued', 'pending-claim-has-no-access', 'owner-rejection-terminal', 'rejected-source-disabled', 'second-claim-owner-approved', 'staff-profile-converged', 'least-privilege-route-enforcement', 'same-subject-claim-replay-stable', 'release-identity-continuous')
                 Limitations = @('browser-ui-and-qr-rendering-not-exercised', 'registration-and-email-delivery-not-exercised', 'joined-member-not-automatically-offboarded')
                 GuidProperties = @('workspaceId', 'allowedPropertyId', 'deniedPropertyId')
@@ -220,25 +599,103 @@ function Get-BunkFyProductionAdmissionProbeSpecification {
             return [pscustomobject]@{
                 Name = $Name
                 EvidenceKind = 'bunkfy-deployed-operations-notifications-probe'
-                SchemaVersion = 1
+                SchemaVersion = 3
                 OriginProperty = 'origin'
                 TransportProperty = 'transport'
-                Properties = @('schemaVersion', 'evidenceKind', 'generatedAtUtc', 'origin', 'releaseId', 'transport', 'result', 'workspaceId', 'propertyId', 'inventoryUnitId', 'arrival', 'departure', 'blockGroupId', 'createdNotification', 'releasedNotification', 'checks', 'limitations')
+                Properties = @('schemaVersion', 'evidenceKind', 'generatedAtUtc', 'origin', 'releaseId', 'admissionEvidenceReference', 'transport', 'result', 'workflow', 'delivery', 'cleanup', 'checks', 'limitations')
                 Checks = @('distinct-scoped-identities-preflight', 'cross-workspace-history-denied', 'created-notification-live-streamed', 'created-notification-detail-and-read-state', 'released-notification-live-streamed', 'released-notification-detail-and-read-state', 'initiating-actor-excluded', 'observer-history-exactly-once', 'inventory-block-cleanup-confirmed', 'release-identity-continuous')
                 Limitations = @('browser-attention-rendering-not-exercised', 'external-delivery-adapters-not-exercised', 'released-block-and-notification-history-retained')
-                GuidProperties = @('workspaceId', 'propertyId', 'inventoryUnitId', 'blockGroupId')
+                GuidProperties = @()
             }
         }
         'reservations-inventory' {
             return [pscustomobject]@{
                 Name = $Name
                 EvidenceKind = 'bunkfy-deployed-reservations-inventory-probe'
-                SchemaVersion = 1
+                SchemaVersion = 3
                 OriginProperty = 'origin'
                 TransportProperty = 'transport'
-                Properties = @('schemaVersion', 'evidenceKind', 'generatedAtUtc', 'origin', 'releaseId', 'transport', 'result', 'checks', 'limitations')
-                Checks = @('scoped-operator-and-property-preflight', 'inventory-available-before-create', 'reservation-allocation-confirmed', 'reservation-create-replay-stable', 'allocated-inventory-unavailable', 'reservation-check-in-recorded', 'reservation-check-in-replay-stable', 'reservation-checkout-converged', 'reservation-checkout-replay-current', 'inventory-released-after-checkout', 'release-identity-continuous')
+                Properties = @('schemaVersion', 'evidenceKind', 'generatedAtUtc', 'origin', 'releaseId', 'admissionEvidenceReference', 'transport', 'result', 'workflow', 'cleanup', 'checks', 'limitations')
+                Checks = @('cross-workspace-inventory-read-denied', 'scoped-operator-and-property-preflight', 'inventory-available-before-create', 'reservation-allocation-confirmed', 'reservation-create-replay-stable', 'allocated-inventory-unavailable', 'reservation-check-in-recorded', 'reservation-check-in-replay-stable', 'reservation-checkout-converged', 'reservation-checkout-replay-current', 'inventory-released-after-checkout', 'release-identity-continuous')
                 Limitations = @('browser-workflow-not-exercised', 'durable-guest-record-not-created', 'concurrent-overbooking-contention-not-exercised', 'synthetic-checked-out-reservation-retained')
+                GuidProperties = @()
+            }
+        }
+        'guests-stay-history' {
+            return [pscustomobject]@{
+                Name = $Name
+                EvidenceKind = 'bunkfy-deployed-guests-stay-history-probe'
+                SchemaVersion = 2
+                OriginProperty = 'origin'
+                TransportProperty = 'transport'
+                Properties = @('schemaVersion', 'evidenceKind', 'generatedAtUtc', 'origin', 'releaseId', 'admissionEvidenceReference', 'transport', 'result', 'workflow', 'cleanup', 'checks', 'limitations')
+                Checks = @('scoped-operator-property-and-inventory-preflight', 'nonmember-guest-directory-denied', 'guest-created-with-minimal-profile', 'guest-create-replay-stable', 'guest-create-conflict-rejected', 'guest-detail-and-active-directory-visible', 'guest-versioned-update-recorded', 'guest-update-replay-stable', 'guest-conflicting-and-stale-updates-rejected', 'guest-update-visible', 'reservation-allocation-confirmed', 'reservation-primary-guest-link-replay-stable', 'guest-stay-confirmed-projection-converged', 'guest-stay-check-in-projection-converged', 'guest-stay-checkout-projection-converged', 'terminal-reservation-retained-and-inventory-released', 'guest-archive-replay-stable', 'archived-guest-directory-and-history-consistent', 'release-identity-continuous')
+                Limitations = @('browser-guest-workflow-not-exercised', 'guest-deduplication-merge-and-consent-not-exercised', 'concurrent-participant-and-overbooking-contention-not-exercised', 'synthetic-archived-guest-and-checked-out-reservation-retained')
+                GuidProperties = @()
+            }
+        }
+        'staff-employment' {
+            return [pscustomobject]@{
+                Name = $Name
+                EvidenceKind = 'bunkfy-deployed-staff-employment-probe'
+                SchemaVersion = 2
+                OriginProperty = 'origin'
+                TransportProperty = 'transport'
+                Properties = @('schemaVersion', 'evidenceKind', 'generatedAtUtc', 'origin', 'releaseId', 'admissionEvidenceReference', 'transport', 'result', 'workflow', 'cleanup', 'checks', 'limitations')
+                Checks = @('scoped-operator-and-property-preflight', 'nonmember-staff-directory-denied', 'staff-created-with-minimal-unlinked-profile', 'staff-create-replay-stable', 'staff-create-conflict-rejected', 'staff-directory-and-sensitive-profile-coherent', 'staff-versioned-update-recorded', 'staff-update-replay-stable', 'staff-update-conflict-rejected', 'staff-stale-update-rejected', 'staff-update-visible', 'staff-property-assignment-recorded', 'staff-assignment-replay-stable', 'staff-assignment-conflict-rejected', 'staff-canonical-and-property-assignment-visible', 'staff-suspension-replay-stable-and-assignment-retained', 'staff-resume-replay-stable', 'staff-departure-replay-stable', 'staff-departure-closes-current-assignment', 'staff-active-and-departed-filters-coherent', 'release-identity-continuous')
+                Limitations = @('browser-staff-workflow-not-exercised', 'account-link-membership-and-role-lifecycle-not-exercised', 'governance-data-rights-and-retention-not-exercised', 'synthetic-departed-staff-record-retained')
+                GuidProperties = @()
+            }
+        }
+        'properties-topology' {
+            return [pscustomobject]@{
+                Name = $Name
+                EvidenceKind = 'bunkfy-deployed-properties-topology-probe'
+                SchemaVersion = 2
+                OriginProperty = 'origin'
+                TransportProperty = 'transport'
+                Properties = @('schemaVersion', 'evidenceKind', 'generatedAtUtc', 'origin', 'releaseId', 'admissionEvidenceReference', 'transport', 'result', 'workflow', 'cleanup', 'checks', 'limitations')
+                Checks = @('scoped-operator-preflight', 'nonmember-property-directory-denied', 'property-created', 'property-create-replay-stable', 'property-create-conflict-rejected', 'property-detail-and-directory-visible', 'property-versioned-update-recorded', 'property-update-replay-stable', 'property-update-conflict-and-stale-write-rejected', 'property-update-visible', 'room-created', 'room-create-replay-stable-and-conflict-rejected', 'room-versioned-update-recorded', 'room-update-replay-conflict-and-stale-write-enforced', 'room-detail-and-directory-visible', 'bed-batch-created-atomically', 'bed-batch-replay-stable-and-conflict-rejected', 'bed-directory-visible', 'bed-versioned-update-recorded', 'bed-update-replay-conflict-and-stale-write-enforced', 'bed-update-visible', 'property-retirement-blocked-by-active-room', 'direct-topology-retirement-requires-inventory', 'bed-retirement-request-replay-stable', 'bed-retirement-completed', 'room-retirement-request-replay-stable', 'room-and-beds-retirement-completed', 'property-retirement-replay-stable', 'property-retirement-conflict-rejected', 'retired-topology-directories-and-processing-consistent', 'release-identity-continuous')
+                Limitations = @('browser-properties-workflow-not-exercised', 'country-policy-activation-suspension-and-rebinding-not-exercised', 'occupied-and-blocked-topology-drain-not-exercised', 'synthetic-retired-topology-retained')
+                GuidProperties = @()
+            }
+        }
+        'ingestion-connection-lifecycle' {
+            return [pscustomobject]@{
+                Name = $Name
+                EvidenceKind = 'bunkfy-deployed-ingestion-connection-lifecycle-probe'
+                SchemaVersion = 2
+                OriginProperty = 'origin'
+                TransportProperty = 'transport'
+                Properties = @('schemaVersion', 'evidenceKind', 'generatedAtUtc', 'origin', 'releaseId', 'admissionEvidenceReference', 'transport', 'result', 'workflow', 'cleanup', 'checks', 'limitations')
+                Checks = @('scoped-operator-and-processing-preflight', 'nonmember-connections-denied', 'remote-capability-discovered', 'connection-created', 'connection-create-replay-stable', 'connection-create-conflict-rejected', 'connection-directory-detail-and-health-visible', 'connection-updated-with-secret-reference', 'connection-update-replay-stable', 'connection-update-conflict-and-stale-write-rejected', 'secret-reference-cleared', 'connection-disabled', 'connection-disable-replay-stable', 'connection-disable-conflict-and-stale-write-rejected', 'connection-enabled', 'connection-enable-replay-stable', 'connection-enable-conflict-and-stale-write-rejected', 'ingress-credential-issued-once', 'ingress-credential-replay-withholds-token', 'ingress-credential-create-conflict-rejected', 'ingress-credential-directory-visible', 'remote-lease-claimed-with-issued-credential', 'zero-observation-run-completed', 'terminal-run-and-health-visible', 'credential-authentication-telemetry-visible', 'ingress-credential-revoked', 'ingress-credential-revoke-replay-stable', 'ingress-credential-revoke-conflict-and-stale-write-rejected', 'revoked-credential-denied', 'connection-finally-disabled', 'terminal-projections-consistent', 'release-identity-continuous')
+                Limitations = @('provider-record-receipt-proposal-and-checkpoint-not-exercised', 'country-policy-activation-and-rebinding-not-exercised', 'production-secret-manager-and-orchestrator-rotation-not-exercised', 'synthetic-disabled-control-state-retained')
+                GuidProperties = @()
+            }
+        }
+        'ingestion-conflict-proposal-lifecycle' {
+            return [pscustomobject]@{
+                Name = $Name
+                EvidenceKind = 'bunkfy-deployed-ingestion-conflict-proposal-lifecycle-probe'
+                SchemaVersion = 2
+                OriginProperty = 'origin'
+                TransportProperty = 'transport'
+                Properties = @('schemaVersion', 'evidenceKind', 'generatedAtUtc', 'origin', 'releaseId', 'admissionEvidenceReference', 'transport', 'result', 'adapterContract', 'authorityRevisions', 'proposalSummary', 'cleanup', 'checks', 'limitations')
+                Checks = @('scoped-operator-processing-and-inventory-preflight', 'nonmember-proposal-read-denied', 'push-capability-discovered', 'push-connection-and-credential-created', 'adapter-ingress-requires-independent-authentication', 'initial-observation-auto-created-reservation', 'observation-replay-is-stable', 'baseline-current-update-auto-applied', 'staff-edit-established-new-authority', 'staff-conflict-created-pending-proposal', 'pending-proposal-did-not-overwrite-staff-state', 'newer-source-proposal-superseded-older-pending', 'only-newest-proposal-remains-actionable', 'superseded-proposal-decision-rejected', 'newest-proposal-rejected-with-audit-reason', 'proposal-rejection-replay-and-conflict-safe', 'later-source-update-created-fresh-proposal', 'proposal-acceptance-started-versioned-operation', 'accepted-proposal-converged-in-reservations', 'proposal-acceptance-replay-and-conflict-safe', 'stale-source-input-created-no-actionable-work', 'reservation-history-preserved-authority-provenance', 'adapter-cancellation-completed-terminally', 'credential-revoked-and-connection-disabled', 'release-identity-continuous', 'terminal-proposal-projection-consistent')
+                Limitations = @('synthetic-reservation-data-only', 'loopback-preview-is-not-hosted-production-proof', 'provider-acquisition-and-parser-correctness-not-exercised', 'proposal-acceptance-race-to-stale-covered-by-focused-integration-tests', 'production-country-policy-and-provider-credential-approval-not-exercised')
+                GuidProperties = @()
+            }
+        }
+        'data-rights-access-export' {
+            return [pscustomobject]@{
+                Name = $Name
+                EvidenceKind = 'bunkfy-deployed-data-rights-access-export-probe'
+                SchemaVersion = 2
+                OriginProperty = 'origin'
+                TransportProperty = 'transport'
+                Properties = @('schemaVersion', 'evidenceKind', 'generatedAtUtc', 'origin', 'releaseId', 'admissionEvidenceReference', 'transport', 'result', 'workflow', 'artifact', 'cleanup', 'checks', 'limitations')
+                Checks = @('scoped-assured-operator-and-property-preflight', 'nonmember-case-access-denied', 'synthetic-guest-created', 'controller-initiated-case-entered-discovery', 'exact-guest-subject-discovered-and-selected', 'review-and-decision-approved', 'export-generation-requested', 'export-request-replay-stable', 'second-artifact-request-denied', 'worker-export-generation-converged', 'case-completed-with-approved-scope', 'unassured-export-download-denied', 'nonmember-export-download-denied', 'protected-download-headers-and-shape-verified', 'download-replay-stable', 'synthetic-guest-archived', 'artifact-expiry-bounded-and-scheduled', 'release-identity-continuous')
+                Limitations = @('browser-privacy-workflow-not-exercised', 'multi-subject-and-large-exports-not-exercised', 'independent-object-store-and-key-custody-not-inspected', 'case-history-and-encrypted-artifact-retained-until-configured-lifecycle')
                 GuidProperties = @()
             }
         }
@@ -246,10 +703,10 @@ function Get-BunkFyProductionAdmissionProbeSpecification {
             return [pscustomobject]@{
                 Name = $Name
                 EvidenceKind = 'bunkfy-deployed-adapter-host-probe'
-                SchemaVersion = 1
+                SchemaVersion = 2
                 OriginProperty = 'publicOrigin'
                 TransportProperty = 'publicTransport'
-                Properties = @('schemaVersion', 'evidenceKind', 'generatedAtUtc', 'publicOrigin', 'releaseId', 'adapterHostOrigin', 'publicTransport', 'adapterHostTransport', 'result', 'workspaceId', 'propertyId', 'connectionId', 'adapterType', 'workerId', 'statusEndpointExposure', 'run', 'receipt', 'checks', 'limitations')
+                Properties = @('schemaVersion', 'evidenceKind', 'generatedAtUtc', 'publicOrigin', 'releaseId', 'admissionEvidenceReference', 'adapterHostOrigin', 'publicTransport', 'adapterHostTransport', 'result', 'workspaceId', 'propertyId', 'connectionId', 'adapterType', 'workerId', 'statusEndpointExposure', 'run', 'receipt', 'checks', 'limitations')
                 Checks = @('adapter-host-ready-and-exposure-correct', 'remote-polling-connection-preflight', 'remote-lease-run-proof-complete', 'durable-receipt-provenance-correlated', 'server-checkpoint-advanced', 'connection-health-converged', 'adapter-host-post-cycle-healthy', 'release-identity-continuous')
                 Limitations = @('synthetic-provider-record-injection-not-performed-by-probe', 'credential-rotation-and-process-restart-not-exercised', 'production-admission-log-and-orchestrator-topology-not-observed', 'raw-payload-content-not-read')
                 GuidProperties = @('workspaceId', 'propertyId', 'connectionId', 'workerId')
@@ -259,10 +716,10 @@ function Get-BunkFyProductionAdmissionProbeSpecification {
             return [pscustomobject]@{
                 Name = $Name
                 EvidenceKind = 'bunkfy-deployed-retention-probe'
-                SchemaVersion = 2
+                SchemaVersion = 3
                 OriginProperty = 'publicOrigin'
                 TransportProperty = 'transport'
-                Properties = @('schemaVersion', 'evidenceKind', 'generatedAtUtc', 'publicOrigin', 'releaseId', 'transport', 'result', 'workspaceId', 'observedDataClassKey', 'catalogueCount', 'observation', 'schedules', 'checks', 'limitations')
+                Properties = @('schemaVersion', 'evidenceKind', 'generatedAtUtc', 'publicOrigin', 'releaseId', 'admissionEvidenceReference', 'transport', 'result', 'workspaceId', 'observedDataClassKey', 'catalogueCount', 'observation', 'schedules', 'checks', 'limitations')
                 Checks = @('retention-catalogue-present', 'cross-workspace-retention-denied', 'automatic-retention-occurrence-observed', 'retention-schedules-terminal-and-current', 'retention-summary-consistent', 'retention-outcomes-pii-minimized', 'release-identity-continuous')
                 Limitations = @('owner-data-not-seeded-or-read', 'generic-task-lease-and-restart-not-observed', 'legal-hold-and-admin-retry-not-exercised', 'private-maintenance-owner-topology-and-alerting-not-observed')
                 GuidProperties = @('workspaceId')
@@ -442,12 +899,440 @@ function Assert-BunkFyRetentionAdmissionEvidence {
     }
 }
 
+function Assert-BunkFyGuestsStayHistoryAdmissionEvidence {
+    param([Parameter(Mandatory = $true)][object] $Record)
+
+    Assert-BunkFyCandidateProperties `
+        -Value $Record.workflow `
+        -ExpectedProperties @(
+            'guestFinalStatus',
+            'reservationFinalStatus',
+            'participantRole',
+            'stayFinalStatus',
+            'stayCount',
+            'guestVersionAdvanced',
+            'reservationVersionsMonotonic') `
+        -Context 'Guests stay-history workflow'
+    if ([string]$Record.workflow.guestFinalStatus -cne 'archived' -or
+        [string]$Record.workflow.reservationFinalStatus -cne 'checked-out' -or
+        [string]$Record.workflow.participantRole -cne 'primary' -or
+        [string]$Record.workflow.stayFinalStatus -cne 'checked-out' -or
+        [int]$Record.workflow.stayCount -ne 1 -or
+        $Record.workflow.guestVersionAdvanced -isnot [bool] -or
+        -not [bool]$Record.workflow.guestVersionAdvanced -or
+        $Record.workflow.reservationVersionsMonotonic -isnot [bool] -or
+        -not [bool]$Record.workflow.reservationVersionsMonotonic) {
+        throw 'Guests stay-history evidence has an invalid workflow summary.'
+    }
+
+    Assert-BunkFyCandidateProperties `
+        -Value $Record.cleanup `
+        -ExpectedProperties @(
+            'guestArchived',
+            'reservationDisposition',
+            'inventoryReleased',
+            'roomDisposition') `
+        -Context 'Guests stay-history cleanup'
+    if ($Record.cleanup.guestArchived -isnot [bool] -or
+        -not [bool]$Record.cleanup.guestArchived -or
+        [string]$Record.cleanup.reservationDisposition -cne
+            'synthetic-checked-out-retained' -or
+        $Record.cleanup.inventoryReleased -isnot [bool] -or
+        -not [bool]$Record.cleanup.inventoryReleased -or
+        [string]$Record.cleanup.roomDisposition -cne 'parent-rehearsal-owned') {
+        throw 'Guests stay-history evidence has an invalid cleanup disposition.'
+    }
+}
+
+function Assert-BunkFyStaffEmploymentAdmissionEvidence {
+    param([Parameter(Mandatory = $true)][object] $Record)
+
+    Assert-BunkFyCandidateProperties `
+        -Value $Record.workflow `
+        -ExpectedProperties @(
+            'finalStatus',
+            'authSubjectLinked',
+            'profileVersionAdvanced',
+            'assignmentLifecycle',
+            'currentAssignmentCount',
+            'historicalAssignmentCount',
+            'suspensionRetainedAssignment') `
+        -Context 'Staff employment workflow'
+    if ([string]$Record.workflow.finalStatus -cne 'departed' -or
+        $Record.workflow.authSubjectLinked -isnot [bool] -or
+        [bool]$Record.workflow.authSubjectLinked -or
+        $Record.workflow.profileVersionAdvanced -isnot [bool] -or
+        -not [bool]$Record.workflow.profileVersionAdvanced -or
+        [string]$Record.workflow.assignmentLifecycle -cne 'assigned-then-closed' -or
+        [int]$Record.workflow.currentAssignmentCount -ne 0 -or
+        [int]$Record.workflow.historicalAssignmentCount -ne 1 -or
+        $Record.workflow.suspensionRetainedAssignment -isnot [bool] -or
+        -not [bool]$Record.workflow.suspensionRetainedAssignment) {
+        throw 'Staff employment evidence has an invalid workflow summary.'
+    }
+
+    Assert-BunkFyCandidateProperties `
+        -Value $Record.cleanup `
+        -ExpectedProperties @(
+            'staffDisposition',
+            'currentAssignmentsClosed',
+            'propertyDisposition') `
+        -Context 'Staff employment cleanup'
+    if ([string]$Record.cleanup.staffDisposition -cne
+            'synthetic-departed-retained' -or
+        $Record.cleanup.currentAssignmentsClosed -isnot [bool] -or
+        -not [bool]$Record.cleanup.currentAssignmentsClosed -or
+        [string]$Record.cleanup.propertyDisposition -cne
+            'parent-rehearsal-owned') {
+        throw 'Staff employment evidence has an invalid cleanup disposition.'
+    }
+}
+
+function Assert-BunkFyPropertiesTopologyAdmissionEvidence {
+    param([Parameter(Mandatory = $true)][object] $Record)
+
+    Assert-BunkFyCandidateProperties `
+        -Value $Record.workflow `
+        -ExpectedProperties @(
+            'propertyFinalStatus',
+            'propertyVersionAdvanced',
+            'processingFinalStatus',
+            'roomFinalStatus',
+            'roomVersionAdvanced',
+            'bedCount',
+            'retiredBedCount',
+            'bedVersionsAdvanced',
+            'retirementLifecycle',
+            'directRetirementDenied') `
+        -Context 'Properties topology workflow'
+    if ([string]$Record.workflow.propertyFinalStatus -cne 'retired' -or
+        $Record.workflow.propertyVersionAdvanced -isnot [bool] -or
+        -not [bool]$Record.workflow.propertyVersionAdvanced -or
+        [string]$Record.workflow.processingFinalStatus -cne
+            'suspended-by-retirement' -or
+        [string]$Record.workflow.roomFinalStatus -cne 'retired' -or
+        $Record.workflow.roomVersionAdvanced -isnot [bool] -or
+        -not [bool]$Record.workflow.roomVersionAdvanced -or
+        [int]$Record.workflow.bedCount -ne 2 -or
+        [int]$Record.workflow.retiredBedCount -ne 2 -or
+        $Record.workflow.bedVersionsAdvanced -isnot [bool] -or
+        -not [bool]$Record.workflow.bedVersionsAdvanced -or
+        [string]$Record.workflow.retirementLifecycle -cne
+            'bed-then-room-completed' -or
+        $Record.workflow.directRetirementDenied -isnot [bool] -or
+        -not [bool]$Record.workflow.directRetirementDenied) {
+        throw 'Properties topology evidence has an invalid workflow summary.'
+    }
+
+    Assert-BunkFyCandidateProperties `
+        -Value $Record.cleanup `
+        -ExpectedProperties @(
+            'propertyDisposition',
+            'roomDisposition',
+            'activeBedCount',
+            'topologyRetirementsCompleted',
+            'parentCleanupRequired') `
+        -Context 'Properties topology cleanup'
+    if ([string]$Record.cleanup.propertyDisposition -cne
+            'synthetic-retired-retained' -or
+        [string]$Record.cleanup.roomDisposition -cne
+            'synthetic-retired-retained' -or
+        [int]$Record.cleanup.activeBedCount -ne 0 -or
+        $Record.cleanup.topologyRetirementsCompleted -isnot [bool] -or
+        -not [bool]$Record.cleanup.topologyRetirementsCompleted -or
+        $Record.cleanup.parentCleanupRequired -isnot [bool] -or
+        [bool]$Record.cleanup.parentCleanupRequired) {
+        throw 'Properties topology evidence has an invalid cleanup disposition.'
+    }
+}
+
+function Assert-BunkFyOperationsNotificationsAdmissionEvidence {
+    param([Parameter(Mandatory = $true)][object] $Record)
+
+    Assert-BunkFyCandidateProperties `
+        -Value $Record.workflow `
+        -ExpectedProperties @(
+            'sourceModule',
+            'createdNotificationName',
+            'releasedNotificationName',
+            'notificationVersion',
+            'deliveryTag',
+            'domainTag') `
+        -Context 'Operations Notifications workflow'
+    if ([string]$Record.workflow.sourceModule -cne 'inventory' -or
+        [string]$Record.workflow.createdNotificationName -cne
+            'manual-inventory-block-created' -or
+        [string]$Record.workflow.releasedNotificationName -cne
+            'manual-inventory-block-released' -or
+        [int]$Record.workflow.notificationVersion -ne 1 -or
+        [string]$Record.workflow.deliveryTag -cne 'delivery:web' -or
+        [string]$Record.workflow.domainTag -cne 'domain:inventory') {
+        throw 'Operations Notifications evidence has an invalid workflow summary.'
+    }
+
+    Assert-BunkFyCandidateProperties `
+        -Value $Record.delivery `
+        -ExpectedProperties @(
+            'liveNotificationCount',
+            'initiallyUnreadCount',
+            'durablyReadCount',
+            'observerHistoryCount',
+            'actorDeliveryCount',
+            'ordered') `
+        -Context 'Operations Notifications delivery'
+    if ([int]$Record.delivery.liveNotificationCount -ne 2 -or
+        [int]$Record.delivery.initiallyUnreadCount -ne 2 -or
+        [int]$Record.delivery.durablyReadCount -ne 2 -or
+        [int]$Record.delivery.observerHistoryCount -ne 2 -or
+        [int]$Record.delivery.actorDeliveryCount -ne 0 -or
+        $Record.delivery.ordered -isnot [bool] -or
+        -not [bool]$Record.delivery.ordered) {
+        throw 'Operations Notifications evidence has an invalid delivery summary.'
+    }
+
+    Assert-BunkFyCandidateProperties `
+        -Value $Record.cleanup `
+        -ExpectedProperties @('inventoryBlock', 'notificationHistory') `
+        -Context 'Operations Notifications cleanup'
+    if ([string]$Record.cleanup.inventoryBlock -cne 'released' -or
+        [string]$Record.cleanup.notificationHistory -cne 'retained-read') {
+        throw 'Operations Notifications evidence has an invalid cleanup disposition.'
+    }
+}
+
+function Assert-BunkFyReservationsInventoryAdmissionEvidence {
+    param([Parameter(Mandatory = $true)][object] $Record)
+
+    Assert-BunkFyCandidateProperties `
+        -Value $Record.workflow `
+        -ExpectedProperties @(
+            'bookingSource',
+            'allocationLifecycle',
+            'occupancyLifecycle',
+            'createReplay',
+            'checkInReplay',
+            'checkOutReplay',
+            'durableGuestRecordCreated') `
+        -Context 'Reservations and Inventory workflow'
+    if ([string]$Record.workflow.bookingSource -cne 'direct' -or
+        [string]$Record.workflow.allocationLifecycle -cne
+            'available-confirmed-released' -or
+        [string]$Record.workflow.occupancyLifecycle -cne
+            'confirmed-checked-in-checked-out' -or
+        [string]$Record.workflow.createReplay -cne 'stable-current' -or
+        [string]$Record.workflow.checkInReplay -cne 'stable-current' -or
+        [string]$Record.workflow.checkOutReplay -cne 'stable-current' -or
+        $Record.workflow.durableGuestRecordCreated -isnot [bool] -or
+        [bool]$Record.workflow.durableGuestRecordCreated) {
+        throw 'Reservations and Inventory evidence has an invalid workflow summary.'
+    }
+
+    Assert-BunkFyCandidateProperties `
+        -Value $Record.cleanup `
+        -ExpectedProperties @(
+            'reservationDisposition',
+            'selectedInventoryUnit',
+            'activeAllocationCount',
+            'topologyMutated') `
+        -Context 'Reservations and Inventory cleanup'
+    if ([string]$Record.cleanup.reservationDisposition -cne
+            'synthetic-checked-out-retained' -or
+        [string]$Record.cleanup.selectedInventoryUnit -cne 'available' -or
+        [int]$Record.cleanup.activeAllocationCount -ne 0 -or
+        $Record.cleanup.topologyMutated -isnot [bool] -or
+        [bool]$Record.cleanup.topologyMutated) {
+        throw 'Reservations and Inventory evidence has an invalid cleanup disposition.'
+    }
+}
+
+function Assert-BunkFyIngestionConnectionLifecycleAdmissionEvidence {
+    param([Parameter(Mandatory = $true)][object] $Record)
+
+    Assert-BunkFyCandidateProperties `
+        -Value $Record.workflow `
+        -ExpectedProperties @(
+            'executionMode',
+            'protocolVersion',
+            'configurationSchemaVersion',
+            'connectionFinalStatus',
+            'connectionVersionAdvanced',
+            'secretReferenceLifecycle',
+            'credentialFinalStatus',
+            'credentialVersionAdvanced',
+            'credentialIssuance',
+            'independentAuthentication',
+            'runFinalStatus',
+            'runObservedCount',
+            'activeLease') `
+        -Context 'Ingestion connection lifecycle workflow'
+    if ([string]$Record.workflow.executionMode -cne 'remote-polling' -or
+        [int]$Record.workflow.protocolVersion -le 0 -or
+        [int]$Record.workflow.configurationSchemaVersion -le 0 -or
+        [string]$Record.workflow.connectionFinalStatus -cne 'disabled' -or
+        $Record.workflow.connectionVersionAdvanced -isnot [bool] -or
+        -not [bool]$Record.workflow.connectionVersionAdvanced -or
+        [string]$Record.workflow.secretReferenceLifecycle -cne
+            'set-then-cleared' -or
+        [string]$Record.workflow.credentialFinalStatus -cne 'revoked' -or
+        $Record.workflow.credentialVersionAdvanced -isnot [bool] -or
+        -not [bool]$Record.workflow.credentialVersionAdvanced -or
+        [string]$Record.workflow.credentialIssuance -cne
+            'one-time-nonredisclosing' -or
+        [string]$Record.workflow.independentAuthentication -cne
+            'issued-accepted-then-revoked-denied' -or
+        [string]$Record.workflow.runFinalStatus -cne 'succeeded' -or
+        [int]$Record.workflow.runObservedCount -ne 0 -or
+        $Record.workflow.activeLease -isnot [bool] -or
+        [bool]$Record.workflow.activeLease) {
+        throw 'Ingestion connection lifecycle evidence has an invalid workflow summary.'
+    }
+
+    Assert-BunkFyCandidateProperties `
+        -Value $Record.cleanup `
+        -ExpectedProperties @(
+            'connectionDisposition',
+            'credentialDisposition',
+            'runDisposition',
+            'parentPropertyLifecycleOwnedByCaller') `
+        -Context 'Ingestion connection lifecycle cleanup'
+    if ([string]$Record.cleanup.connectionDisposition -cne
+            'synthetic-disabled-retained' -or
+        [string]$Record.cleanup.credentialDisposition -cne
+            'synthetic-revoked-retained' -or
+        [string]$Record.cleanup.runDisposition -cne
+            'synthetic-succeeded-empty-retained' -or
+        $Record.cleanup.parentPropertyLifecycleOwnedByCaller -isnot [bool] -or
+        -not [bool]$Record.cleanup.parentPropertyLifecycleOwnedByCaller) {
+        throw 'Ingestion connection lifecycle evidence has an invalid cleanup disposition.'
+    }
+}
+
+function Assert-BunkFyIngestionConflictProposalLifecycleAdmissionEvidence {
+    param([Parameter(Mandatory = $true)][object] $Record)
+
+    Assert-BunkFyCandidateProperties `
+        -Value $Record.adapterContract `
+        -ExpectedProperties @(
+            'executionMode',
+            'protocolVersion',
+            'configurationSchemaVersion') `
+        -Context 'Ingestion conflict proposal adapter contract'
+    if ([string]$Record.adapterContract.executionMode -cne 'push' -or
+        [int]$Record.adapterContract.protocolVersion -le 0 -or
+        [int]$Record.adapterContract.configurationSchemaVersion -le 0) {
+        throw 'Ingestion conflict proposal evidence has an invalid adapter contract.'
+    }
+
+    Assert-BunkFyCandidateProperties `
+        -Value $Record.authorityRevisions `
+        -ExpectedProperties @(
+            'initialAdapter',
+            'automaticAdapter',
+            'staff',
+            'acceptedAdapter') `
+        -Context 'Ingestion conflict proposal authority revisions'
+    if ([long]$Record.authorityRevisions.initialAdapter -ne 1 -or
+        [long]$Record.authorityRevisions.automaticAdapter -ne 2 -or
+        [long]$Record.authorityRevisions.staff -ne 3 -or
+        [long]$Record.authorityRevisions.acceptedAdapter -ne 4) {
+        throw 'Ingestion conflict proposal evidence has invalid authority revisions.'
+    }
+
+    Assert-BunkFyCandidateProperties `
+        -Value $Record.proposalSummary `
+        -ExpectedProperties @('total', 'superseded', 'rejected', 'applied', 'pending') `
+        -Context 'Ingestion conflict proposal terminal summary'
+    if ([int]$Record.proposalSummary.total -ne 3 -or
+        [int]$Record.proposalSummary.superseded -ne 1 -or
+        [int]$Record.proposalSummary.rejected -ne 1 -or
+        [int]$Record.proposalSummary.applied -ne 1 -or
+        [int]$Record.proposalSummary.pending -ne 0) {
+        throw 'Ingestion conflict proposal evidence has an invalid terminal proposal summary.'
+    }
+
+    Assert-BunkFyCandidateProperties `
+        -Value $Record.cleanup `
+        -ExpectedProperties @(
+            'reservation',
+            'credential',
+            'connection',
+            'credentialVersion',
+            'connectionVersion') `
+        -Context 'Ingestion conflict proposal cleanup'
+    if ([string]$Record.cleanup.reservation -cne 'cancelled' -or
+        [string]$Record.cleanup.credential -cne 'revoked' -or
+        [string]$Record.cleanup.connection -cne 'disabled' -or
+        [long]$Record.cleanup.credentialVersion -lt 2 -or
+        [long]$Record.cleanup.connectionVersion -lt 2) {
+        throw 'Ingestion conflict proposal evidence has an invalid cleanup disposition.'
+    }
+}
+
+function Assert-BunkFyDataRightsAccessExportAdmissionEvidence {
+    param([Parameter(Mandatory = $true)][object] $Record)
+
+    Assert-BunkFyCandidateProperties `
+        -Value $Record.workflow `
+        -ExpectedProperties @(
+            'caseType',
+            'requestedOperation',
+            'requesterRelationship',
+            'finalStatus',
+            'selectedSubjectCount') `
+        -Context 'Data Rights access export workflow'
+    if ([string]$Record.workflow.caseType -cne 'guest-rights' -or
+        [string]$Record.workflow.requestedOperation -cne 'access-export' -or
+        [string]$Record.workflow.requesterRelationship -cne 'controller-initiated' -or
+        [string]$Record.workflow.finalStatus -cne 'completed' -or
+        [int]$Record.workflow.selectedSubjectCount -ne 1) {
+        throw 'Data Rights access export evidence has an invalid workflow summary.'
+    }
+
+    Assert-BunkFyCandidateProperties `
+        -Value $Record.artifact `
+        -ExpectedProperties @(
+            'finalStatus',
+            'formatVersion',
+            'subjectCount',
+            'recordCount',
+            'byteCount',
+            'expiryHours') `
+        -Context 'Data Rights access export artifact'
+    $expiryHours = [double]$Record.artifact.expiryHours
+    if ([string]$Record.artifact.finalStatus -cne 'available' -or
+        [int]$Record.artifact.formatVersion -ne 1 -or
+        [int]$Record.artifact.subjectCount -ne 1 -or
+        [int]$Record.artifact.recordCount -lt 1 -or
+        [int]$Record.artifact.recordCount -gt 50000 -or
+        [long]$Record.artifact.byteCount -lt 1 -or
+        [long]$Record.artifact.byteCount -gt 1MB -or
+        [double]::IsNaN($expiryHours) -or
+        [double]::IsInfinity($expiryHours) -or
+        $expiryHours -lt (5.0 / 60.0) -or
+        $expiryHours -gt 168.0) {
+        throw 'Data Rights access export evidence has an invalid artifact summary.'
+    }
+
+    Assert-BunkFyCandidateProperties `
+        -Value $Record.cleanup `
+        -ExpectedProperties @('guestArchived', 'artifactDisposition') `
+        -Context 'Data Rights access export cleanup'
+    if ($Record.cleanup.guestArchived -isnot [bool] -or
+        -not [bool]$Record.cleanup.guestArchived -or
+        [string]$Record.cleanup.artifactDisposition -cne 'scheduled-expiry') {
+        throw 'Data Rights access export evidence has an invalid cleanup disposition.'
+    }
+}
+
 function Get-BunkFyVerifiedProductionAdmissionProbe {
     param(
         [Parameter(Mandatory = $true)][string] $Path,
         [Parameter(Mandatory = $true)][string] $SpecificationName,
         [Parameter(Mandatory = $true)][Uri] $ExpectedOrigin,
         [Parameter(Mandatory = $true)][string] $ExpectedReleaseId,
+        [Parameter(Mandatory = $true)]
+        [ValidatePattern('^admission:[0-9a-f]{32}$')]
+        [string] $ExpectedAdmissionEvidenceReference,
         [switch] $AllowFixtureEvidence
     )
 
@@ -468,6 +1353,10 @@ function Get-BunkFyVerifiedProductionAdmissionProbe {
             $ExpectedOrigin.GetLeftPart([UriPartial]::Authority)) {
         throw "$SpecificationName deployment evidence does not match the candidate release."
     }
+    if ([string]$record.admissionEvidenceReference -cne
+        $ExpectedAdmissionEvidenceReference) {
+        throw "$SpecificationName deployment evidence comes from a different admission attempt."
+    }
     $expectedTransport = if ($AllowFixtureEvidence) {
         'loopback-http-fixture'
     }
@@ -480,6 +1369,10 @@ function Get-BunkFyVerifiedProductionAdmissionProbe {
     $generatedAt = ConvertTo-BunkFyProductionAdmissionTimestamp `
         -Value $record.generatedAtUtc `
         -Context "$SpecificationName generation time"
+    [void](Assert-BunkFyProductionAdmissionMutableEvidenceFreshness `
+            -Timestamp $generatedAt `
+            -EvaluationTimeUtc ([DateTimeOffset]::UtcNow) `
+            -Context "$SpecificationName deployment evidence")
     foreach ($propertyName in $spec.GuidProperties) {
         $parsed = [Guid]::Empty
         if (-not [Guid]::TryParseExact(
@@ -518,6 +1411,30 @@ function Get-BunkFyVerifiedProductionAdmissionProbe {
             -Record $record `
             -GeneratedAt $generatedAt
     }
+    elseif ($SpecificationName -ceq 'operations-notifications') {
+        Assert-BunkFyOperationsNotificationsAdmissionEvidence -Record $record
+    }
+    elseif ($SpecificationName -ceq 'reservations-inventory') {
+        Assert-BunkFyReservationsInventoryAdmissionEvidence -Record $record
+    }
+    elseif ($SpecificationName -ceq 'guests-stay-history') {
+        Assert-BunkFyGuestsStayHistoryAdmissionEvidence -Record $record
+    }
+    elseif ($SpecificationName -ceq 'staff-employment') {
+        Assert-BunkFyStaffEmploymentAdmissionEvidence -Record $record
+    }
+    elseif ($SpecificationName -ceq 'properties-topology') {
+        Assert-BunkFyPropertiesTopologyAdmissionEvidence -Record $record
+    }
+    elseif ($SpecificationName -ceq 'ingestion-connection-lifecycle') {
+        Assert-BunkFyIngestionConnectionLifecycleAdmissionEvidence -Record $record
+    }
+    elseif ($SpecificationName -ceq 'ingestion-conflict-proposal-lifecycle') {
+        Assert-BunkFyIngestionConflictProposalLifecycleAdmissionEvidence -Record $record
+    }
+    elseif ($SpecificationName -ceq 'data-rights-access-export') {
+        Assert-BunkFyDataRightsAccessExportAdmissionEvidence -Record $record
+    }
 
     if ($SpecificationName.StartsWith('admin-', [StringComparison]::Ordinal)) {
         $expectedReachability = $SpecificationName.Substring(6)
@@ -539,6 +1456,7 @@ function Get-BunkFyVerifiedProductionAdmissionProbe {
         SourceSha256 = $source.Sha256
         GeneratedAtUtc = $generatedAt
         CheckCount = $checks.Count
+        Reference = [string]$record.admissionEvidenceReference
         Record = $record
         Path = $source.Path
     }
@@ -655,6 +1573,7 @@ function Get-BunkFyVerifiedProductionMigrationRehearsal {
         SourceSha256 = $source.Sha256
         GeneratedAtUtc = $completedAt
         CheckCount = 6
+        Reference = "migration:$([string]$record.runId)"
         Record = $record
         Path = $source.Path
     }
@@ -666,6 +1585,9 @@ function Get-BunkFyVerifiedDeployedRollbackRehearsal {
         [Parameter(Mandatory = $true)][Uri] $ExpectedOrigin,
         [Parameter(Mandatory = $true)][object] $CandidatePromotion,
         [Parameter(Mandatory = $true)][object] $RollbackPromotion,
+        [Parameter(Mandatory = $true)]
+        [ValidatePattern('^admission:[0-9a-f]{32}$')]
+        [string] $ExpectedAdmissionEvidenceReference,
         [switch] $AllowFixtureEvidence
     )
 
@@ -685,13 +1607,17 @@ function Get-BunkFyVerifiedDeployedRollbackRehearsal {
     $record = $source.Record
     Assert-BunkFyCandidateProperties `
         -Value $record `
-        -ExpectedProperties @('schemaVersion', 'evidenceKind', 'rehearsalId', 'rollbackEvidenceReference', 'generatedAtUtc', 'result', 'origin', 'candidate', 'rollback', 'timing', 'checks', 'limitations') `
+        -ExpectedProperties @('schemaVersion', 'evidenceKind', 'rehearsalId', 'rollbackEvidenceReference', 'admissionEvidenceReference', 'generatedAtUtc', 'result', 'origin', 'candidate', 'rollback', 'timing', 'checks', 'limitations') `
         -Context 'deployed rollback rehearsal record'
-    if ($record.schemaVersion -ne 1 -or
+    if ($record.schemaVersion -ne 2 -or
         $record.evidenceKind -cne 'bunkfy-deployed-release-rollback-rehearsal' -or
         $record.result -cne 'passed' -or
         $record.origin -cne $ExpectedOrigin.GetLeftPart([UriPartial]::Authority)) {
         throw 'Deployed rollback rehearsal does not match the candidate origin.'
+    }
+    if ([string]$record.admissionEvidenceReference -cne
+        $ExpectedAdmissionEvidenceReference) {
+        throw 'Deployed rollback rehearsal comes from a different admission attempt.'
     }
     $rehearsalId = [Guid]::Empty
     if (-not [Guid]::TryParseExact([string]$record.rehearsalId, 'D', [ref]$rehearsalId) -or
@@ -711,10 +1637,14 @@ function Get-BunkFyVerifiedDeployedRollbackRehearsal {
     if ($checks.Count -ne $expectedChecks.Count) {
         throw 'Deployed rollback rehearsal must contain three release checks.'
     }
+    $edgeGeneratedAt = @{}
+    $seenRollbackChecks =
+        [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
     foreach ($check in $checks) {
         Assert-BunkFyCandidateProperties -Value $check -ExpectedProperties @('name', 'result', 'releaseId', 'evidenceFile', 'evidenceSha256') -Context 'rollback release check'
         $expected = $expectedChecks[[string]$check.name]
-        if ($null -eq $expected -or
+        if (-not $seenRollbackChecks.Add([string]$check.name) -or
+            $null -eq $expected -or
             $check.result -cne 'passed' -or
             $check.releaseId -cne $expected.ReleaseId -or
             $check.evidenceFile -cne $expected.File) {
@@ -726,27 +1656,63 @@ function Get-BunkFyVerifiedDeployedRollbackRehearsal {
             -SpecificationName 'public-edge' `
             -ExpectedOrigin $ExpectedOrigin `
             -ExpectedReleaseId $expected.ReleaseId `
+            -ExpectedAdmissionEvidenceReference $ExpectedAdmissionEvidenceReference `
             -AllowFixtureEvidence:$AllowFixtureEvidence
         if ($check.evidenceSha256 -cne $edge.SourceSha256) {
             throw "Deployed rollback rehearsal check '$($check.name)' has the wrong evidence hash."
         }
+        $edgeGeneratedAt[[string]$check.name] = $edge.GeneratedAtUtc
     }
     Assert-BunkFyCandidateProperties -Value $record.timing -ExpectedProperties @('startedAtUtc', 'baselineVerifiedAtUtc', 'rollbackObservedAtUtc', 'rollbackVerifiedAtUtc', 'candidateRestoredObservedAtUtc', 'completedAtUtc', 'rollbackConvergenceMilliseconds', 'restorationConvergenceMilliseconds', 'totalDurationMilliseconds') -Context 'rollback timing evidence'
     $times = @{}
     foreach ($name in @('startedAtUtc', 'baselineVerifiedAtUtc', 'rollbackObservedAtUtc', 'rollbackVerifiedAtUtc', 'candidateRestoredObservedAtUtc', 'completedAtUtc')) {
         $times[$name] = ConvertTo-BunkFyProductionAdmissionTimestamp -Value $record.timing.$name -Context "rollback $name"
     }
+    $expectedRollbackConvergence = [long](
+        $times.rollbackObservedAtUtc -
+        $times.baselineVerifiedAtUtc).TotalMilliseconds
+    $expectedRestorationConvergence = [long](
+        $times.candidateRestoredObservedAtUtc -
+        $times.rollbackVerifiedAtUtc).TotalMilliseconds
+    $expectedTotalDuration = [long](
+        $times.completedAtUtc - $times.startedAtUtc).TotalMilliseconds
     if ($times.startedAtUtc -gt $times.baselineVerifiedAtUtc -or
         $times.baselineVerifiedAtUtc -gt $times.rollbackObservedAtUtc -or
         $times.rollbackObservedAtUtc -gt $times.rollbackVerifiedAtUtc -or
         $times.rollbackVerifiedAtUtc -gt $times.candidateRestoredObservedAtUtc -or
         $times.candidateRestoredObservedAtUtc -gt $times.completedAtUtc -or
-        [long]$record.timing.rollbackConvergenceMilliseconds -lt 0 -or
-        [long]$record.timing.restorationConvergenceMilliseconds -lt 0 -or
-        [long]$record.timing.totalDurationMilliseconds -lt 0 -or
+        [long]$record.timing.rollbackConvergenceMilliseconds -ne
+            $expectedRollbackConvergence -or
+        [long]$record.timing.restorationConvergenceMilliseconds -ne
+            $expectedRestorationConvergence -or
+        [long]$record.timing.totalDurationMilliseconds -ne
+            $expectedTotalDuration -or
         [string]$record.generatedAtUtc -cne [string]$record.timing.completedAtUtc) {
         throw 'Deployed rollback rehearsal timing is inconsistent.'
     }
+    $skew = $script:BunkFyProductionAdmissionClockSkew
+    if ($edgeGeneratedAt['candidate-baseline-public-edge'] -lt
+            $times.startedAtUtc.Subtract($skew) -or
+        $edgeGeneratedAt['candidate-baseline-public-edge'] -gt
+            $times.baselineVerifiedAtUtc.Add($skew) -or
+        $edgeGeneratedAt['rollback-public-edge'] -lt
+            $times.rollbackObservedAtUtc.Subtract($skew) -or
+        $edgeGeneratedAt['rollback-public-edge'] -gt
+            $times.rollbackVerifiedAtUtc.Add($skew) -or
+        $edgeGeneratedAt['candidate-restored-public-edge'] -lt
+            $times.candidateRestoredObservedAtUtc.Subtract($skew) -or
+        $edgeGeneratedAt['candidate-restored-public-edge'] -gt
+            $times.completedAtUtc.Add($skew)) {
+        throw 'Deployed rollback rehearsal public-edge observations are out of order.'
+    }
+    [void](Assert-BunkFyProductionAdmissionMutableEvidenceFreshness `
+            -Timestamp $times.startedAtUtc `
+            -EvaluationTimeUtc ([DateTimeOffset]::UtcNow) `
+            -Context 'deployed rollback rehearsal start')
+    [void](Assert-BunkFyProductionAdmissionMutableEvidenceFreshness `
+            -Timestamp $times.completedAtUtc `
+            -EvaluationTimeUtc ([DateTimeOffset]::UtcNow) `
+            -Context 'deployed rollback rehearsal completion')
     Assert-BunkFyProductionAdmissionStringSequence `
         -Actual @($record.limitations) `
         -Expected @('deployment-control-plane-and-commands-not-observed', 'worker-and-admin-release-identities-not-observed', 'public-smoke-does-not-prove-all-schema-and-domain-compatibility', 'registry-availability-and-immutability-not-reverified', 'hosted-approval-alerting-and-traffic-drain-not-observed') `
@@ -780,27 +1746,112 @@ function ConvertTo-BunkFyProductionAdmissionPromotionSummary {
     }
 }
 
+function New-BunkFyProductionAdmissionExpectedEvidenceEntry {
+    param(
+        [Parameter(Mandatory = $true)][string] $Kind,
+        [Parameter(Mandatory = $true)][string] $ReleaseId,
+        [Parameter(Mandatory = $true)][int] $Count,
+        [Parameter(Mandatory = $true)][string] $Reference,
+        [Parameter(Mandatory = $true)]
+        [AllowNull()]
+        [AllowEmptyString()]
+        [string] $SourceSha256,
+        [Parameter(Mandatory = $true)][bool] $Mutable
+    )
+
+    return [pscustomobject]@{
+        Kind = $Kind
+        ReleaseId = $ReleaseId
+        Count = $Count
+        Reference = $Reference
+        SourceSha256 = if ([string]::IsNullOrEmpty($SourceSha256)) {
+            $null
+        }
+        else {
+            $SourceSha256
+        }
+        Mutable = $Mutable
+    }
+}
+
 function Get-BunkFyProductionAdmissionExpectedEvidence {
     param(
         [Parameter(Mandatory = $true)][string] $CandidateReleaseId,
-        [Parameter(Mandatory = $true)][string] $RollbackReleaseId
+        [Parameter(Mandatory = $true)][string] $RollbackReleaseId,
+        [Parameter(Mandatory = $true)][string] $CandidatePromotionReference,
+        [Parameter(Mandatory = $true)][string] $CandidatePromotionSha256,
+        [Parameter(Mandatory = $true)][string] $RollbackPromotionReference,
+        [Parameter(Mandatory = $true)][string] $RollbackPromotionSha256,
+        [Parameter(Mandatory = $true)][string] $RollbackEvidenceReference,
+        [Parameter(Mandatory = $true)][string] $RollbackEvidenceSha256,
+        [Parameter(Mandatory = $true)][string] $MigrationEvidenceReference,
+        [Parameter(Mandatory = $true)][string] $MigrationEvidenceSha256,
+        [Parameter(Mandatory = $true)][string] $AdmissionEvidenceReference
     )
 
-    return [ordered]@{
-        'candidate-image-promotion' = [pscustomobject]@{ Kind = 'bunkfy-image-promotion'; ReleaseId = $CandidateReleaseId; Count = 2 }
-        'deployed-adapter-host' = [pscustomobject]@{ Kind = 'bunkfy-deployed-adapter-host-probe'; ReleaseId = $CandidateReleaseId; Count = 8 }
-        'deployed-admin-allowed' = [pscustomobject]@{ Kind = 'bunkfy-deployed-admin-boundary-probe'; ReleaseId = $CandidateReleaseId; Count = 5 }
-        'deployed-admin-denied' = [pscustomobject]@{ Kind = 'bunkfy-deployed-admin-boundary-probe'; ReleaseId = $CandidateReleaseId; Count = 4 }
-        'deployed-operations-notifications' = [pscustomobject]@{ Kind = 'bunkfy-deployed-operations-notifications-probe'; ReleaseId = $CandidateReleaseId; Count = 10 }
-        'deployed-public-edge' = [pscustomobject]@{ Kind = 'bunkfy-deployed-public-edge-probe'; ReleaseId = $CandidateReleaseId; Count = 6 }
-        'deployed-reservations-inventory' = [pscustomobject]@{ Kind = 'bunkfy-deployed-reservations-inventory-probe'; ReleaseId = $CandidateReleaseId; Count = 11 }
-        'deployed-release-rollback' = [pscustomobject]@{ Kind = 'bunkfy-deployed-release-rollback-rehearsal'; ReleaseId = $CandidateReleaseId; Count = 3 }
-        'deployed-retention' = [pscustomobject]@{ Kind = 'bunkfy-deployed-retention-probe'; ReleaseId = $CandidateReleaseId; Count = 7 }
-        'deployed-workspace-enrollment' = [pscustomobject]@{ Kind = 'bunkfy-deployed-workspace-enrollment-probe'; ReleaseId = $CandidateReleaseId; Count = 9 }
-        'deployed-workspace-invitation' = [pscustomobject]@{ Kind = 'bunkfy-deployed-workspace-invitation-probe'; ReleaseId = $CandidateReleaseId; Count = 8 }
-        'production-migration' = [pscustomobject]@{ Kind = 'bunkfy-production-migration-rehearsal'; ReleaseId = $CandidateReleaseId; Count = 6 }
-        'rollback-image-promotion' = [pscustomobject]@{ Kind = 'bunkfy-image-promotion'; ReleaseId = $RollbackReleaseId; Count = 2 }
+    $expected = [ordered]@{
+        'candidate-image-promotion' =
+            New-BunkFyProductionAdmissionExpectedEvidenceEntry `
+                -Kind 'bunkfy-image-promotion' `
+                -ReleaseId $CandidateReleaseId `
+                -Count 2 `
+                -Reference $CandidatePromotionReference `
+                -SourceSha256 $CandidatePromotionSha256 `
+                -Mutable $false
+        'rollback-image-promotion' =
+            New-BunkFyProductionAdmissionExpectedEvidenceEntry `
+                -Kind 'bunkfy-image-promotion' `
+                -ReleaseId $RollbackReleaseId `
+                -Count 2 `
+                -Reference $RollbackPromotionReference `
+                -SourceSha256 $RollbackPromotionSha256 `
+                -Mutable $false
+        'deployed-release-rollback' =
+            New-BunkFyProductionAdmissionExpectedEvidenceEntry `
+                -Kind 'bunkfy-deployed-release-rollback-rehearsal' `
+                -ReleaseId $CandidateReleaseId `
+                -Count 3 `
+                -Reference $RollbackEvidenceReference `
+                -SourceSha256 $RollbackEvidenceSha256 `
+                -Mutable $true
+        'production-migration' =
+            New-BunkFyProductionAdmissionExpectedEvidenceEntry `
+                -Kind 'bunkfy-production-migration-rehearsal' `
+                -ReleaseId $CandidateReleaseId `
+                -Count 6 `
+                -Reference $MigrationEvidenceReference `
+                -SourceSha256 $MigrationEvidenceSha256 `
+                -Mutable $false
     }
+
+    $deployedProbeSpecifications = [ordered]@{
+        'deployed-adapter-host' = @('bunkfy-deployed-adapter-host-probe', 8)
+        'deployed-admin-allowed' = @('bunkfy-deployed-admin-boundary-probe', 5)
+        'deployed-admin-denied' = @('bunkfy-deployed-admin-boundary-probe', 4)
+        'deployed-data-rights-access-export' = @('bunkfy-deployed-data-rights-access-export-probe', 18)
+        'deployed-guests-stay-history' = @('bunkfy-deployed-guests-stay-history-probe', 19)
+        'deployed-staff-employment' = @('bunkfy-deployed-staff-employment-probe', 21)
+        'deployed-properties-topology' = @('bunkfy-deployed-properties-topology-probe', 31)
+        'deployed-ingestion-connection-lifecycle' = @('bunkfy-deployed-ingestion-connection-lifecycle-probe', 32)
+        'deployed-ingestion-conflict-proposal-lifecycle' = @('bunkfy-deployed-ingestion-conflict-proposal-lifecycle-probe', 26)
+        'deployed-operations-notifications' = @('bunkfy-deployed-operations-notifications-probe', 10)
+        'deployed-public-edge' = @('bunkfy-deployed-public-edge-probe', 6)
+        'deployed-reservations-inventory' = @('bunkfy-deployed-reservations-inventory-probe', 12)
+        'deployed-retention' = @('bunkfy-deployed-retention-probe', 7)
+        'deployed-workspace-enrollment' = @('bunkfy-deployed-workspace-enrollment-probe', 9)
+        'deployed-workspace-invitation' = @('bunkfy-deployed-workspace-invitation-probe', 8)
+    }
+    foreach ($entry in $deployedProbeSpecifications.GetEnumerator()) {
+        $expected[$entry.Key] =
+            New-BunkFyProductionAdmissionExpectedEvidenceEntry `
+                -Kind $entry.Value[0] `
+                -ReleaseId $CandidateReleaseId `
+                -Count $entry.Value[1] `
+                -Reference $AdmissionEvidenceReference `
+                -SourceSha256 $null `
+                -Mutable $true
+    }
+    return $expected
 }
 
 function Get-BunkFyVerifiedProductionAdmission {
@@ -823,18 +1874,21 @@ function Get-BunkFyVerifiedProductionAdmission {
     }
     $resolvedDirectory = [IO.Path]::GetFullPath($Directory)
     $closed = Get-BunkFyClosedChecksumSet -Directory $resolvedDirectory -MaximumPayloadBytes 2MB -Context 'production admission evidence'
-    if ($closed.Files.Count -ne 1 -or $closed.Files[0].RelativePath -cne 'production-admission.json') {
-        throw 'Production admission evidence must contain only production-admission.json and checksums.sha256.'
+    $closedPaths = @($closed.Files.RelativePath | Sort-Object)
+    if ($closed.Files.Count -ne 2 -or
+        ($closedPaths -join "`n") -cne
+            "private-control-index.json`nproduction-admission.json") {
+        throw 'Production admission evidence must contain only private-control-index.json, production-admission.json, and checksums.sha256.'
     }
     $source = Get-BunkFyProductionAdmissionEvidenceFile -Path (Join-Path $resolvedDirectory 'production-admission.json') -Context 'production admission record'
     $record = $source.Record
     Assert-BunkFyCandidateProperties `
         -Value $record `
-        -ExpectedProperties @('schemaVersion', 'evidenceKind', 'admissionId', 'admissionEvidenceReference', 'generatedAtUtc', 'result', 'decision', 'repository', 'profile', 'candidate', 'rollback', 'deployment', 'evidence', 'privateEvidence', 'checks', 'limitations') `
+        -ExpectedProperties @('schemaVersion', 'evidenceKind', 'admissionId', 'admissionEvidenceReference', 'generatedAtUtc', 'result', 'decision', 'repository', 'profile', 'candidate', 'rollback', 'deployment', 'privateControlIndex', 'validity', 'evidence', 'privateEvidence', 'checks', 'limitations') `
         -Context 'production admission record'
     $admissionId = [Guid]::Empty
     $expectedProfile = if ($AllowFixtureEvidence) { 'loopback-fixture' } else { 'production' }
-    if ($record.schemaVersion -ne 1 -or
+    if ($record.schemaVersion -ne 3 -or
         $record.evidenceKind -cne 'bunkfy-production-admission-bundle' -or
         $record.result -cne 'passed' -or
         $record.decision -cne 'evidence-complete-awaiting-private-approval' -or
@@ -848,7 +1902,10 @@ function Get-BunkFyVerifiedProductionAdmission {
     if ($record.admissionEvidenceReference -cne $ExpectedAdmissionEvidenceReference) {
         throw 'Production admission record does not match the expected admission evidence reference.'
     }
-    [void](ConvertTo-BunkFyProductionAdmissionTimestamp -Value $record.generatedAtUtc -Context 'production admission generation time')
+    $verificationTimeUtc = [DateTimeOffset]::UtcNow
+    $generatedAtUtc = ConvertTo-BunkFyProductionAdmissionTimestamp `
+        -Value $record.generatedAtUtc `
+        -Context 'production admission generation time'
     Assert-BunkFyCandidateProperties -Value $record.candidate -ExpectedProperties @('releaseId', 'sourceCommit', 'promotionEvidenceReference', 'promotionChecksumsSha256', 'images') -Context 'admission candidate identity'
     Assert-BunkFyCandidateProperties -Value $record.rollback -ExpectedProperties @('releaseId', 'sourceCommit', 'promotionEvidenceReference', 'promotionChecksumsSha256', 'images') -Context 'admission rollback identity'
     if ($record.candidate.releaseId -cne $ExpectedReleaseId -or
@@ -857,54 +1914,290 @@ function Get-BunkFyVerifiedProductionAdmission {
         $record.rollback.sourceCommit -ceq $ExpectedSourceCommit) {
         throw 'Production admission record does not bind a distinct rollback to the expected candidate.'
     }
+    $imageRepositories = @{}
     foreach ($identityName in @('candidate', 'rollback')) {
         $identity = $record.$identityName
         [void](Assert-BunkFyProductionAdmissionSha256 -Value ([string]$identity.promotionChecksumsSha256) -Context "$identityName promotion checksum")
         [void](Assert-BunkFyProductionAdmissionReference -Value ([string]$identity.promotionEvidenceReference) -Name "$identityName promotion reference")
+        if ([string]$identity.promotionEvidenceReference -cnotmatch
+            '^promotion:[0-9a-f]{32}$') {
+            throw "Production admission $identityName promotion reference is invalid."
+        }
         $images = @($identity.images | Sort-Object name)
         if (($images.name -join "`n") -cne "backend`nweb") {
             throw "Production admission $identityName identity must contain backend and web images."
         }
+        $repositories = @{}
         foreach ($image in $images) {
             Assert-BunkFyCandidateProperties -Value $image -ExpectedProperties @('name', 'digestReference') -Context "$identityName image identity"
-            if ([string]$image.digestReference -notmatch '@sha256:[a-f0-9]{64}$' -or
-                [string]$image.digestReference -match '[\s\\?#]' -or
-                [string]$image.digestReference -match '://') {
-                throw "Production admission $identityName image identity is invalid."
-            }
+            $resolvedImage = Resolve-BunkFyProductionAdmissionDigestReference `
+                -Value ([string]$image.digestReference) `
+                -Context "Production admission $identityName '$($image.name)' image"
+            $repositories[[string]$image.name] = $resolvedImage.Repository
         }
+        if ($repositories.backend -ceq $repositories.web) {
+            throw "Production admission $identityName images must use distinct repositories."
+        }
+        $imageRepositories[$identityName] = $repositories
     }
-    Assert-BunkFyCandidateProperties -Value $record.deployment -ExpectedProperties @('publicOrigin', 'rollbackEvidenceReference', 'adminEvidenceSetId') -Context 'admission deployment identity'
+    if ($record.candidate.promotionEvidenceReference -ceq
+            $record.rollback.promotionEvidenceReference -or
+        $imageRepositories.candidate.backend -cne
+            $imageRepositories.rollback.backend -or
+        $imageRepositories.candidate.web -cne $imageRepositories.rollback.web) {
+        throw 'Production admission candidate and rollback promotion identities are inconsistent.'
+    }
+    Assert-BunkFyCandidateProperties `
+        -Value $record.deployment `
+        -ExpectedProperties @(
+            'publicOrigin',
+            'rollbackEvidenceReference',
+            'rollbackEvidenceSha256',
+            'migrationEvidenceReference',
+            'migrationEvidenceSha256',
+            'adminEvidenceSetId') `
+        -Context 'admission deployment identity'
     if ($record.deployment.publicOrigin -cne $origin.GetLeftPart([UriPartial]::Authority)) {
         throw 'Production admission record has the wrong public origin.'
     }
     [void](Assert-BunkFyProductionAdmissionReference -Value ([string]$record.deployment.rollbackEvidenceReference) -Name 'rollback evidence reference')
+    [void](Assert-BunkFyProductionAdmissionReference -Value ([string]$record.deployment.migrationEvidenceReference) -Name 'migration evidence reference')
+    if ([string]$record.deployment.rollbackEvidenceReference -cnotmatch
+            '^rollback:[0-9a-f]{32}$' -or
+        [string]$record.deployment.migrationEvidenceReference -cnotmatch
+            '^migration:[a-f0-9]{12}$') {
+        throw 'Production admission deployment evidence references are invalid.'
+    }
+    [void](Assert-BunkFyProductionAdmissionSha256 `
+            -Value ([string]$record.deployment.rollbackEvidenceSha256) `
+            -Context 'rollback evidence checksum')
+    [void](Assert-BunkFyProductionAdmissionSha256 `
+            -Value ([string]$record.deployment.migrationEvidenceSha256) `
+            -Context 'migration evidence checksum')
     $adminEvidenceSetId = [Guid]::Empty
     if (-not [Guid]::TryParseExact([string]$record.deployment.adminEvidenceSetId, 'D', [ref]$adminEvidenceSetId) -or
         $adminEvidenceSetId -eq [Guid]::Empty) {
         throw 'Production admission record has an invalid Admin evidence set id.'
     }
 
-    $expectedEvidence = Get-BunkFyProductionAdmissionExpectedEvidence -CandidateReleaseId $ExpectedReleaseId -RollbackReleaseId ([string]$record.rollback.releaseId)
+    Assert-BunkFyCandidateProperties `
+        -Value $record.privateControlIndex `
+        -ExpectedProperties @(
+            'evidenceKind',
+            'evidenceReference',
+            'sourceSha256',
+            'checksumsSha256',
+            'generatedAtUtc',
+            'expiresAtUtc') `
+        -Context 'production admission private control index summary'
+    if ($record.privateControlIndex.evidenceKind -cne
+            'bunkfy-private-production-control-index') {
+        throw 'Production admission private control index has the wrong evidence kind.'
+    }
+    [void](Assert-BunkFyProductionAdmissionReference `
+            -Value ([string]$record.privateControlIndex.evidenceReference) `
+            -Name 'production admission private control index reference')
+    [void](Assert-BunkFyProductionAdmissionSha256 `
+            -Value ([string]$record.privateControlIndex.sourceSha256) `
+            -Context 'production admission private control index record checksum')
+    [void](Assert-BunkFyProductionAdmissionSha256 `
+            -Value ([string]$record.privateControlIndex.checksumsSha256) `
+            -Context 'production admission private control index closed checksum')
+    $candidateBackendImage = @(
+        $record.candidate.images | Where-Object name -CEQ 'backend')[0]
+    $candidateWebImage = @(
+        $record.candidate.images | Where-Object name -CEQ 'web')[0]
+    $privateControlIndex =
+        Get-BunkFyVerifiedPrivateProductionControlIndexRecord `
+            -Path (Join-Path $resolvedDirectory 'private-control-index.json') `
+            -ExpectedReleaseId $ExpectedReleaseId `
+            -ExpectedSourceCommit $ExpectedSourceCommit `
+            -ExpectedBackendDigestReference `
+                ([string]$candidateBackendImage.digestReference) `
+            -ExpectedWebDigestReference `
+                ([string]$candidateWebImage.digestReference) `
+            -ExpectedAdmissionEvidenceReference `
+                $ExpectedAdmissionEvidenceReference `
+            -ExpectedChecksumsSha256 `
+                ([string]$record.privateControlIndex.checksumsSha256) `
+            -AllowFixtureEvidence:$AllowFixtureEvidence
+    $declaredPrivateIndexGeneratedAtUtc =
+        ConvertTo-BunkFyProductionAdmissionTimestamp `
+            -Value $record.privateControlIndex.generatedAtUtc `
+            -Context 'production admission private control index generation time'
+    $declaredPrivateIndexExpiresAtUtc =
+        ConvertTo-BunkFyProductionAdmissionTimestamp `
+            -Value $record.privateControlIndex.expiresAtUtc `
+            -Context 'production admission private control index expiry time' `
+            -AllowFuture
+    if ($record.privateControlIndex.evidenceReference -cne
+            $privateControlIndex.Reference -or
+        $record.privateControlIndex.sourceSha256 -cne
+            $privateControlIndex.SourceSha256 -or
+        $declaredPrivateIndexGeneratedAtUtc -ne
+            $privateControlIndex.GeneratedAtUtc -or
+        $declaredPrivateIndexExpiresAtUtc -ne
+            $privateControlIndex.IndexExpiresAtUtc -or
+        $privateControlIndex.GeneratedAtUtc -gt $generatedAtUtc.Add(
+            $script:BunkFyProductionAdmissionClockSkew)) {
+        throw 'Production admission private control index summary is not cross-bound to the retained index.'
+    }
+
+    $systemReferences = @(
+        [string]$record.admissionEvidenceReference,
+        [string]$record.candidate.promotionEvidenceReference,
+        [string]$record.rollback.promotionEvidenceReference,
+        [string]$record.deployment.rollbackEvidenceReference,
+        [string]$record.deployment.migrationEvidenceReference,
+        [string]$privateControlIndex.Reference)
+    if (@($systemReferences | Sort-Object -Unique).Count -ne
+        $systemReferences.Count) {
+        throw 'Production admission system evidence references must be distinct.'
+    }
+
+    $expectedEvidence = Get-BunkFyProductionAdmissionExpectedEvidence `
+        -CandidateReleaseId $ExpectedReleaseId `
+        -RollbackReleaseId ([string]$record.rollback.releaseId) `
+        -CandidatePromotionReference ([string]$record.candidate.promotionEvidenceReference) `
+        -CandidatePromotionSha256 ([string]$record.candidate.promotionChecksumsSha256) `
+        -RollbackPromotionReference ([string]$record.rollback.promotionEvidenceReference) `
+        -RollbackPromotionSha256 ([string]$record.rollback.promotionChecksumsSha256) `
+        -RollbackEvidenceReference ([string]$record.deployment.rollbackEvidenceReference) `
+        -RollbackEvidenceSha256 ([string]$record.deployment.rollbackEvidenceSha256) `
+        -MigrationEvidenceReference ([string]$record.deployment.migrationEvidenceReference) `
+        -MigrationEvidenceSha256 ([string]$record.deployment.migrationEvidenceSha256) `
+        -AdmissionEvidenceReference ([string]$record.admissionEvidenceReference)
     $evidence = @($record.evidence)
     if ($evidence.Count -ne $expectedEvidence.Count) {
         throw 'Production admission record has an incomplete source evidence catalogue.'
     }
     $seenEvidence = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+    $mutableEvidenceTimes = [Collections.Generic.List[DateTimeOffset]]::new()
     foreach ($entry in $evidence) {
-        Assert-BunkFyCandidateProperties -Value $entry -ExpectedProperties @('name', 'evidenceKind', 'boundReleaseId', 'sourceSha256', 'observedAtUtc', 'proofCount') -Context 'admission source evidence entry'
+        Assert-BunkFyCandidateProperties `
+            -Value $entry `
+            -ExpectedProperties @(
+                'name',
+                'evidenceKind',
+                'evidenceReference',
+                'boundReleaseId',
+                'sourceSha256',
+                'observedAtUtc',
+                'proofCount') `
+            -Context 'admission source evidence entry'
         if (-not $seenEvidence.Add([string]$entry.name)) {
             throw 'Production admission source evidence names must be unique.'
         }
         $expected = $expectedEvidence[[string]$entry.name]
         if ($null -eq $expected -or
             $entry.evidenceKind -cne $expected.Kind -or
+            $entry.evidenceReference -cne $expected.Reference -or
             $entry.boundReleaseId -cne $expected.ReleaseId -or
             [int]$entry.proofCount -ne $expected.Count) {
             throw "Production admission source '$($entry.name)' has an invalid binding."
         }
-        [void](Assert-BunkFyProductionAdmissionSha256 -Value ([string]$entry.sourceSha256) -Context "admission source '$($entry.name)' checksum")
-        [void](ConvertTo-BunkFyProductionAdmissionTimestamp -Value $entry.observedAtUtc -Context "admission source '$($entry.name)' observation time")
+        [void](Assert-BunkFyProductionAdmissionReference `
+                -Value ([string]$entry.evidenceReference) `
+                -Name "admission source '$($entry.name)' reference")
+        [void](Assert-BunkFyProductionAdmissionSha256 `
+                -Value ([string]$entry.sourceSha256) `
+                -Context "admission source '$($entry.name)' checksum")
+        if ($null -ne $expected.SourceSha256 -and
+            $entry.sourceSha256 -cne $expected.SourceSha256) {
+            throw "Production admission source '$($entry.name)' checksum is not cross-bound."
+        }
+        $observedAtUtc = ConvertTo-BunkFyProductionAdmissionTimestamp `
+            -Value $entry.observedAtUtc `
+            -Context "admission source '$($entry.name)' observation time"
+        if ($observedAtUtc -gt $generatedAtUtc.Add(
+                $script:BunkFyProductionAdmissionClockSkew)) {
+            throw "Production admission source '$($entry.name)' postdates the bundle."
+        }
+        if ($expected.Mutable) {
+            [void](Assert-BunkFyProductionAdmissionMutableEvidenceFreshness `
+                    -Timestamp $observedAtUtc `
+                    -EvaluationTimeUtc $verificationTimeUtc `
+                    -Context "admission source '$($entry.name)'")
+            $mutableEvidenceTimes.Add($observedAtUtc)
+        }
+    }
+
+    if ($mutableEvidenceTimes.Count -eq 0) {
+        throw 'Production admission record has no mutable runtime evidence.'
+    }
+    $orderedMutableTimes = @($mutableEvidenceTimes | Sort-Object)
+    $actualOldestMutableAtUtc = $orderedMutableTimes[0]
+    $actualNewestMutableAtUtc = $orderedMutableTimes[-1]
+    Assert-BunkFyCandidateProperties `
+        -Value $record.validity `
+        -ExpectedProperties @(
+            'policy',
+            'mutableEvidenceMaximumAgeMinutes',
+            'privateControlIndexMaximumAgeMinutes',
+            'approvalWindowMinutes',
+            'clockSkewSeconds',
+            'oldestMutableEvidenceAtUtc',
+            'newestMutableEvidenceAtUtc',
+            'privateControlIndexExpiresAtUtc',
+            'privateControlEvidenceExpiresAtUtc',
+            'expiresAtUtc') `
+        -Context 'production admission validity'
+    if ($record.validity.policy -cne
+            $script:BunkFyProductionAdmissionFreshnessPolicy -or
+        [int]$record.validity.mutableEvidenceMaximumAgeMinutes -ne
+            [int]$script:BunkFyProductionAdmissionMutableEvidenceMaximumAge.TotalMinutes -or
+        [int]$record.validity.privateControlIndexMaximumAgeMinutes -ne
+            [int]$script:BunkFyPrivateProductionControlIndexMaximumAge.TotalMinutes -or
+        [int]$record.validity.approvalWindowMinutes -ne
+            [int]$script:BunkFyProductionAdmissionApprovalWindow.TotalMinutes -or
+        [int]$record.validity.clockSkewSeconds -ne
+            [int]$script:BunkFyProductionAdmissionClockSkew.TotalSeconds) {
+        throw 'Production admission validity policy is invalid.'
+    }
+    $declaredOldestMutableAtUtc =
+        ConvertTo-BunkFyProductionAdmissionTimestamp `
+            -Value $record.validity.oldestMutableEvidenceAtUtc `
+            -Context 'oldest mutable evidence time'
+    $declaredNewestMutableAtUtc =
+        ConvertTo-BunkFyProductionAdmissionTimestamp `
+            -Value $record.validity.newestMutableEvidenceAtUtc `
+            -Context 'newest mutable evidence time'
+    $expiresAtUtc = ConvertTo-BunkFyProductionAdmissionTimestamp `
+        -Value $record.validity.expiresAtUtc `
+        -Context 'production admission expiry time' `
+        -AllowFuture
+    $declaredPrivateControlIndexExpiryUtc =
+        ConvertTo-BunkFyProductionAdmissionTimestamp `
+            -Value $record.validity.privateControlIndexExpiresAtUtc `
+            -Context 'private production control index validity expiry' `
+            -AllowFuture
+    $declaredPrivateControlEvidenceExpiryUtc =
+        ConvertTo-BunkFyProductionAdmissionTimestamp `
+            -Value $record.validity.privateControlEvidenceExpiresAtUtc `
+            -Context 'private production control evidence validity expiry' `
+            -AllowFuture
+    $expectedExpiryUtc = Get-BunkFyProductionAdmissionExpiry `
+        -GeneratedAtUtc $generatedAtUtc `
+        -OldestMutableEvidenceAtUtc $actualOldestMutableAtUtc `
+        -PrivateControlIndexExpiresAtUtc `
+            $privateControlIndex.IndexExpiresAtUtc `
+        -PrivateControlEvidenceExpiresAtUtc `
+            $privateControlIndex.PrivateControlExpiresAtUtc
+    if ($declaredOldestMutableAtUtc -ne $actualOldestMutableAtUtc -or
+        $declaredNewestMutableAtUtc -ne $actualNewestMutableAtUtc -or
+        $declaredOldestMutableAtUtc -gt $declaredNewestMutableAtUtc -or
+        $declaredNewestMutableAtUtc -gt $generatedAtUtc.Add(
+            $script:BunkFyProductionAdmissionClockSkew) -or
+        $declaredPrivateControlIndexExpiryUtc -ne
+            $privateControlIndex.IndexExpiresAtUtc -or
+        $declaredPrivateControlEvidenceExpiryUtc -ne
+            $privateControlIndex.PrivateControlExpiresAtUtc -or
+        $expiresAtUtc -ne $expectedExpiryUtc) {
+        throw 'Production admission validity does not match its bounded evidence windows.'
+    }
+    if ($verificationTimeUtc -gt $expiresAtUtc.Add(
+            $script:BunkFyProductionAdmissionClockSkew)) {
+        throw 'Production admission evidence has expired.'
     }
 
     $privateEvidence = @($record.privateEvidence)
@@ -912,12 +2205,55 @@ function Get-BunkFyVerifiedProductionAdmission {
         throw 'Production admission record has an incomplete private evidence declaration.'
     }
     $privateControls = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+    $privateReferences = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+    $privateHashes = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+    $expectedPrivateControls = @{}
+    foreach ($control in $privateControlIndex.Controls) {
+        $expectedPrivateControls[$control.Control] = $control
+    }
     foreach ($entry in $privateEvidence) {
-        Assert-BunkFyCandidateProperties -Value $entry -ExpectedProperties @('control', 'reference') -Context 'private evidence declaration'
-        if (-not $privateControls.Add([string]$entry.control)) {
+        Assert-BunkFyCandidateProperties `
+            -Value $entry `
+            -ExpectedProperties @(
+                'control',
+                'reference',
+                'recordSha256',
+                'observedAtUtc',
+                'maximumAgeMinutes') `
+            -Context 'private evidence declaration'
+        $controlName = [string]$entry.control
+        if (-not $privateControls.Add($controlName)) {
             throw 'Production admission private evidence controls must be unique.'
         }
-        [void](Assert-BunkFyProductionAdmissionReference -Value ([string]$entry.reference) -Name "private evidence '$($entry.control)'")
+        $expectedPrivateControl = $expectedPrivateControls[$controlName]
+        if ($null -eq $expectedPrivateControl) {
+            throw "Production admission private evidence contains unsupported control '$controlName'."
+        }
+        $privateReference = Assert-BunkFyProductionAdmissionReference `
+            -Value ([string]$entry.reference) `
+            -Name "private evidence '$controlName'"
+        if (-not $privateReferences.Add($privateReference)) {
+            throw 'Production admission private evidence references must be distinct.'
+        }
+        if ($systemReferences -ccontains $privateReference) {
+            throw 'Production admission private evidence must not reuse a system reference.'
+        }
+        $privateHash = Assert-BunkFyProductionAdmissionSha256 `
+            -Value ([string]$entry.recordSha256) `
+            -Context "private evidence '$controlName' record checksum"
+        if (-not $privateHashes.Add($privateHash)) {
+            throw 'Production admission private evidence record checksums must be distinct.'
+        }
+        $observedAtUtc = ConvertTo-BunkFyProductionAdmissionTimestamp `
+            -Value $entry.observedAtUtc `
+            -Context "private evidence '$controlName' observation time"
+        if ($privateReference -cne $expectedPrivateControl.Reference -or
+            $privateHash -cne $expectedPrivateControl.RecordSha256 -or
+            $observedAtUtc -ne $expectedPrivateControl.ObservedAtUtc -or
+            [int]$entry.maximumAgeMinutes -ne
+                [int]$expectedPrivateControl.MaximumAge.TotalMinutes) {
+            throw "Production admission private evidence '$controlName' is not cross-bound to the retained index."
+        }
     }
     Assert-BunkFyProductionAdmissionStringSequence -Actual @($privateControls) -Expected $script:BunkFyProductionAdmissionPrivateControls -Context 'private evidence controls' -OrderIndependent
 
@@ -939,10 +2275,12 @@ function Get-BunkFyVerifiedProductionAdmission {
         ChecksumsSha256 = $closed.ChecksumsSha256
         AdmissionId = $admissionId
         AdmissionEvidenceReference = [string]$record.admissionEvidenceReference
+        PrivateControlIndexReference = $privateControlIndex.Reference
         ReleaseId = [string]$record.candidate.releaseId
         SourceCommit = [string]$record.candidate.sourceCommit
         RollbackReleaseId = [string]$record.rollback.releaseId
         PublicOrigin = [string]$record.deployment.publicOrigin
+        ExpiresAtUtc = $expiresAtUtc
         Record = $record
     }
 }

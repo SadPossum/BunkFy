@@ -79,8 +79,9 @@ after the boundary checks, public `/healthz` to return an empty `204`, and publi
 disabled, and each body is capped at 64 KiB.
 
 Passing JSON is written atomically under `.tmp/deployment-probes` by default.
-It records the release identity, two origins, vantage mode, correlation id,
-bounded observation classes, checks, and limitations. It excludes response
+Schema v2 records the release and admission evidence identities, two origins,
+vantage mode, correlation id, bounded observation classes, checks, and
+limitations. It excludes response
 bodies, headers, trace ids, credentials, exception details, and authenticated
 Admin data.
 

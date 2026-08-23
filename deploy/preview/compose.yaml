@@ -25,6 +25,7 @@ x-runtime-environment: &runtime-environment
   DOTNET_ENVIRONMENT: Preview
   BunkFy__Deployment__Profile: Preview
   BunkFy__Deployment__ReleaseId: "${BUNKFY_RELEASE_ID:-preview-local}"
+  BunkFy__Deployment__AdmissionEvidenceReference: "${BUNKFY_ADMISSION_EVIDENCE_REFERENCE:-admission:11111111111111111111111111111111}"
   AllowedHosts: "${BUNKFY_ALLOWED_HOSTS:-localhost;127.0.0.1}"
   <<: *database-environment
   ConnectionStrings__nats: "nats://${BUNKFY_NATS_USER:?set BUNKFY_NATS_USER}:${BUNKFY_NATS_PASSWORD:?set BUNKFY_NATS_PASSWORD}@nats:4222"

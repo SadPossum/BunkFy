@@ -1,7 +1,7 @@
 # Deployed Public Edge Verification
 
-Status: implemented, fixture verified, and VPS-preview verified
-Date: 2026-08-10
+Status: implemented and fixture verified; hosted proof remains deployment-owned
+Date: 2026-08-22
 
 ## Goal
 
@@ -21,7 +21,7 @@ The probe will fail closed unless one origin:
 - returns the expected release identity from the web runtime header;
 - exposes a healthy edge at `/healthz`;
 - proxies `/api/smoke` to the BunkFy public API and returns the expected bounded
-  service and release identity;
+  service, release identity, and non-secret admission-attempt identity;
 - returns `404` for a representative Admin API route on the public origin; and
 - rejects an untrusted `Host` value instead of forwarding a successful public
   API response.
@@ -42,8 +42,9 @@ HTTPS probe.
 ## Evidence Boundary
 
 The result is one external observation at one time. It proves that the expected
-non-secret release id answers through the composed public edge, but it does not
-prove:
+non-secret release id and admission-attempt identity answer through the composed
+public edge. The admission identity is correlation only and grants no authority.
+The result does not prove:
 
 - the source commit or image digests bound to that release id without the
   separately retained promotion record;
@@ -80,18 +81,19 @@ otherwise the result is written below ignored `.tmp/deployment-probes`.
 fixture. It cannot enable plain HTTP for a remote host. Do not treat a loopback
 result as hosted edge evidence.
 
-The versioned JSON output records the origin, release id, transport class, six
-check names and statuses, and three explicit limitations. It excludes response
-bodies, raw headers, credentials, source commits, and image digests. The file is
-written atomically only after all checks pass; an existing file requires
-`-Force` and a reparse-point target is rejected.
+Schema v4 records the origin, release id, admission evidence reference,
+transport class, six check names and statuses, and three explicit limitations.
+It excludes response bodies, raw headers, credentials, source commits, and image
+digests. The file is written atomically only after all checks pass; an existing
+file requires `-Force` and a reparse-point target is rejected.
 
 Repository verification runs `eng/test-deployed-public-edge.ps1`. The fixture
-proves the valid loopback path and rejection of a release-id mismatch, a
-missing or mismatched web release header, a missing security header, a
-publicly reachable Admin route, a successful untrusted-Host request, policy
-directives outside the checked-in CSP or Permissions-Policy, and insecure
-non-loopback HTTP. It does not contact a deployed environment.
+proves the valid loopback path and rejection of missing, malformed, or changing
+admission identities, a release-id mismatch, a missing or mismatched web release
+header, a missing security header, a publicly reachable Admin route, a
+successful untrusted-Host request, policy directives outside the checked-in CSP
+or Permissions-Policy, and insecure non-loopback HTTP. It does not contact a
+deployed environment.
 
 ## Deferred Deployment Proof
 

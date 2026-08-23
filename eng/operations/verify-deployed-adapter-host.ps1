@@ -29,6 +29,7 @@ $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'deployed-public-edge.common.ps1')
 . (Join-Path $PSScriptRoot 'deployed-authenticated-smoke.common.ps1')
 
+$observedAdmissionEvidenceReference = $null
 $public = Assert-BunkFyPublicEdgeOrigin `
     -Origin $PublicOrigin `
     -AllowLoopbackHttp:$AllowLoopbackPublicHttp
@@ -455,7 +456,8 @@ try {
         -Client $client `
         -Origin $public `
         -ExpectedReleaseId $ExpectedReleaseId `
-        -TimeoutSeconds $RequestTimeoutSeconds
+        -TimeoutSeconds $RequestTimeoutSeconds `
+        -ObservedAdmissionEvidenceReference ([ref]$observedAdmissionEvidenceReference)
     Assert-AdapterHostHealth
     $hostStatusBefore = Get-AdapterHostStatus
     $checks.Add([ordered]@{ name = 'adapter-host-ready-and-exposure-correct'; status = 'passed' })
@@ -595,7 +597,8 @@ try {
         -Client $client `
         -Origin $public `
         -ExpectedReleaseId $ExpectedReleaseId `
-        -TimeoutSeconds $RequestTimeoutSeconds
+        -TimeoutSeconds $RequestTimeoutSeconds `
+        -ObservedAdmissionEvidenceReference ([ref]$observedAdmissionEvidenceReference)
     if ($observedReleaseId -cne $releaseIdBefore) {
         throw 'The public API release identity changed during AdapterHost verification.'
     }
@@ -609,11 +612,12 @@ finally {
 }
 
 $evidence = [ordered]@{
-    schemaVersion = 1
+    schemaVersion = 2
     evidenceKind = 'bunkfy-deployed-adapter-host-probe'
     generatedAtUtc = [DateTimeOffset]::UtcNow.ToString('O')
     publicOrigin = $public.GetLeftPart([UriPartial]::Authority)
     releaseId = $observedReleaseId
+    admissionEvidenceReference = $observedAdmissionEvidenceReference
     adapterHostOrigin = $adapterHost.GetLeftPart([UriPartial]::Authority)
     publicTransport = if ($public.Scheme -eq 'https') { 'trusted-https' } else { 'loopback-http-fixture' }
     adapterHostTransport = if ($adapterHost.Scheme -eq 'https') { 'trusted-https' } else { 'loopback-http' }

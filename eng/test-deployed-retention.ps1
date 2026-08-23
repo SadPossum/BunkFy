@@ -9,6 +9,7 @@ $fixtureRoot = Join-Path ([IO.Path]::GetTempPath()) (
 $now = [DateTimeOffset]::UtcNow
 $fixture = [pscustomobject]@{
     ReleaseId = 'release-fixture-001'
+    AdmissionEvidenceReference = 'admission:11111111111111111111111111111111'
     WorkspaceId = '11111111-1111-4111-8111-111111111111'
     RawBaselineRunId = '22222222-2222-4222-8222-222222222222'
     RawObservedRunId = '33333333-3333-4333-8333-333333333333'
@@ -249,6 +250,7 @@ function Start-BunkFyRetentionFixtureServer {
                             service = 'BunkFy.Host.Api'
                             status = 'ok'
                             releaseId = $Fixture.ReleaseId
+                            admissionEvidenceReference = $Fixture.AdmissionEvidenceReference
                             timestampUtc = [DateTimeOffset]::UtcNow.ToString('O')
                         } | ConvertTo-Json -Compress
                         Write-FixtureResponse `
@@ -435,10 +437,11 @@ try {
     Invoke-BunkFyRetentionFixtureProbe -Mode valid -OutputPath $validOutput
     $evidence = Get-Content -LiteralPath $validOutput -Raw |
         ConvertFrom-Json -Depth 12
-    if ($evidence.schemaVersion -ne 2 -or
+    if ($evidence.schemaVersion -ne 3 -or
         $evidence.evidenceKind -cne 'bunkfy-deployed-retention-probe' -or
         $evidence.result -cne 'passed' -or
         $evidence.releaseId -cne $fixture.ReleaseId -or
+        $evidence.admissionEvidenceReference -cne $fixture.AdmissionEvidenceReference -or
         @($evidence.checks).Count -ne 7 -or
         @($evidence.schedules).Count -ne 2 -or
         $evidence.observation.mode -cne 'next-occurrence-after-baseline' -or
@@ -465,7 +468,7 @@ try {
         -CompletionNotBeforeUtc $completionLowerBound
     $freshEvidence = Get-Content -LiteralPath $freshOutput -Raw |
         ConvertFrom-Json -Depth 12
-    if ($freshEvidence.schemaVersion -ne 2 -or
+    if ($freshEvidence.schemaVersion -ne 3 -or
         $freshEvidence.observation.mode -cne 'completed-after-lower-bound' -or
         [DateTimeOffset]$freshEvidence.observation.completionNotBeforeUtc -ne
             $completionLowerBound -or

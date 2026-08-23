@@ -29,6 +29,10 @@ submodules.
 .\eng\new-preview-env.ps1
 ```
 
+Use `-OutputPath /protected/bunkfy-preview/.env` when generating a fresh,
+private environment outside the checkout. The default remains
+`deploy/preview/.env`.
+
 Review `deploy/preview/.env`, set `BUNKFY_PUBLIC_URL` to the externally visible
 HTTPS origin, and set `BUNKFY_ALLOWED_HOSTS` to an explicit semicolon-separated
 list containing that origin's host plus any loopback host used by local health
@@ -64,7 +68,8 @@ The command changes local permissions, not secret values.
 ignored GMA source-root maps before invoking Docker, so a clean recursive
 checkout packages the same source composition validated by CI. A deployment
 that has already loaded reviewed image bytes can use `-NoBuild` with `up`; that
-mode never bootstraps or rebuilds source.
+mode never bootstraps or rebuilds source. Add `-NoPull` when every resolved
+image has also been preloaded and registry access must fail closed.
 
 ## Start And Verify
 
@@ -80,12 +85,15 @@ contract. A protected environment file may live outside the checkout:
 ```powershell
 .\eng\preview.ps1 up `
   -EnvironmentPath /protected/bunkfy-preview/.env `
-  -NoBuild
+  -NoBuild `
+  -NoPull
 ```
 
 Pass the same environment path to backup, restore, recovery-rehearsal, and
 isolation commands. Do not maintain a private Compose fork; otherwise a recovery
 or backup restart can apply different runtime settings from the original stack.
+Use `preview.ps1 down -RemoveVolumes` only for a disposable target whose named
+volumes must be destroyed with the stack.
 
 The browser app is available on loopback at `http://127.0.0.1:8080` by default. The API is reachable only through the same-origin Nginx route. PostgreSQL, Redis, NATS, MinIO, and Mailpit have no host ports in the default topology.
 
@@ -330,16 +338,82 @@ retires the room before the onboarding cleanup continues.
 
 Use the mutation-bearing
 [deployed Reservations and Inventory verifier](deployed-reservations-inventory-verification.md)
-to prove direct reservation creation, exact retry stability, asynchronous
-allocation, check-in, checkout, and inventory release against one candidate.
+to prove cross-workspace denial, direct reservation creation, exact retry
+stability, asynchronous allocation, check-in, checkout, and inventory release
+against one candidate.
 Use a future range and a dedicated available unit. A passing run retains one
 checked-out synthetic reservation but no active allocation or durable Guest
 Record.
 For a self-contained Preview run, add `-IncludeReservationsInventory` to the
 Preview onboarding rehearsal. It discovers and activates the one mounted
 engineering/example policy through the public Properties API, provisions and
-retires a temporary sellable room, and binds the scrubbed child proof into the
-onboarding evidence.
+retires a temporary sellable room, and binds the identifier-free schema-v2
+child proof into the onboarding evidence.
+
+Use the mutation-bearing
+[deployed Guests stay-history verifier](deployed-guests-stay-history-verification.md)
+to prove minimal canonical Guest management, optimistic and idempotent replay,
+the Reservation primary-participant link, monotonic Guests-owned stay-history
+projection, check-in, checkout, archive, and Inventory release against one
+candidate. For a self-contained Preview run, add `-IncludeGuestsStayHistory` to
+the onboarding rehearsal. It runs before invitation acceptance so the applicant
+is a genuine authenticated nonmember, provisions a dedicated room, retains the
+archived Guest and checked-out Reservation, retires the released room, and binds
+only scrubbed child evidence into the umbrella.
+
+Use the mutation-bearing
+[deployed Staff employment verifier](deployed-staff-employment-verification.md)
+to prove minimal unlinked profile management, optimistic and idempotent
+mutations, property assignment, suspension and resume, and terminal departure
+with assignment closure against one candidate. For a self-contained Preview
+run, add `-IncludeStaffEmployment` to the onboarding rehearsal. It runs before
+invitation acceptance so the applicant is a genuine authenticated nonmember,
+retains one departed synthetic Staff record with closed assignment history, and
+binds only scrubbed child evidence into the umbrella.
+
+Use the mutation-bearing
+[deployed Properties topology verifier](deployed-properties-topology-verification.md)
+to prove property, room, and bed mutation idempotency, optimistic concurrency,
+directory visibility, and Inventory-coordinated terminal retirement against one
+candidate. For a self-contained Preview run, add
+`-IncludePropertiesTopology` to the onboarding rehearsal. The child creates and
+fully retires its own third property before invitation acceptance, retains only
+the retired synthetic topology, and binds scrubbed evidence into the umbrella.
+It deliberately does not activate or select a country policy.
+
+Use the mutation-bearing
+[deployed Ingestion connection lifecycle verifier](deployed-ingestion-connection-lifecycle-verification.md)
+to prove capability-driven connection management, one-time credential issuance,
+independent adapter authentication, terminal empty-run handling, credential
+revocation, and safe connection disablement against one candidate. For a self-
+contained Preview run, add `-IncludeIngestionConnectionLifecycle` to the
+onboarding rehearsal. The parent activates the Preview engineering policy and
+the child leaves its synthetic connection disabled, credential revoked, and run
+terminal while binding only scrubbed evidence into the umbrella. The separate
+AdapterHost verifier still owns the real provider-record, receipt, and
+checkpoint path.
+
+Use the mutation-bearing
+[deployed Ingestion conflict and proposal lifecycle verifier](deployed-ingestion-conflict-proposal-lifecycle-verification.md)
+to prove automatic adapter authority, staff-conflict preservation, newer-source
+proposal supersession, replay-safe operator decisions, Reservations convergence,
+and terminal cleanup. For a self-contained Preview run, add
+`-IncludeIngestionConflictProposalLifecycle` to the onboarding rehearsal. The
+parent owns a dedicated sellable-room fixture; the child cancels its synthetic
+reservation, revokes its credential, disables its connection, and binds only
+scrubbed authority and terminal-count evidence into the umbrella.
+
+Use the mutation-bearing
+[deployed Data Rights Access Export verifier](deployed-data-rights-access-export-verification.md)
+to prove exact Guest discovery, approved immutable scope, Worker export
+generation, assurance-gated protected download, idempotent replay, and bounded
+artifact expiry against one candidate. For a self-contained Preview run, add
+`-IncludeDataRightsAccessExport` to the onboarding rehearsal. It performs a
+fresh owner login, temporarily enrolls TOTP for destructive assurance, uses an
+unjoined applicant as the nonmember, archives the synthetic Guest, disables the
+temporary factor, and binds only scrubbed child evidence into the umbrella. The
+encrypted artifact and case history remain under configured lifecycle and are
+not claimed as immediately deleted.
 
 For a provider-to-Ingestion proof through a target remote AdapterHost, use the
 [deployed AdapterHost verifier](deployed-adapter-host-verification.md). Start the
