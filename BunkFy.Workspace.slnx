@@ -883,7 +883,9 @@
     <File Path="docs/operations/production-migration-rehearsal.md" />
   </Folder>
   <Folder Name="/docs/planning/">
+    <File Path="docs/planning/account-security-partial-data-recovery-task.md" />
     <File Path="docs/planning/bunkfy-repository-stack-and-workflow-plan.md" />
+    <File Path="docs/planning/composite-operator-page-partial-data-recovery-task.md" />
     <File Path="docs/planning/current-candidate-publication-refresh-task.md" />
     <File Path="docs/planning/current-candidate-runtime-rehearsal-task.md" />
     <File Path="docs/planning/deployed-data-rights-access-export-proof-task.md" />
@@ -894,6 +896,7 @@
     <File Path="docs/planning/deployed-properties-topology-lifecycle-proof-task.md" />
     <File Path="docs/planning/deployed-reservations-inventory-evidence-proof-task.md" />
     <File Path="docs/planning/deployed-staff-employment-lifecycle-proof-task.md" />
+    <File Path="docs/planning/integrations-composite-source-recovery-task.md" />
     <File Path="docs/planning/post-domain-candidate-publication-refresh-task.md" />
     <File Path="docs/planning/post-hardening-candidate-publication-refresh-task.md" />
     <File Path="docs/planning/preview-adapter-host-rehearsal-task.md" />
