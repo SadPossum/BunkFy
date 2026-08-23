@@ -82,6 +82,9 @@ is based on current permission and record evidence.
 ## Publication
 
 - Web `dev`: `43d36e3` (`Keep property commands bound to current sources`).
+- Web validation follow-up: `382ff5e` (`Make workspace authority test
+  cross-platform`) normalizes a pre-existing multiline source assertion for
+  Windows CI checkouts.
 - Backend remains at `67f11b52`; the audited APIs required no change.
 
 ## Invariants
