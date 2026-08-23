@@ -1,6 +1,6 @@
 # Production Private Control Index Binding Task
 
-Status: implementation and local evidence complete; exact-head GitHub pending
+Status: repository slice complete; private hosted controls remain external
 Date: 2026-08-23
 
 ## Goal
@@ -58,7 +58,7 @@ logs, or the private records themselves.
    duplicate references or hashes, cross-candidate and cross-attempt reuse,
    stale and future evidence, and output/source overlap.
 5. [x] Update operations guards and concise operator documentation.
-6. [ ] Run focused policy verification while editing, then one complete
+6. [x] Run focused policy verification while editing, then one complete
    repository gate and one exact-head GitHub evidence set at slice end.
 
 Focused verification passed on 2026-08-23:
@@ -78,8 +78,16 @@ The complete root `eng/verify.ps1` gate also passed on 2026-08-23 with:
 - the complete schema-v3 Production admission fixture inside the operations
   policy suite.
 
-The exact-head GitHub run ids are recorded after publication. No hosted
-admission is claimed by this repository-only evidence.
+The implementation is commit
+`af5b9f67c7d5155da6112bc534cd2040fa2ff4a5`. Its exact-head GitHub evidence
+passed on 2026-08-23:
+
+- Validate run `32638406238`;
+- Security Baseline run `32638406311`; and
+- CodeQL run `32638406253`, with both C# and JavaScript/TypeScript analyses
+  successful.
+
+No hosted admission is claimed by this repository-only evidence.
 
 ## Acceptance
 
