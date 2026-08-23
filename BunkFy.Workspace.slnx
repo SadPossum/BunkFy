@@ -919,6 +919,7 @@
     <File Path="docs/planning/production-image-promotion-boundary-task.md" />
     <File Path="docs/planning/production-migration-proof-refresh-task.md" />
     <File Path="docs/planning/production-workspace-access-estate-admission-task.md" />
+    <File Path="docs/planning/properties-operator-source-authority-recovery-task.md" />
     <File Path="docs/planning/shared-network-http-admission-task.md" />
     <File Path="docs/planning/web-shell-failure-recovery-task.md" />
     <File Path="docs/planning/workspace-access-control-authority-recovery-task.md" />
