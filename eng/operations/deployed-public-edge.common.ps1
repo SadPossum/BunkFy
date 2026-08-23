@@ -255,7 +255,7 @@ function Assert-BunkFyPublicEdgeSecurityHeaders {
 
     Assert-BunkFyExactHeaderValue $Response 'X-Content-Type-Options' 'nosniff'
     Assert-BunkFyExactHeaderValue $Response 'X-Frame-Options' 'DENY'
-    Assert-BunkFyExactHeaderValue $Response 'Referrer-Policy' 'strict-origin-when-cross-origin'
+    Assert-BunkFyExactHeaderValue $Response 'Referrer-Policy' 'no-referrer'
     Assert-BunkFyExactHeaderValue $Response 'Cross-Origin-Opener-Policy' 'same-origin'
     Assert-BunkFyExactHeaderValue $Response 'X-Permitted-Cross-Domain-Policies' 'none'
     Assert-BunkFyContentSecurityPolicy -Response $Response

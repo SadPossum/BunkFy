@@ -193,7 +193,7 @@ function Start-TestRollbackEdge {
                     $responseHeaders.Add("X-BunkFy-Release-Id: $releaseId")
                     $responseHeaders.Add('X-Content-Type-Options: nosniff')
                     $responseHeaders.Add('X-Frame-Options: DENY')
-                    $responseHeaders.Add('Referrer-Policy: strict-origin-when-cross-origin')
+                    $responseHeaders.Add('Referrer-Policy: no-referrer')
                     $responseHeaders.Add(
                         "Content-Security-Policy: default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'")
                     $responseHeaders.Add(

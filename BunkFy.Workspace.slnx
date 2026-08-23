@@ -903,6 +903,7 @@
     <File Path="docs/planning/notifications-operator-source-authority-recovery-task.md" />
     <File Path="docs/planning/post-domain-candidate-publication-refresh-task.md" />
     <File Path="docs/planning/post-hardening-candidate-publication-refresh-task.md" />
+    <File Path="docs/planning/post-operator-hardening-candidate-publication-refresh-task.md" />
     <File Path="docs/planning/preview-adapter-host-rehearsal-task.md" />
     <File Path="docs/planning/preview-admin-boundary-proof-task.md" />
     <File Path="docs/planning/preview-browser-onboarding-rehearsal-task.md" />
