@@ -914,6 +914,7 @@
     <File Path="docs/planning/preview-trusted-https-browser-onboarding-proof-task.md" />
     <File Path="docs/planning/preview-workspace-access-administration-proof-task.md" />
     <File Path="docs/planning/preview-workspace-access-seed-estate-proof-task.md" />
+    <File Path="docs/planning/workspace-access-control-authority-recovery-task.md" />
     <File Path="docs/planning/production-admission-attempt-identity-task.md" />
     <File Path="docs/planning/production-admission-freshness-task.md" />
     <File Path="docs/planning/production-image-promotion-boundary-task.md" />
