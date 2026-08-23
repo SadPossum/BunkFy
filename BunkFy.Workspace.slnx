@@ -923,6 +923,7 @@
     <File Path="docs/planning/properties-operator-source-authority-recovery-task.md" />
     <File Path="docs/planning/reservations-operator-source-authority-recovery-task.md" />
     <File Path="docs/planning/shared-network-http-admission-task.md" />
+    <File Path="docs/planning/staff-operator-source-authority-recovery-task.md" />
     <File Path="docs/planning/web-shell-failure-recovery-task.md" />
     <File Path="docs/planning/workspace-access-control-authority-recovery-task.md" />
     <File Path="docs/planning/workspace-shell-catalogue-recovery-task.md" />
