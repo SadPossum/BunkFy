@@ -91,6 +91,7 @@
     <File Path="apps/backend/docs/planning/data-rights-receipt-backed-late-cancellation-recovery-task.md" />
     <File Path="apps/backend/docs/planning/data-rights-restriction-execution-task.md" />
     <File Path="apps/backend/docs/planning/data-rights-restriction-target-binding-task.md" />
+    <File Path="apps/backend/docs/planning/data-rights-review-evidence-access-task.md" />
     <File Path="apps/backend/docs/planning/data-rights-subject-owner-failure-taxonomy-task.md" />
     <File Path="apps/backend/docs/planning/data-rights-task-timeout-alignment-task.md" />
     <File Path="apps/backend/docs/planning/data-rights-tenant-termination-deadline-result-integrity-task.md" />
