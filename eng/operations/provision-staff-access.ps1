@@ -34,6 +34,7 @@ if ($PSBoundParameters.ContainsKey('PrimaryPropertyId') -and $PropertyId -notcon
 
 $normalizedTenant = $TenantId.Trim()
 $normalizedUsername = $Username.Trim()
+$BaseUri = Assert-BunkFyAdminApiBaseUri -BaseUri $BaseUri
 if ([string]::IsNullOrWhiteSpace($normalizedTenant) -or [string]::IsNullOrWhiteSpace($normalizedUsername)) {
     throw 'TenantId and Username are required.'
 }

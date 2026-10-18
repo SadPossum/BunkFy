@@ -1,18 +1,53 @@
 param(
-    [ValidateSet('config', 'build', 'up', 'down', 'logs', 'status', 'migrate')]
+    [ValidateSet(
+        'config',
+        'build',
+        'up',
+        'down',
+        'logs',
+        'status',
+        'migrate',
+        'open-operations',
+        'close-operations')]
     [string] $Action = 'up',
     [switch] $Operations,
-    [switch] $Tools
+    [switch] $Tools,
+    [string] $EnvironmentPath,
+    [switch] $NoBuild
 )
 
 . (Join-Path $PSScriptRoot 'common.ps1')
+. (Join-Path $PSScriptRoot 'operations\local-sensitive-state.common.ps1')
 
 $root = Get-BunkFyRepositoryRoot
 $composeFile = Join-BunkFyPath 'deploy\preview\compose.yaml'
-$environmentFile = Join-BunkFyPath 'deploy\preview\.env'
+$environmentFile = if ([string]::IsNullOrWhiteSpace($EnvironmentPath)) {
+    Join-BunkFyPath 'deploy\preview\.env'
+}
+else {
+    [IO.Path]::GetFullPath($EnvironmentPath)
+}
+
+if ($NoBuild -and $Action -ne 'up') {
+    throw '-NoBuild is supported only with the up action.'
+}
+
+if ($Action -eq 'build' -or ($Action -eq 'up' -and -not $NoBuild)) {
+    $backendBootstrap = Join-BunkFyPath 'apps\backend\eng\gma-bootstrap.ps1'
+    if (-not (Test-Path -LiteralPath $backendBootstrap -PathType Leaf)) {
+        throw "Backend source composition bootstrap is missing: '$backendBootstrap'. Initialize submodules before building the preview stack."
+    }
+
+    & $backendBootstrap -Force
+}
+
 if (-not (Test-Path -LiteralPath $environmentFile -PathType Leaf)) {
     throw "Run eng/new-preview-env.ps1 before starting the preview stack."
 }
+Assert-BunkFyLocalSensitivePath `
+    -Path $environmentFile `
+    -PathType Leaf `
+    -Description 'Preview environment'
 
 $settings = @{}
 foreach ($line in Get-Content -LiteralPath $environmentFile) {
@@ -41,6 +76,11 @@ foreach ($entry in $minimumSecretLengths.GetEnumerator()) {
         $value.Length -lt $entry.Value) {
         throw "$($entry.Key) must be a non-placeholder secret of at least $($entry.Value) characters."
     }
+}
+
+$releaseId = [string]$settings['BUNKFY_RELEASE_ID']
+if ($releaseId -cnotmatch '^[a-z0-9][a-z0-9._-]{2,127}$') {
+    throw 'BUNKFY_RELEASE_ID must be a 3-128 character non-secret release identifier.'
 }
 
 $dataRightsKeyNames = @(
@@ -83,6 +123,29 @@ if ($publicUrl.Scheme -ne 'https' -and -not $isLoopbackHttp) {
     throw 'BUNKFY_PUBLIC_URL must use HTTPS unless it targets loopback.'
 }
 
+$allowedHosts = @(
+    ([string]$settings['BUNKFY_ALLOWED_HOSTS']).Split(';') |
+        ForEach-Object { $_.Trim() } |
+        Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+if ($allowedHosts.Count -eq 0 -or
+    @($allowedHosts | Where-Object { $_.Contains('*') }).Count -gt 0) {
+    throw 'BUNKFY_ALLOWED_HOSTS must contain explicit semicolon-separated hosts without wildcards.'
+}
+foreach ($allowedHost in $allowedHosts) {
+    if ($allowedHost.Length -gt 253 -or
+        $allowedHost.Contains('/') -or
+        $allowedHost.Contains(',')) {
+        throw "BUNKFY_ALLOWED_HOSTS contains invalid host '$allowedHost'."
+    }
+}
+$publicHostAllowed = @(
+    $allowedHosts | Where-Object {
+        $_ -ieq $publicUrl.Host -or $_ -ieq $publicUrl.DnsSafeHost
+    }).Count -gt 0
+if (-not $publicHostAllowed) {
+    throw 'BUNKFY_ALLOWED_HOSTS must include the host from BUNKFY_PUBLIC_URL.'
+}
+
 foreach ($provider in @('GOOGLE', 'MICROSOFT')) {
     if ([string]$settings["BUNKFY_${provider}_OIDC_ENABLED"] -ieq 'true' -and
         ([string]::IsNullOrWhiteSpace([string]$settings["BUNKFY_${provider}_OIDC_CLIENT_ID"]) -or
@@ -92,6 +155,13 @@ foreach ($provider in @('GOOGLE', 'MICROSOFT')) {
 }
 
 $arguments = @('compose', '--env-file', $environmentFile, '-f', $composeFile)
+if ($Action -in @('open-operations', 'close-operations')) {
+    $Operations = $true
+}
+if ($Action -eq 'down') {
+    $Operations = $true
+    $Tools = $true
+}
 if ($Operations) {
     $arguments += @('--profile', 'operations')
 }
@@ -102,11 +172,60 @@ if ($Tools) {
 switch ($Action) {
     'config' { $arguments += @('config', '--quiet') }
     'build' { $arguments += @('build') }
-    'up' { $arguments += @('up', '--detach', '--build', '--wait') }
+    'up' {
+        $arguments += @('up', '--detach')
+        if ($NoBuild) {
+            $arguments += @('--no-build')
+        }
+        else {
+            $arguments += @('--build')
+        }
+        $arguments += @('--wait')
+    }
     'down' { $arguments += @('down') }
     'logs' { $arguments += @('logs', '--follow', '--tail', '200') }
     'status' { $arguments += @('ps') }
     'migrate' { $arguments += @('run', '--rm', 'migrations') }
+    'open-operations' {
+        $arguments += @('up', '--detach', '--no-build', '--wait', 'admin-api')
+    }
+    'close-operations' {
+        $arguments += @('rm', '--stop', '--force', 'admin-api')
+    }
 }
 
 Invoke-BunkFyCommand -FilePath 'docker' -Arguments $arguments -WorkingDirectory $root
+
+if ($Action -eq 'close-operations') {
+    $configurationArguments = @(
+        'compose',
+        '--env-file', $environmentFile,
+        '-f', $composeFile,
+        '--profile', 'operations',
+        'config',
+        '--format', 'json')
+
+    Push-Location -LiteralPath $root
+    try {
+        $configurationJson = & docker @configurationArguments
+        if ($LASTEXITCODE -ne 0) {
+            throw 'Unable to resolve the preview management network.'
+        }
+        $configuration = $configurationJson | ConvertFrom-Json
+        $managementNetwork = [string]$configuration.networks.management.name
+        $existingNetworks = @(& docker network ls --format '{{.Name}}')
+        if ($LASTEXITCODE -ne 0) {
+            throw 'Unable to inspect Docker networks.'
+        }
+
+        if ($existingNetworks -contains $managementNetwork) {
+            & docker network rm $managementNetwork | Out-Null
+            if ($LASTEXITCODE -ne 0) {
+                throw "Unable to remove preview management network '$managementNetwork'."
+            }
+        }
+    }
+    finally {
+        Pop-Location
+    }
+}

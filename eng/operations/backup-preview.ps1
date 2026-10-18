@@ -8,6 +8,8 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 . (Join-Path $PSScriptRoot '..\common.ps1')
+. (Join-Path $PSScriptRoot 'local-sensitive-state.common.ps1')
+. (Join-Path $PSScriptRoot 'preview-state.common.ps1')
 
 $root = Get-BunkFyRepositoryRoot
 $composePath = Join-BunkFyPath 'deploy\preview\compose.yaml'
@@ -24,6 +26,10 @@ $OutputPath = [IO.Path]::GetFullPath($OutputPath)
 if (-not (Test-Path -LiteralPath $EnvironmentPath -PathType Leaf)) {
     throw "Preview environment '$EnvironmentPath' does not exist."
 }
+Assert-BunkFyLocalSensitivePath `
+    -Path $EnvironmentPath `
+    -PathType Leaf `
+    -Description 'Preview environment'
 if (Test-Path -LiteralPath $OutputPath) {
     throw "Backup destination '$OutputPath' already exists."
 }
@@ -31,6 +37,41 @@ if (Test-Path -LiteralPath $OutputPath) {
 $compose = @(
     'compose', '--env-file', $EnvironmentPath, '-f', $composePath
 )
+$composeDefinition = Get-BunkFyPreviewComposeDefinition `
+    -Root $root `
+    -ComposePath $composePath `
+    -EnvironmentPath $EnvironmentPath
+$projectName = [string]$composeDefinition.name
+if ([string]::IsNullOrWhiteSpace($projectName)) {
+    throw 'Preview Compose configuration has no resolved project name.'
+}
+$volumeMap = Get-BunkFyPreviewVolumeMap -ComposeDefinition $composeDefinition
+$stateArchives = Get-BunkFyPreviewStateArchives `
+    -Version $script:BunkFyPreviewStateContractVersion
+$backendImageReference = [string]$composeDefinition.services.api.image
+$webImageReference = [string]$composeDefinition.services.web.image
+foreach ($service in @('tenant-termination-replay-init', 'migrations', 'worker')) {
+    if ([string]$composeDefinition.services.PSObject.Properties[$service].Value.image -cne
+        $backendImageReference) {
+        throw "Preview service '$service' does not use the API backend image."
+    }
+}
+$imageRecords = @(
+    [ordered]@{
+        kind = 'backend'
+        reference = $backendImageReference
+        imageId = Get-BunkFyDockerImageId -Reference $backendImageReference
+    }
+    [ordered]@{
+        kind = 'web'
+        reference = $webImageReference
+        imageId = Get-BunkFyDockerImageId -Reference $webImageReference
+    }
+)
+
+Assert-BunkFyGitWorktreeClean -RepositoryPath $root
+Assert-BunkFyGitWorktreeClean -RepositoryPath (Join-BunkFyPath 'apps\backend')
+Assert-BunkFyGitWorktreeClean -RepositoryPath (Join-BunkFyPath 'apps\web')
 
 function Invoke-PreviewCompose {
     param([Parameter(Mandatory = $true)][string[]] $Arguments)
@@ -43,13 +84,56 @@ function Backup-BunkFyVolume {
         [Parameter(Mandatory = $true)][string] $Archive
     )
 
-    Invoke-BunkFyCommand -FilePath 'docker' -Arguments @(
-        'run', '--rm',
-        '--mount', "type=volume,src=$Volume,dst=/source,readonly",
-        '--mount', "type=bind,src=$OutputPath,dst=/backup",
-        'alpine:3.21',
-        'tar', '-czf', "/backup/$Archive", '-C', '/source', '.'
-    ) -WorkingDirectory $root
+    $containerName = "bunkfy-preview-backup-$([Guid]::NewGuid().ToString('N'))"
+    $archivePath = Join-Path $OutputPath $Archive
+    $containerCreated = $false
+    $archiveError = $null
+    $cleanupFailed = $false
+    try {
+        Invoke-BunkFyCommand -FilePath 'docker' -Arguments @(
+            'create', '--name', $containerName,
+            '--mount', "type=volume,src=$Volume,dst=/source,readonly",
+            $script:BunkFyPreviewArchiveUtilityImage,
+            'tar', '-czf', '/tmp/bunkfy-volume.tar.gz', '-C', '/source', '.'
+        ) -WorkingDirectory $root
+        $containerCreated = $true
+        Invoke-BunkFyCommand -FilePath 'docker' -Arguments @(
+            'start', '--attach', $containerName
+        ) -WorkingDirectory $root
+        Invoke-BunkFyCommand -FilePath 'docker' -Arguments @(
+            'cp', "${containerName}:/tmp/bunkfy-volume.tar.gz", $archivePath
+        ) -WorkingDirectory $root
+    }
+    catch {
+        $archiveError = $_
+    }
+    finally {
+        if ($containerCreated) {
+            & docker rm --force $containerName 1>$null 2>$null
+            $cleanupFailed = $LASTEXITCODE -ne 0
+        }
+    }
+    if ($null -ne $archiveError) {
+        if ($cleanupFailed) {
+            Write-Warning "Temporary backup container '$containerName' also failed cleanup."
+        }
+        throw $archiveError
+    }
+    if ($cleanupFailed) {
+        throw "Temporary backup container '$containerName' failed cleanup."
+    }
+    Protect-BunkFyLocalSensitivePath `
+        -Path $archivePath `
+        -PathType Leaf `
+        -Description 'Preview backup archive'
+
+    & docker run --rm `
+        --mount "type=bind,src=$OutputPath,dst=/backup,readonly" `
+        $script:BunkFyPreviewArchiveUtilityImage `
+        'tar' '-tzf' "/backup/$Archive" 1>$null
+    if ($LASTEXITCODE -ne 0) {
+        throw "Backup archive '$Archive' failed structural validation."
+    }
 }
 
 $runningServices = @(& docker @compose ps --services --filter status=running)
@@ -59,6 +143,48 @@ if ($LASTEXITCODE -ne 0) {
 if ($runningServices -notcontains 'postgres') {
     throw 'The preview PostgreSQL service must be running before backup.'
 }
+$concurrentOperators = @($runningServices | Where-Object {
+        $_ -in @('migrations', 'admin-cli')
+    })
+if ($concurrentOperators.Count -gt 0) {
+    throw "Preview backup cannot run while operator writer services are active: $($concurrentOperators -join ', ')."
+}
+foreach ($service in @('api', 'worker', 'web')) {
+    if ($runningServices -notcontains $service) {
+        continue
+    }
+
+    $containerIds = @(& docker @compose ps --quiet $service)
+    if ($LASTEXITCODE -ne 0 -or $containerIds.Count -ne 1 -or
+        [string]::IsNullOrWhiteSpace([string]$containerIds[0])) {
+        throw "Unable to resolve the running preview '$service' container."
+    }
+    $runningImageIds = @(& docker inspect --format '{{.Image}}' $containerIds[0])
+    if ($LASTEXITCODE -ne 0 -or $runningImageIds.Count -ne 1 -or
+        [string]::IsNullOrWhiteSpace([string]$runningImageIds[0])) {
+        throw "Unable to inspect the running preview '$service' image."
+    }
+    $runningImageId = ([string]$runningImageIds[0]).Trim()
+    $imageKind = if ($service -eq 'web') { 'web' } else { 'backend' }
+    $expectedImageId = [string]($imageRecords |
+        Where-Object { $_.kind -eq $imageKind }).imageId
+    if ($runningImageId -cne $expectedImageId) {
+        throw "Running preview service '$service' does not use the tagged $imageKind image."
+    }
+}
+
+$existingVolumes = @(& docker volume ls --format '{{.Name}}')
+if ($LASTEXITCODE -ne 0) {
+    throw 'Unable to inspect Docker volumes.'
+}
+$existingVolumeSet = [Collections.Generic.HashSet[string]]::new(
+    [string[]]$existingVolumes,
+    [StringComparer]::Ordinal)
+foreach ($entry in $volumeMap.GetEnumerator()) {
+    if (-not $existingVolumeSet.Contains([string]$entry.Value)) {
+        throw "Required preview volume '$($entry.Value)' does not exist."
+    }
+}
 
 if (-not $PSCmdlet.ShouldProcess(
         $OutputPath,
@@ -66,7 +192,9 @@ if (-not $PSCmdlet.ShouldProcess(
     return
 }
 
-New-Item -ItemType Directory -Path $OutputPath -Force | Out-Null
+New-BunkFyLocalSensitiveDirectory `
+    -Path $OutputPath `
+    -Description 'Preview backup directory'
 $appServices = @('web', 'admin-api', 'api', 'worker') |
     Where-Object { $runningServices -contains $_ }
 $stateServices = @('nats', 'redis', 'minio') |
@@ -84,49 +212,116 @@ try {
         'pg_dump', '-U', 'bunkfy', '-d', 'bunkfy',
         '--format=custom', "--file=$temporaryDump"
     )
+    & docker @compose exec -T postgres pg_restore --list $temporaryDump 1>$null
+    if ($LASTEXITCODE -ne 0) {
+        throw 'The preview PostgreSQL dump failed structural validation.'
+    }
     Invoke-PreviewCompose -Arguments @(
         'cp', "postgres:$temporaryDump", (Join-Path $OutputPath 'postgres.dump')
     )
+    Protect-BunkFyLocalSensitivePath `
+        -Path (Join-Path $OutputPath 'postgres.dump') `
+        -PathType Leaf `
+        -Description 'Preview PostgreSQL backup'
     Invoke-PreviewCompose -Arguments @('exec', '-T', 'postgres', 'rm', '-f', $temporaryDump)
 
     if ($stateServices.Count -gt 0) {
         Invoke-PreviewCompose -Arguments (@('stop') + $stateServices)
     }
 
-    $volumes = [ordered]@{
-        'bunkfy-preview-minio-data' = 'minio-data.tar.gz'
-        'bunkfy-preview-nats-data' = 'nats-data.tar.gz'
-        'bunkfy-preview-redis-data' = 'redis-data.tar.gz'
-        'bunkfy-preview-data-protection' = 'data-protection.tar.gz'
-        'bunkfy-preview-adapter-file-drop' = 'adapter-file-drop.tar.gz'
-        'bunkfy-preview-data-rights-ledger-delta' = 'data-rights-ledger-delta.tar.gz'
-    }
-    foreach ($entry in $volumes.GetEnumerator()) {
-        Backup-BunkFyVolume -Volume $entry.Key -Archive $entry.Value
+    foreach ($entry in $stateArchives.GetEnumerator()) {
+        Backup-BunkFyVolume `
+            -Volume ([string]$volumeMap[$entry.Key]) `
+            -Archive ([string]$entry.Value)
     }
 
-    $artifacts = Get-ChildItem -LiteralPath $OutputPath -File | ForEach-Object {
-        [ordered]@{
-            file = $_.Name
-            length = $_.Length
-            sha256 = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+    $artifacts = Get-ChildItem -LiteralPath $OutputPath -File |
+        Sort-Object -Property Name |
+        ForEach-Object {
+            [ordered]@{
+                file = $_.Name
+                length = $_.Length
+                sha256 = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+            }
         }
-    }
+    $createdAtUtc = [DateTimeOffset]::UtcNow
     $manifest = [ordered]@{
-        schemaVersion = 1
-        createdAtUtc = [DateTimeOffset]::UtcNow.ToString('O')
-        repositoryCommit = (& git -C $root rev-parse HEAD).Trim()
-        backendCommit = (& git -C (Join-BunkFyPath 'apps\backend') rev-parse HEAD).Trim()
-        webCommit = (& git -C (Join-BunkFyPath 'apps\web') rev-parse HEAD).Trim()
+        schemaVersion = 5
+        backupId = [Guid]::NewGuid().ToString('D')
+        createdAtUtc = $createdAtUtc.ToString('O')
+        projectName = $projectName
+        stateContract = [ordered]@{
+            name = $script:BunkFyPreviewStateContractName
+            version = $script:BunkFyPreviewStateContractVersion
+        }
+        repositoryCommit = Get-BunkFyGitCommit -RepositoryPath $root
+        backendCommit = Get-BunkFyGitCommit `
+            -RepositoryPath (Join-BunkFyPath 'apps\backend')
+        webCommit = Get-BunkFyGitCommit `
+            -RepositoryPath (Join-BunkFyPath 'apps\web')
+        stateVolumes = @(
+            $stateArchives.GetEnumerator() | ForEach-Object {
+                [ordered]@{
+                    logicalName = $_.Key
+                    dockerName = [string]$volumeMap[$_.Key]
+                    artifact = $_.Value
+                }
+            }
+        )
+        protectedLedgerSnapshot = [ordered]@{
+            logicalName = $script:BunkFyPreviewProtectedLedgerLogicalName
+            artifact = [string]$stateArchives[
+                $script:BunkFyPreviewProtectedLedgerLogicalName]
+            capturedAtUtc = $createdAtUtc.ToString('O')
+            restorePolicy = 'explicit-current-snapshot-required'
+        }
+        images = $imageRecords
         artifacts = @($artifacts)
     }
-    $manifest | ConvertTo-Json -Depth 8 |
-        Set-Content -LiteralPath (Join-Path $OutputPath 'manifest.json') -Encoding utf8
+    $manifestPath = Join-Path $OutputPath 'manifest.json'
+    $temporaryManifestPath = "$manifestPath.$([Guid]::NewGuid().ToString('N')).tmp"
+    try {
+        $manifestJson = $manifest | ConvertTo-Json -Depth 8
+        [IO.File]::WriteAllText(
+            $temporaryManifestPath,
+            ($manifestJson.Replace("`r`n", "`n") + "`n"),
+            [Text.UTF8Encoding]::new($false))
+        Move-Item -LiteralPath $temporaryManifestPath -Destination $manifestPath
+        Protect-BunkFyLocalSensitivePath `
+            -Path $manifestPath `
+            -PathType Leaf `
+            -Description 'Preview backup manifest'
+    }
+    finally {
+        if (Test-Path -LiteralPath $temporaryManifestPath) {
+            Remove-Item -LiteralPath $temporaryManifestPath -Force
+        }
+    }
+    $manifestDigest = (Get-FileHash `
+            -LiteralPath $manifestPath `
+            -Algorithm SHA256).Hash.ToLowerInvariant()
+    $manifestDigestPath = Join-Path `
+        $OutputPath $script:BunkFyPreviewManifestDigestFileName
+    [IO.File]::WriteAllText(
+        $manifestDigestPath,
+        "$manifestDigest`n",
+        [Text.UTF8Encoding]::new($false))
+    Protect-BunkFyLocalSensitivePath `
+        -Path $manifestDigestPath `
+        -PathType Leaf `
+        -Description 'Preview backup manifest digest'
+    Assert-BunkFyLocalSensitiveTree `
+        -Path $OutputPath `
+        -Description 'Preview backup'
     $backupComplete = $true
 }
 finally {
     & docker @compose exec -T postgres rm -f $temporaryDump 2>$null
-    Invoke-PreviewCompose -Arguments @('up', '--detach', '--no-build', '--wait')
+    $defaultServices = @($runningServices | Where-Object { $_ -ne 'admin-api' })
+    if ($defaultServices.Count -gt 0) {
+        Invoke-PreviewCompose -Arguments (
+            @('up', '--detach', '--no-build', '--wait') + $defaultServices)
+    }
     if ($runningServices -contains 'admin-api') {
         Invoke-BunkFyCommand -FilePath 'docker' -Arguments (
             $compose + @(

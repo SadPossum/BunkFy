@@ -5,6 +5,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 . (Join-Path $PSScriptRoot 'common.ps1')
+. (Join-Path $PSScriptRoot 'operations\local-sensitive-state.common.ps1')
 
 $templatePath = Join-BunkFyPath 'deploy\preview\.env.example'
 $environmentPath = Join-BunkFyPath 'deploy\preview\.env'
@@ -58,5 +59,9 @@ foreach ($placeholder in $replacements.Keys) {
     $content = $content.Replace($placeholder, $replacements[$placeholder])
 }
 
-Set-Content -LiteralPath $environmentPath -Value $content -Encoding utf8
+Write-BunkFyLocalSensitiveTextFile `
+    -Path $environmentPath `
+    -Content $content `
+    -Overwrite:$Force `
+    -Description 'Preview environment'
 Write-Host "Generated '$environmentPath'. It is ignored by Git."

@@ -1,4 +1,21 @@
-name: bunkfy-preview
+name: ${BUNKFY_COMPOSE_PROJECT_NAME:-bunkfy-preview}
+
+x-preview-logging: &preview-logging
+  driver: local
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+x-bunkfy-runtime-hardening: &bunkfy-runtime-hardening
+  read_only: true
+  init: true
+  cap_drop:
+    - ALL
+  security_opt:
+    - no-new-privileges:true
+  pids_limit: 512
+  stop_grace_period: 30s
+  logging: *preview-logging
 
 x-database-environment: &database-environment
   Persistence__Provider: PostgreSql
@@ -7,6 +24,8 @@ x-database-environment: &database-environment
 x-runtime-environment: &runtime-environment
   DOTNET_ENVIRONMENT: Preview
   BunkFy__Deployment__Profile: Preview
+  BunkFy__Deployment__ReleaseId: "${BUNKFY_RELEASE_ID:-preview-local}"
+  AllowedHosts: "${BUNKFY_ALLOWED_HOSTS:-localhost;127.0.0.1}"
   <<: *database-environment
   ConnectionStrings__nats: "nats://${BUNKFY_NATS_USER:?set BUNKFY_NATS_USER}:${BUNKFY_NATS_PASSWORD:?set BUNKFY_NATS_PASSWORD}@nats:4222"
   ConnectionStrings__redis: "redis:6379,password=${BUNKFY_REDIS_PASSWORD:?set BUNKFY_REDIS_PASSWORD},abortConnect=false"
@@ -39,11 +58,28 @@ x-runtime-environment: &runtime-environment
   DataRights__LedgerDelta__LocalFilePath: /var/lib/bunkfy/data-rights-ledger-delta
   DataRights__LedgerDelta__ActiveIntegrityKeyVersion: "1"
   DataRights__LedgerDelta__IntegrityKeys__1: "${BUNKFY_DATA_RIGHTS_LEDGER_INTEGRITY_KEY:?set BUNKFY_DATA_RIGHTS_LEDGER_INTEGRITY_KEY}"
+  DataRights__TenantTerminationReplay__Provider: LocalFile
+  DataRights__TenantTerminationReplay__LocalFilePath: /var/lib/bunkfy/tenant-termination-replay
+  BunkFy__CountryPolicies__PackDirectory: /etc/bunkfy/country-policies
+  BunkFy__CountryPolicies__Allowlist__0__OperatingCountryCode: GB
+  BunkFy__CountryPolicies__Allowlist__0__PolicyId: development-hostel-example
+  BunkFy__CountryPolicies__Allowlist__0__PolicyVersion: "2"
+  BunkFy__CountryPolicies__Allowlist__0__ContentSha256: 82661c0757dc035b20a63a8d6d3c55b8ef3987de40d8962b37f6565e10e4ba4d
+  BunkFy__CountryPolicies__Allowlist__0__LaunchStatus: Engineering
+
+x-preview-country-policy-volume: &preview-country-policy-volume
+  type: bind
+  source: ../../apps/backend/eng/country-policies/development
+  target: /etc/bunkfy/country-policies
+  read_only: true
+  bind:
+    create_host_path: false
 
 services:
   postgres:
-    image: postgres:17.5-alpine
+    image: postgres:17.5-alpine@sha256:6567bca8d7bc8c82c5922425a0baee57be8402df92bae5eacad5f01ae9544daa
     restart: unless-stopped
+    logging: *preview-logging
     environment:
       POSTGRES_DB: bunkfy
       POSTGRES_USER: bunkfy
@@ -58,8 +94,9 @@ services:
     networks: [backend]
 
   redis:
-    image: redis:8.0-alpine
+    image: redis:8.0-alpine@sha256:5f61955be8ab2ccee9372b84ae4d4da2e2b156f87281e3f218544055e7ee04d4
     restart: unless-stopped
+    logging: *preview-logging
     command: ["redis-server", "--appendonly", "yes", "--requirepass", "${BUNKFY_REDIS_PASSWORD:?set BUNKFY_REDIS_PASSWORD}"]
     environment:
       REDIS_PASSWORD: "${BUNKFY_REDIS_PASSWORD:?set BUNKFY_REDIS_PASSWORD}"
@@ -73,8 +110,9 @@ services:
     networks: [backend]
 
   nats:
-    image: nats:2.11-alpine
+    image: nats:2.11-alpine@sha256:e4bf19f15fd3218814a4e3c9e0064e1334bd8aa20d5984b9f1a0afd084f8cc00
     restart: unless-stopped
+    logging: *preview-logging
     command:
       - --jetstream
       - --store_dir=/data
@@ -91,8 +129,9 @@ services:
     networks: [backend]
 
   minio:
-    image: minio/minio:RELEASE.2025-04-22T22-12-26Z
+    image: minio/minio:RELEASE.2025-04-22T22-12-26Z@sha256:a1ea29fa28355559ef137d71fc570e508a214ec84ff8083e39bc5428980b015e
     restart: unless-stopped
+    logging: *preview-logging
     command: ["server", "/data", "--console-address", ":9001"]
     environment:
       MINIO_ROOT_USER: "${BUNKFY_MINIO_ROOT_USER:?set BUNKFY_MINIO_ROOT_USER}"
@@ -106,8 +145,46 @@ services:
       retries: 20
     networks: [backend]
 
+  mailpit:
+    image: axllent/mailpit:v1.30.7@sha256:d5ecbb067db3705fa953d79e1b7f81ef84038df67aba6c52825d8c02a1ea748a
+    restart: unless-stopped
+    logging: *preview-logging
+    environment:
+      MP_DATABASE: /data/mailpit.db
+      MP_MAX_MESSAGES: "500"
+      MP_DISABLE_VERSION_CHECK: "true"
+    tmpfs:
+      - /data:size=67108864,mode=0700
+    healthcheck:
+      test: ["CMD", "/mailpit", "readyz"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks: [backend]
+
+  tenant-termination-replay-init:
+    image: ${BUNKFY_BACKEND_IMAGE:-bunkfy/backend:preview}
+    user: "0:0"
+    entrypoint: ["chown"]
+    command: ["app:app", "/var/lib/bunkfy/tenant-termination-replay"]
+    restart: "no"
+    read_only: true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 32
+    stop_grace_period: 5s
+    logging: *preview-logging
+    network_mode: none
+    volumes:
+      - tenant-termination-replay:/var/lib/bunkfy/tenant-termination-replay
+
   migrations:
-    image: bunkfy/backend:preview
+    <<: *bunkfy-runtime-hardening
+    image: ${BUNKFY_BACKEND_IMAGE:-bunkfy/backend:preview}
     build:
       context: ../../apps/backend
       dockerfile: Dockerfile
@@ -116,21 +193,28 @@ services:
     command: ["BunkFy.Host.Migrations.dll"]
     environment:
       <<: *database-environment
-      DOTNET_ENVIRONMENT: Production
+      DOTNET_ENVIRONMENT: Preview
+      BunkFy__Deployment__Profile: Preview
     depends_on:
       postgres:
         condition: service_healthy
     restart: "no"
+    tmpfs:
+      - /tmp:size=67108864,mode=1777
     networks: [backend]
 
   api:
-    image: bunkfy/backend:preview
+    <<: *bunkfy-runtime-hardening
+    image: ${BUNKFY_BACKEND_IMAGE:-bunkfy/backend:preview}
     working_dir: /opt/bunkfy/api
     command: ["BunkFy.Host.Api.dll"]
     restart: unless-stopped
+    tmpfs:
+      - /tmp:size=67108864,mode=1777
     environment:
       <<: *runtime-environment
       ASPNETCORE_URLS: http://+:8080
+      Ingestion__AdapterIngress__Enabled: "true"
       NatsConsumers__Enabled: "false"
       MessageJournalCleanup__Enabled: "false"
       Auth__Retention__Enabled: "false"
@@ -139,7 +223,7 @@ services:
       DataProtection__RequirePersistentKeys: "true"
       DataProtection__KeyRingPath: /var/lib/bunkfy/data-protection
       DataProtection__ApplicationName: bunkfy
-      Http__AllowAnyHost: "true"
+      Http__AllowAnyHost: "false"
       Http__HttpsRedirectionEnabled: "false"
       Http__HstsEnabled: "false"
       Http__Cors__Enabled: "false"
@@ -156,12 +240,24 @@ services:
       Auth__OpenIdConnect__Providers__microsoft__Enabled: "${BUNKFY_MICROSOFT_OIDC_ENABLED:-false}"
       Auth__OpenIdConnect__Providers__microsoft__ClientId: "${BUNKFY_MICROSOFT_OIDC_CLIENT_ID:-}"
       Auth__OpenIdConnect__Providers__microsoft__ClientSecret: "${BUNKFY_MICROSOFT_OIDC_CLIENT_SECRET:-}"
-      Notifications__Adapters__Email__Enabled: "false"
+      Email__Smtp__Enabled: "${BUNKFY_EMAIL_CAPTURE_ENABLED:-false}"
+      Email__Smtp__Host: mailpit
+      Email__Smtp__Port: "1025"
+      Email__Smtp__SecurityMode: None
+      Email__Smtp__DefaultSenderAddress: "${BUNKFY_EMAIL_SENDER_ADDRESS:-preview@bunkfy.invalid}"
+      Email__Smtp__DefaultSenderName: "${BUNKFY_EMAIL_SENDER_NAME:-BunkFy Preview}"
+      Email__Smtp__AllowSenderOverride: "false"
+      Email__Smtp__TimeoutSeconds: "15"
+      Notifications__Adapters__Email__Enabled: "${BUNKFY_EMAIL_CAPTURE_ENABLED:-false}"
     volumes:
       - data-protection:/var/lib/bunkfy/data-protection
       - data-rights-ledger-delta:/var/lib/bunkfy/data-rights-ledger-delta
+      - tenant-termination-replay:/var/lib/bunkfy/tenant-termination-replay
+      - *preview-country-policy-volume
     depends_on:
       migrations:
+        condition: service_completed_successfully
+      tenant-termination-replay-init:
         condition: service_completed_successfully
       redis:
         condition: service_healthy
@@ -169,19 +265,24 @@ services:
         condition: service_healthy
       minio:
         condition: service_healthy
+      mailpit:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/health"]
       interval: 10s
       timeout: 5s
       retries: 20
       start_period: 15s
-    networks: [backend]
+    networks: [backend, edge]
 
   worker:
-    image: bunkfy/backend:preview
+    <<: *bunkfy-runtime-hardening
+    image: ${BUNKFY_BACKEND_IMAGE:-bunkfy/backend:preview}
     working_dir: /opt/bunkfy/worker
     command: ["BunkFy.Host.Worker.dll"]
     restart: unless-stopped
+    tmpfs:
+      - /tmp:size=67108864,mode=1777
     environment:
       <<: *runtime-environment
       Worker__Modules__Auth: "true"
@@ -195,6 +296,7 @@ services:
       Worker__Modules__DataRights: "true"
       Worker__Modules__Staff: "true"
       Worker__Modules__Ingestion: "true"
+      Worker__Modules__Retention: "true"
       Worker__Modules__TaskRuntime: "true"
       NatsConsumers__Enabled: "true"
       Tasks__Worker__Enabled: "true"
@@ -206,7 +308,7 @@ services:
       Auth__Retention__Enabled: "true"
       Auth__Retention__ExpiredExchangeHistoryHours: "24"
       Auth__Retention__SessionHistoryDays: "365"
-      Notifications__Delivery__Enabled: "false"
+      Notifications__Delivery__Enabled: "${BUNKFY_EMAIL_CAPTURE_ENABLED:-false}"
       Notifications__Retention__Enabled: "true"
       Notifications__Retention__ReadHistoryDays: "90"
       Notifications__Retention__UnreadHistoryDays: "365"
@@ -221,11 +323,24 @@ services:
       TaskRuntimeRetention__ExpiredControlRetention: "30.00:00:00"
       Adapters__JsonFileDrop__RootPath: /var/lib/bunkfy/file-drop
       Adapters__JsonFileDrop__RetentionEnabled: "true"
+      Email__Smtp__Enabled: "${BUNKFY_EMAIL_CAPTURE_ENABLED:-false}"
+      Email__Smtp__Host: mailpit
+      Email__Smtp__Port: "1025"
+      Email__Smtp__SecurityMode: None
+      Email__Smtp__DefaultSenderAddress: "${BUNKFY_EMAIL_SENDER_ADDRESS:-preview@bunkfy.invalid}"
+      Email__Smtp__DefaultSenderName: "${BUNKFY_EMAIL_SENDER_NAME:-BunkFy Preview}"
+      Email__Smtp__AllowSenderOverride: "false"
+      Email__Smtp__TimeoutSeconds: "15"
+      Notifications__Adapters__Email__Enabled: "${BUNKFY_EMAIL_CAPTURE_ENABLED:-false}"
     volumes:
       - adapter-file-drop:/var/lib/bunkfy/file-drop
       - data-rights-ledger-delta:/var/lib/bunkfy/data-rights-ledger-delta
+      - tenant-termination-replay:/var/lib/bunkfy/tenant-termination-replay
+      - *preview-country-policy-volume
     depends_on:
       migrations:
+        condition: service_completed_successfully
+      tenant-termination-replay-init:
         condition: service_completed_successfully
       redis:
         condition: service_healthy
@@ -233,17 +348,27 @@ services:
         condition: service_healthy
       minio:
         condition: service_healthy
+      mailpit:
+        condition: service_healthy
     networks: [backend]
 
   web:
+    <<: *bunkfy-runtime-hardening
+    image: ${BUNKFY_WEB_IMAGE:-bunkfy/web:preview}
     build:
       context: ../../apps/web
       dockerfile: Dockerfile
       target: web
       args:
         VITE_BUNKFY_API_BASE_URL: /
-        VITE_BUNKFY_EMAIL_VERIFICATION_ENABLED: "${BUNKFY_EMAIL_VERIFICATION_ENABLED:-false}"
     restart: unless-stopped
+    tmpfs:
+      - /tmp:size=67108864,mode=1777
+      - /run:size=16777216,mode=0755,uid=101,gid=101
+      - /var/cache/nginx:size=67108864,mode=0755,uid=101,gid=101
+      - /etc/nginx/conf.d:size=16777216,mode=0755,uid=101,gid=101
+    environment:
+      BUNKFY_RELEASE_ID: "${BUNKFY_RELEASE_ID:-preview-local}"
     ports:
       - "127.0.0.1:${BUNKFY_PUBLIC_PORT:-8080}:8080"
     depends_on:
@@ -254,14 +379,17 @@ services:
       interval: 10s
       timeout: 5s
       retries: 10
-    networks: [backend, edge]
+    networks: [edge]
 
   admin-api:
-    image: bunkfy/backend:preview
+    <<: *bunkfy-runtime-hardening
+    image: ${BUNKFY_BACKEND_IMAGE:-bunkfy/backend:preview}
     profiles: [operations]
     working_dir: /opt/bunkfy/admin-api
     command: ["BunkFy.Host.AdminApi.dll"]
-    restart: unless-stopped
+    restart: "no"
+    tmpfs:
+      - /tmp:size=67108864,mode=1777
     environment:
       <<: *runtime-environment
       ASPNETCORE_URLS: http://+:8080
@@ -271,16 +399,19 @@ services:
       Notifications__Delivery__Enabled: "false"
       Notifications__Retention__Enabled: "false"
       Administration__Api__AllowGeneratedPasswordResponses: "${BUNKFY_ALLOW_GENERATED_ADMIN_PASSWORDS:-false}"
-      Http__AllowAnyHost: "true"
+      Http__AllowAnyHost: "false"
       Http__HttpsRedirectionEnabled: "false"
       Http__HstsEnabled: "false"
       Http__PrivateNetwork__Enabled: "false"
     volumes:
       - data-rights-ledger-delta:/var/lib/bunkfy/data-rights-ledger-delta
+      - tenant-termination-replay:/var/lib/bunkfy/tenant-termination-replay
     ports:
       - "127.0.0.1:${BUNKFY_ADMIN_PORT:-5195}:8080"
     depends_on:
       migrations:
+        condition: service_completed_successfully
+      tenant-termination-replay-init:
         condition: service_completed_successfully
       redis:
         condition: service_healthy
@@ -294,22 +425,28 @@ services:
       timeout: 5s
       retries: 20
       start_period: 15s
-    networks: [backend, edge]
+    networks: [backend, management]
 
   admin-cli:
-    image: bunkfy/backend:preview
+    <<: *bunkfy-runtime-hardening
+    image: ${BUNKFY_BACKEND_IMAGE:-bunkfy/backend:preview}
     profiles: [tools]
     working_dir: /opt/bunkfy/admin-cli
     entrypoint: ["dotnet", "/opt/bunkfy/admin-cli/BunkFy.Host.AdminCli.dll"]
     command: ["--help"]
+    tmpfs:
+      - /tmp:size=67108864,mode=1777
     environment:
       <<: *runtime-environment
       MessageJournalCleanup__Enabled: "false"
       Logging__LogLevel__Default: Warning
     volumes:
       - data-rights-ledger-delta:/var/lib/bunkfy/data-rights-ledger-delta
+      - tenant-termination-replay:/var/lib/bunkfy/tenant-termination-replay
     depends_on:
       migrations:
+        condition: service_completed_successfully
+      tenant-termination-replay-init:
         condition: service_completed_successfully
       nats:
         condition: service_healthy
@@ -321,19 +458,22 @@ networks:
   backend:
     internal: true
   edge:
+  management:
 
 volumes:
   postgres-data:
-    name: bunkfy-preview-postgres-data
+    name: ${BUNKFY_VOLUME_PREFIX:-bunkfy-preview}-postgres-data
   redis-data:
-    name: bunkfy-preview-redis-data
+    name: ${BUNKFY_VOLUME_PREFIX:-bunkfy-preview}-redis-data
   nats-data:
-    name: bunkfy-preview-nats-data
+    name: ${BUNKFY_VOLUME_PREFIX:-bunkfy-preview}-nats-data
   minio-data:
-    name: bunkfy-preview-minio-data
+    name: ${BUNKFY_VOLUME_PREFIX:-bunkfy-preview}-minio-data
   data-protection:
-    name: bunkfy-preview-data-protection
+    name: ${BUNKFY_VOLUME_PREFIX:-bunkfy-preview}-data-protection
   adapter-file-drop:
-    name: bunkfy-preview-adapter-file-drop
+    name: ${BUNKFY_VOLUME_PREFIX:-bunkfy-preview}-adapter-file-drop
   data-rights-ledger-delta:
-    name: bunkfy-preview-data-rights-ledger-delta
+    name: ${BUNKFY_VOLUME_PREFIX:-bunkfy-preview}-data-rights-ledger-delta
+  tenant-termination-replay:
+    name: ${BUNKFY_VOLUME_PREFIX:-bunkfy-preview}-tenant-termination-replay
