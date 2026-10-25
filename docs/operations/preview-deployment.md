@@ -14,6 +14,24 @@ synthetic engineering data with `example` approval metadata. It exists so
 Preview can exercise the real fail-closed processing workflow; it is not a
 country launch decision, legal review, or production policy approval.
 
+Preview applies a synthetic test policy automatically after a new hostel is
+created, using the normal processing-activation command and audit trail. It
+preserves the chosen canonical time zone, including zones outside London.
+The generated example policies retain the existing guest-data restrictions and
+rights/retention rules; their GB country coordinate identifies the engineering
+fixture and is not an operating-country assessment.
+
+Set `BUNKFY_PREVIEW_AUTO_ACTIVATE_NEW_PROPERTIES=false` to restore manual setup
+for future hostels. Installed test policies remain available to hostels already
+bound to them. Existing configured, suspended or subsequently edited hostels are
+not automatically activated. The startup guards reject either Preview-default
+setting in Development, Staging or Production.
+
+Optional remembered-browser settings are scoped to the API. Set
+`BUNKFY_REMEMBERED_BROWSER_ENABLED=true` together with its existing pepper,
+pepper version and restore epoch to retain browser account switching. Worker and
+migration hosts keep the interactive runtime disabled.
+
 The Preview API explicitly enables adapter ingress so connection-scoped
 AdapterHost rehearsals use the real independently authenticated endpoints.
 Enabling the surface also activates the Redis-backed distributed quota
@@ -82,6 +100,12 @@ contract. A protected environment file may live outside the checkout:
   -EnvironmentPath /protected/bunkfy-preview/.env `
   -NoBuild
 ```
+
+When installing an unchanged copy of Compose in a separate deployment
+directory, set `BUNKFY_BACKEND_SOURCE_ROOT`, `BUNKFY_WEB_SOURCE_ROOT` and
+`BUNKFY_COUNTRY_POLICY_DIRECTORY` to absolute paths in the retained release
+checkout. This keeps build contexts and the read-only policy mount bound to that
+release without a private topology fork.
 
 Pass the same environment path to backup, restore, recovery-rehearsal, and
 isolation commands. Do not maintain a private Compose fork; otherwise a recovery

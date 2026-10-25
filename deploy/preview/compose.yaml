@@ -66,10 +66,12 @@ x-runtime-environment: &runtime-environment
   BunkFy__CountryPolicies__Allowlist__0__PolicyVersion: "2"
   BunkFy__CountryPolicies__Allowlist__0__ContentSha256: 82661c0757dc035b20a63a8d6d3c55b8ef3987de40d8962b37f6565e10e4ba4d
   BunkFy__CountryPolicies__Allowlist__0__LaunchStatus: Engineering
+  BunkFy__CountryPolicies__PreviewDefaults__Enabled: "true"
+  BunkFy__CountryPolicies__PreviewDefaults__AutoActivateNewProperties: "${BUNKFY_PREVIEW_AUTO_ACTIVATE_NEW_PROPERTIES:-true}"
 
 x-preview-country-policy-volume: &preview-country-policy-volume
   type: bind
-  source: ../../apps/backend/eng/country-policies/development
+  source: ${BUNKFY_COUNTRY_POLICY_DIRECTORY:-../../apps/backend/eng/country-policies/development}
   target: /etc/bunkfy/country-policies
   read_only: true
   bind:
@@ -186,7 +188,7 @@ services:
     <<: *bunkfy-runtime-hardening
     image: ${BUNKFY_BACKEND_IMAGE:-bunkfy/backend:preview}
     build:
-      context: ../../apps/backend
+      context: ${BUNKFY_BACKEND_SOURCE_ROOT:-../../apps/backend}
       dockerfile: Dockerfile
       target: backend
     working_dir: /opt/bunkfy/migrations
@@ -232,6 +234,10 @@ services:
       BunkFy__WorkspaceAdmission__AccountRegistration: Public
       BunkFy__WorkspaceAdmission__WorkspaceCreation: SelfService
       BunkFy__WorkspaceAdmission__RequireVerifiedEmailForWorkspaceCreation: "false"
+      Auth__RememberedBrowser__Enabled: "${BUNKFY_REMEMBERED_BROWSER_ENABLED:-false}"
+      Auth__RememberedBrowser__Pepper: "${BUNKFY_REMEMBERED_BROWSER_PEPPER:-}"
+      Auth__RememberedBrowser__PepperVersion: "${BUNKFY_REMEMBERED_BROWSER_PEPPER_VERSION:-}"
+      Auth__RememberedBrowser__RestoreEpoch: "${BUNKFY_REMEMBERED_BROWSER_RESTORE_EPOCH:-0}"
       Auth__OpenIdConnect__AllowedReturnUrls__0: /auth/complete
       Auth__OpenIdConnect__AllowedReturnUrls__1: "${BUNKFY_PUBLIC_URL:-http://localhost:8080}/auth/complete"
       Auth__OpenIdConnect__Providers__google__Enabled: "${BUNKFY_GOOGLE_OIDC_ENABLED:-false}"
@@ -356,7 +362,7 @@ services:
     <<: *bunkfy-runtime-hardening
     image: ${BUNKFY_WEB_IMAGE:-bunkfy/web:preview}
     build:
-      context: ../../apps/web
+      context: ${BUNKFY_WEB_SOURCE_ROOT:-../../apps/web}
       dockerfile: Dockerfile
       target: web
       args:
