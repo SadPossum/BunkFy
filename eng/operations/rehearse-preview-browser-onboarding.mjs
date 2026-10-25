@@ -818,7 +818,7 @@ async function listAll(loadPage, stage, allowRateLimited = false) {
 async function signIn(page, identity) {
   await navigateToPublicPage(page, "/", "sign-in-navigation");
   await page.getByLabel("Email", { exact: true }).fill(identity.email);
-  await page.getByLabel("Password", { exact: true }).fill(identity.password);
+  await page.locator('input[name="password"]').fill(identity.password);
   const response = await waitForBrowserJsonResponse(
     page,
     "/api/auth/browser/login",
@@ -843,12 +843,16 @@ async function openWorkspaceInvites(page, workspaceName, stagePrefix) {
     timeout: configuration.convergenceTimeoutMilliseconds,
   });
   proofStage = `${stagePrefix}-invites-tab`;
-  const invites = page.getByRole("tab", { name: "Invites", exact: true });
-  await invites.click();
+  await selectJoiningSection(page);
   proofStage = `${stagePrefix}-invite-form`;
   await page.getByRole("heading", { name: "Invite one person", exact: true }).waitFor({
     timeout: configuration.convergenceTimeoutMilliseconds,
   });
+}
+
+async function selectJoiningSection(page) {
+  await page.getByRole("complementary", { name: "Workspace settings sections", exact: true })
+    .getByRole("button", { name: /^Joining\b/ }).click();
 }
 
 async function issueInvitationInBrowser(page, recipientEmail, propertyName) {
@@ -869,6 +873,7 @@ async function issueInvitationInBrowser(page, recipientEmail, propertyName) {
 }
 
 async function issueEnrollmentInBrowser(page, propertyName) {
+  await page.getByRole("tab", { name: "Team QR", exact: true }).click();
   const form = page.locator("form").filter({ hasText: "Create a team QR" });
   await chooseFrontDeskRole(page, form);
   await choosePropertyScope(form, propertyName);
@@ -896,6 +901,13 @@ async function choosePropertyScope(form, propertyName) {
     name: new RegExp(`^${escapeRegularExpression(propertyName)}\\b`),
   });
   if (!(await checkbox.isChecked())) await checkbox.check();
+  const target = await checkbox.elementHandle();
+  for (const candidate of await form.getByRole("checkbox").all()) {
+    if (await candidate.evaluate((element, selected) => element !== selected, target) && await candidate.isChecked()) {
+      await candidate.uncheck();
+    }
+  }
+
   const checked = await form.getByRole("checkbox").evaluateAll((items) =>
     items.filter((item) => item.checked).length,
   );
@@ -952,9 +964,10 @@ async function completeInvitationBrowserJourney(page, source, identity, targetWo
   await page.getByRole("heading", { name: "Join your team", exact: true }).waitFor({
     timeout: configuration.requestTimeoutMilliseconds,
   });
+  proofStage = "invitation-registration-fields";
   await page.getByLabel("Email", { exact: true }).fill(identity.email);
-  await page.getByLabel("Password", { exact: true }).fill(identity.password);
-  await page.getByLabel("Confirm password", { exact: true }).fill(identity.password);
+  await page.locator('input[name="password"]').fill(identity.password);
+  await page.locator('input[name="confirmPassword"]').fill(identity.password);
   identity.displayName = "Preview invitation browser applicant";
   await page.getByLabel("Display name", { exact: true }).fill(identity.displayName);
   await page.getByLabel("Work email (optional)", { exact: true }).fill(identity.email);
@@ -977,7 +990,7 @@ async function completeInvitationBrowserJourney(page, source, identity, targetWo
   await page.getByLabel("Department (optional)", { exact: true }).fill("Operations verification");
   await page.getByRole("button", { name: "Join workspace", exact: true }).click();
   proofStage = "invitation-browser-verification-form";
-  await page.getByRole("heading", { name: "Verify your invited email", exact: true }).waitFor({
+  await page.getByRole("heading", { name: "Verify the invited email", exact: true }).waitFor({
     timeout: configuration.convergenceTimeoutMilliseconds,
   });
   await waitForBrowserResponse(
@@ -1060,7 +1073,7 @@ async function replayInvitationInBrowser(page, source, identity, original) {
   await openJoinLink(page, source, "invitation-replay-link-capture");
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await page.getByLabel("Email", { exact: true }).fill(identity.email);
-  await page.getByLabel("Password", { exact: true }).fill(identity.password);
+  await page.locator('input[name="password"]').fill(identity.password);
   const login = await waitForBrowserJsonResponse(
     page,
     "/api/auth/browser/login",
@@ -1207,7 +1220,8 @@ async function waitForJoinRequest(page, applicantDisplayName) {
     waitUntil: "domcontentloaded",
     timeout: configuration.requestTimeoutMilliseconds,
   });
-  await page.getByRole("tab", { name: "Invites", exact: true }).click();
+  await selectJoiningSection(page);
+  await page.getByRole("tab", { name: "Requests", exact: true }).click();
   return pollUntil(
     async () => {
       const row = page.locator("article").filter({ hasText: applicantDisplayName });
@@ -1216,7 +1230,8 @@ async function waitForJoinRequest(page, applicantDisplayName) {
       }
       await page.waitForTimeout(configuration.pollIntervalMilliseconds);
       await page.reload({ waitUntil: "domcontentloaded" });
-      await page.getByRole("tab", { name: "Invites", exact: true }).click();
+      await selectJoiningSection(page);
+      await page.getByRole("tab", { name: "Requests", exact: true }).click();
       return null;
     },
     (candidate) => candidate !== null,
@@ -1301,6 +1316,9 @@ async function openJoinLink(page, source, stage) {
 }
 
 async function waitForDashboard(page, expectedWorkspaceName = null) {
+  // Pending-access polling deliberately pauses in background tabs. Return to
+  // the applicant's browser after the separate owner approval interaction.
+  await page.bringToFront();
   await page.waitForURL(
     (url) => url.origin === configuration.publicOrigin.origin && url.pathname === "/" && !url.hash,
     { timeout: configuration.convergenceTimeoutMilliseconds },

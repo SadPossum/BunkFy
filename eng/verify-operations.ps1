@@ -1549,7 +1549,7 @@ foreach ($requiredToken in @(
 }
 $propertyProcessingActivationCalls = [regex]::Matches(
     $previewOnboardingRehearsal,
-    '(?m)^\s*\[void\]\(Enable-BunkFyPreviewEngineeringPropertyProcessing\s*`?$').Count
+    '(?m)^[\t ]*\[void\]\(Enable-BunkFyPreviewEngineeringPropertyProcessing[\t ]*`?\r?$').Count
 if ($propertyProcessingActivationCalls -ne 1) {
     throw 'Preview onboarding must activate shared room-backed property processing exactly once.'
 }
