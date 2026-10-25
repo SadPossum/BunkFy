@@ -348,6 +348,15 @@ function Get-BunkFySmokeReleaseIdentity {
         'status',
         'timestampUtc')
     $actualNames = @($payload.PSObject.Properties.Name | Sort-Object)
+    $admission = $payload.PSObject.Properties['admissionEvidenceReference']
+    if ($null -ne $admission) {
+        $expectedNames = @('admissionEvidenceReference') + $expectedNames
+        if ($null -ne $admission.Value -and
+            ($admission.Value -isnot [string] -or
+                $admission.Value -cnotmatch '^admission:(?!0{32}$)[a-f0-9]{32}$')) {
+            throw 'The /api/smoke admission evidence reference is invalid.'
+        }
+    }
     if (@(Compare-Object -ReferenceObject $expectedNames -DifferenceObject $actualNames).Count -gt 0) {
         throw 'The /api/smoke response does not have the expected closed shape.'
     }

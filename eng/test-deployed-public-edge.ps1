@@ -3,6 +3,42 @@ $ErrorActionPreference = 'Stop'
 
 . (Join-Path $PSScriptRoot 'operations\deployed-public-edge.common.ps1')
 
+# The current API adds a nullable, non-secret Production admission identity.
+# Accept that exact shape and the legacy rollback shape, never arbitrary fields.
+function New-TestSmokeResponse {
+    param([object] $Payload)
+    $headers = [Collections.Generic.Dictionary[string, string[]]]::new([StringComparer]::OrdinalIgnoreCase)
+    $headers.Add('Content-Type', @('application/json'))
+    return [pscustomobject]@{
+        StatusCode = 200
+        Headers = $headers
+        Body = [Text.Encoding]::UTF8.GetBytes(($Payload | ConvertTo-Json -Compress))
+    }
+}
+foreach ($reference in @($null, 'admission:11111111111111111111111111111111')) {
+    $payload = [ordered]@{
+        application = 'BunkFy'; service = 'BunkFy.Host.Api'; status = 'ok'
+        releaseId = 'release-fixture-001'; timestampUtc = [DateTimeOffset]::UtcNow.ToString('O')
+        admissionEvidenceReference = $reference
+    }
+    if ((Get-BunkFySmokeReleaseIdentity (New-TestSmokeResponse $payload)) -cne 'release-fixture-001') {
+        throw 'Current smoke shape did not retain release validation.'
+    }
+}
+foreach ($reference in @(123, 'unknown', 'admission:00000000000000000000000000000000')) {
+    $payload.admissionEvidenceReference = $reference
+    $rejected = $false
+    try { [void](Get-BunkFySmokeReleaseIdentity (New-TestSmokeResponse $payload)) }
+    catch { $rejected = $_.Exception.Message.Contains('evidence reference is invalid') }
+    if (-not $rejected) { throw 'Invalid admission reference was accepted.' }
+}
+$payload.admissionEvidenceReference = $null
+$payload['unexpected'] = 'untrusted'
+$rejected = $false
+try { [void](Get-BunkFySmokeReleaseIdentity (New-TestSmokeResponse $payload)) }
+catch { $rejected = $_.Exception.Message.Contains('expected closed shape') }
+if (-not $rejected) { throw 'An unknown smoke field was accepted.' }
+
 $probeScript = Join-Path $PSScriptRoot 'operations\verify-deployed-public-edge.ps1'
 $fixtureRoot = Join-Path ([IO.Path]::GetTempPath()) (
     'bunkfy-edge-fixture-' + [Guid]::NewGuid().ToString('N'))
