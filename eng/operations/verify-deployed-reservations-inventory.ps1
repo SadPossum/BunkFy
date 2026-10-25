@@ -254,7 +254,9 @@ function Invoke-SmokeReservationCreate {
         -Operation 'Create Reservation' `
         -ConvergenceTimeoutSeconds $ConvergenceTimeoutSeconds `
         -PollIntervalMilliseconds $PollIntervalMilliseconds `
-        -RetryableProblemCodes @('Reservations.CountryPolicyDenied.MissingBinding')
+        -RetryableProblemCodes @(
+            'Reservations.CountryPolicyDenied.MissingBinding',
+            'Reservations.InventoryUnitNotFound')
 }
 
 function Invoke-SmokeLifecycleMutation {

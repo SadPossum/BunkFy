@@ -154,6 +154,7 @@ function Start-BunkFyReservationsInventoryFixtureServer {
             $script:version = 0L
             $script:detailsRevision = 1L
             $script:pendingCreateOperationId = $null
+            $script:inventoryProjectionReady = $false
             $createCount = 0
             $lifecycleOperations = @{}
             $done = $false
@@ -320,6 +321,15 @@ function Start-BunkFyReservationsInventoryFixtureServer {
                         }
                         if ([Guid]$request.operationId -ne [Guid]$script:pendingCreateOperationId) {
                             throw 'Reservation projection-convergence retry used a different operation id.'
+                        }
+                        if (-not $script:inventoryProjectionReady) {
+                            $script:inventoryProjectionReady = $true
+                            Write-FixtureResponse -Stream $stream -Status 409 -Reason Conflict -Body ([ordered]@{
+                                type = 'about:blank'
+                                title = 'Reservations.InventoryUnitNotFound'
+                                status = 409
+                            })
+                            continue
                         }
 
                         $createCount++

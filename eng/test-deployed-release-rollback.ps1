@@ -92,7 +92,8 @@ function Start-TestRollbackEdge {
         $listener.Start()
         try {
             $port = ([Net.IPEndPoint]$listener.LocalEndpoint).Port
-            [IO.File]::WriteAllText($ReadyPath, [string]$port)
+            [IO.File]::WriteAllText("$ReadyPath.tmp", [string]$port)
+            [IO.File]::Move("$ReadyPath.tmp", $ReadyPath)
             $requestCount = 0
             $deadline = [DateTimeOffset]::UtcNow.AddSeconds(30)
             while ($requestCount -lt 200 -and [DateTimeOffset]::UtcNow -lt $deadline) {
@@ -139,7 +140,25 @@ function Start-TestRollbackEdge {
                         $reader.Dispose()
                     }
 
-                    $releaseId = [IO.File]::ReadAllText($StatePath).Trim()
+                    # Permit the transition job's atomic rename on Windows.
+                    # Read one complete file handle, never a partially written value.
+                    for ($attempt = 0; ; $attempt++) {
+                        try {
+                            $stateStream = [IO.File]::Open($StatePath, [IO.FileMode]::Open,
+                                [IO.FileAccess]::Read, ([IO.FileShare]::ReadWrite -bor [IO.FileShare]::Delete))
+                            try {
+                                $stateReader = [IO.StreamReader]::new($stateStream)
+                                try { $releaseId = $stateReader.ReadToEnd().Trim() }
+                                finally { $stateReader.Dispose() }
+                            }
+                            finally { $stateStream.Dispose() }
+                            break
+                        }
+                        catch [IO.IOException] {
+                            if ($attempt -ge 4) { throw }
+                            Start-Sleep -Milliseconds 20
+                        }
+                    }
                     $status = 404
                     $reason = 'Not Found'
                     $contentType = 'application/json; charset=utf-8'
