@@ -1431,6 +1431,21 @@ try {
             -WorkspaceBinding Required
         $checks.Add([ordered]@{ name = 'qr-enrollment-child-proof-passed'; status = 'passed' })
 
+        # Validate a fresh property's policy before a room fixture advances
+        # its version when multiple rehearsal options run together.
+        if ($IncludeReservationsInventory -or $IncludeAdapterHost) {
+            $proofStage = 'room-backed-domain-processing'
+            [void](Enable-BunkFyPreviewEngineeringPropertyProcessing `
+                    -InvokeApi $invokeSellableRoomFixtureApi `
+                    -PropertyId $allowedPropertyId `
+                    -ConvergenceTimeoutSeconds $ConvergenceTimeoutSeconds `
+                    -PollIntervalMilliseconds $PollIntervalMilliseconds)
+            $checks.Add([ordered]@{
+                    name = 'preview-engineering-country-policy-activated'
+                    status = 'passed'
+                })
+        }
+
         if ($IncludeOperationsNotifications) {
             $operationsProofError = $null
             try {
@@ -1501,19 +1516,6 @@ try {
             if ($null -ne $operationsProofError) {
                 throw $operationsProofError
             }
-        }
-
-        if ($IncludeReservationsInventory -or $IncludeAdapterHost) {
-            $proofStage = 'room-backed-domain-processing'
-            [void](Enable-BunkFyPreviewEngineeringPropertyProcessing `
-                    -InvokeApi $invokeSellableRoomFixtureApi `
-                    -PropertyId $allowedPropertyId `
-                    -ConvergenceTimeoutSeconds $ConvergenceTimeoutSeconds `
-                    -PollIntervalMilliseconds $PollIntervalMilliseconds)
-            $checks.Add([ordered]@{
-                    name = 'preview-engineering-country-policy-activated'
-                    status = 'passed'
-                })
         }
 
         if ($IncludeReservationsInventory) {
