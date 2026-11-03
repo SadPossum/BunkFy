@@ -170,17 +170,17 @@ function Set-BunkFyCandidateEnvironmentSettings {
     foreach ($entry in $Settings.GetEnumerator()) {
         $key = [string]$entry.Key
         $replacement = "$key=$([string]$entry.Value)"
-        $matches = @(
+        $matchingItems = @(
             for ($index = 0; $index -lt $lines.Count; $index++) {
                 if ($lines[$index] -match "^$([Regex]::Escape($key))=") {
                     $index
                 }
             })
-        if ($matches.Count -gt 1) {
+        if ($matchingItems.Count -gt 1) {
             throw "Preview environment contains duplicate setting '$key'."
         }
-        if ($matches.Count -eq 1) {
-            $lines[$matches[0]] = $replacement
+        if ($matchingItems.Count -eq 1) {
+            $lines[$matchingItems[0]] = $replacement
         }
         else {
             $lines += $replacement

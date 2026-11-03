@@ -1727,7 +1727,7 @@ if ($previewOnboardingRehearsal -notmatch
 # Multiline '$' stops before LF but leaves CR unmatched on Windows checkouts.
 $propertyProcessingActivationCalls = [regex]::Matches(
     $previewOnboardingRehearsal,
-    '(?m)^\s*\[void\]\(Enable-BunkFyPreviewEngineeringPropertyProcessing\s*`?\r?$').Count
+    '(?m)^[\t ]*\[void\]\(Enable-BunkFyPreviewEngineeringPropertyProcessing[\t ]*`?\r?$').Count
 if ($propertyProcessingActivationCalls -ne 1) {
     throw 'Preview onboarding must activate shared room-backed property processing exactly once.'
 }

@@ -143,10 +143,10 @@ function Test-SmokePermission {
         [Parameter(Mandatory = $true)][bool] $Allowed
     )
 
-    $matches = @($Evaluation.permissions | Where-Object {
+    $matchingItems = @($Evaluation.permissions | Where-Object {
             $_.permission -ceq $Permission -and $_.scope -ceq $Scope
         })
-    return $matches.Count -eq 1 -and [bool]$matches[0].allowed -eq $Allowed
+    return $matchingItems.Count -eq 1 -and [bool]$matchingItems[0].allowed -eq $Allowed
 }
 
 function Revoke-SmokeInvitationBestEffort {

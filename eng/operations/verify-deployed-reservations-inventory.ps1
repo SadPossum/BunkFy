@@ -131,7 +131,7 @@ function Read-SmokeJson {
 }
 
 function Get-SmokeWorkspaceMembership {
-    $matches = [Collections.Generic.List[object]]::new()
+    $matchingItems = [Collections.Generic.List[object]]::new()
     $page = 1
     do {
         $response = Read-SmokeJson `
@@ -148,7 +148,7 @@ function Get-SmokeWorkspaceMembership {
             -Operation 'List operator workspaces'
         foreach ($item in @($response.items)) {
             if ([Guid]$item.organization.organizationId -eq $WorkspaceId) {
-                [void]$matches.Add($item.membership)
+                [void]$matchingItems.Add($item.membership)
             }
         }
         $page++
@@ -157,13 +157,13 @@ function Get-SmokeWorkspaceMembership {
         }
     } while ([bool]$response.hasMore)
 
-    if ($matches.Count -ne 1 -or
-        [string]$matches[0].status -cne 'active' -or
-        [string]::IsNullOrWhiteSpace([string]$matches[0].subjectId)) {
+    if ($matchingItems.Count -ne 1 -or
+        [string]$matchingItems[0].status -cne 'active' -or
+        [string]::IsNullOrWhiteSpace([string]$matchingItems[0].subjectId)) {
         throw 'The operator must have one active membership in the target workspace.'
     }
 
-    return $matches[0]
+    return $matchingItems[0]
 }
 
 function Get-SmokeAvailabilityUnit {
@@ -180,13 +180,13 @@ function Get-SmokeAvailabilityUnit {
         throw 'Inventory availability returned a different property or stay range.'
     }
 
-    $matches = @($response.units | Where-Object {
+    $matchingItems = @($response.units | Where-Object {
             [Guid]$_.unit.inventoryUnitId -eq $InventoryUnitId
         })
-    if ($matches.Count -ne 1) {
+    if ($matchingItems.Count -ne 1) {
         throw 'The selected Inventory unit was not unique in availability.'
     }
-    return $matches[0]
+    return $matchingItems[0]
 }
 
 function Get-SmokeReservation {
@@ -256,7 +256,9 @@ function Invoke-SmokeReservationCreate {
         -Operation 'Create Reservation' `
         -ConvergenceTimeoutSeconds $ConvergenceTimeoutSeconds `
         -PollIntervalMilliseconds $PollIntervalMilliseconds `
-        -RetryableProblemCodes @('Reservations.CountryPolicyDenied.MissingBinding')
+        -RetryableProblemCodes @(
+            'Reservations.CountryPolicyDenied.MissingBinding',
+            'Reservations.InventoryUnitNotFound')
 }
 
 function Invoke-SmokeLifecycleMutation {

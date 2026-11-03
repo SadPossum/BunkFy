@@ -194,7 +194,7 @@ function Assert-SmokeProblem {
 }
 
 function Get-SmokeWorkspaceMembership {
-    $matches = [Collections.Generic.List[object]]::new()
+    $matchingItems = [Collections.Generic.List[object]]::new()
     $page = 1
     do {
         $response = Read-SmokeJson `
@@ -207,7 +207,7 @@ function Get-SmokeWorkspaceMembership {
             -Operation 'List operator workspaces'
         foreach ($entry in @($response.items)) {
             if ([Guid]$entry.organization.organizationId -eq $WorkspaceId) {
-                [void]$matches.Add($entry.membership)
+                [void]$matchingItems.Add($entry.membership)
             }
         }
         $page++
@@ -216,9 +216,9 @@ function Get-SmokeWorkspaceMembership {
         }
     } while ([bool]$response.hasMore)
 
-    if ($matches.Count -ne 1 -or
-        [string]$matches[0].status -cne 'active' -or
-        [string]::IsNullOrWhiteSpace([string]$matches[0].subjectId)) {
+    if ($matchingItems.Count -ne 1 -or
+        [string]$matchingItems[0].status -cne 'active' -or
+        [string]::IsNullOrWhiteSpace([string]$matchingItems[0].subjectId)) {
         throw 'The operator must have one active membership in the target workspace.'
     }
 }
@@ -246,7 +246,7 @@ function Get-SmokePropertyOptional {
 }
 
 function Get-SmokePropertyDirectoryMatch {
-    $matches = [Collections.Generic.List[object]]::new()
+    $matchingItems = [Collections.Generic.List[object]]::new()
     $page = 1
     do {
         $response = Read-SmokeJson `
@@ -258,7 +258,7 @@ function Get-SmokePropertyDirectoryMatch {
             -Operation 'Read property directory'
         foreach ($entry in @($response.properties)) {
             if ([Guid]$entry.propertyId -eq $propertyId) {
-                [void]$matches.Add($entry)
+                [void]$matchingItems.Add($entry)
             }
         }
         $page++
@@ -267,10 +267,10 @@ function Get-SmokePropertyDirectoryMatch {
         }
     } while ([bool]$response.hasMore)
 
-    if ($matches.Count -ne 1) {
-        throw "The property directory exposed $($matches.Count) synthetic matches; expected one."
+    if ($matchingItems.Count -ne 1) {
+        throw "The property directory exposed $($matchingItems.Count) synthetic matches; expected one."
     }
-    return $matches[0]
+    return $matchingItems[0]
 }
 
 function Get-SmokeRoom {
@@ -305,15 +305,15 @@ function Find-SmokeRoomForCleanup {
                 -Body $null) `
             -ExpectedStatus 200 `
             -Operation 'Discover synthetic room during cleanup'
-        $matches = @($response.rooms | Where-Object {
+        $matchingItems = @($response.rooms | Where-Object {
                 [string]$_.name -ceq $initialRoomName -or
                 [string]$_.name -ceq $updatedRoomName
             })
-        if ($matches.Count -gt 1) {
+        if ($matchingItems.Count -gt 1) {
             throw 'Cleanup discovered duplicate synthetic rooms.'
         }
-        if ($matches.Count -eq 1) {
-            $script:roomId = [Guid]$matches[0].roomId
+        if ($matchingItems.Count -eq 1) {
+            $script:roomId = [Guid]$matchingItems[0].roomId
             return Get-SmokeRoom
         }
         $page++
@@ -325,7 +325,7 @@ function Find-SmokeRoomForCleanup {
 }
 
 function Get-SmokeRoomDirectoryMatch {
-    $matches = [Collections.Generic.List[object]]::new()
+    $matchingItems = [Collections.Generic.List[object]]::new()
     $page = 1
     do {
         $response = Read-SmokeJson `
@@ -337,7 +337,7 @@ function Get-SmokeRoomDirectoryMatch {
             -Operation 'Read room directory'
         foreach ($entry in @($response.rooms)) {
             if ([Guid]$entry.roomId -eq $roomId) {
-                [void]$matches.Add($entry)
+                [void]$matchingItems.Add($entry)
             }
         }
         $page++
@@ -346,10 +346,10 @@ function Get-SmokeRoomDirectoryMatch {
         }
     } while ([bool]$response.hasMore)
 
-    if ($matches.Count -ne 1) {
-        throw "The room directory exposed $($matches.Count) synthetic matches; expected one."
+    if ($matchingItems.Count -ne 1) {
+        throw "The room directory exposed $($matchingItems.Count) synthetic matches; expected one."
     }
-    return $matches[0]
+    return $matchingItems[0]
 }
 
 function Get-SmokeBeds {

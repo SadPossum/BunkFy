@@ -1029,7 +1029,7 @@ function Remove-RehearsalDataRightsMfa {
 function Get-RehearsalWorkspaceSummary {
     param([Parameter(Mandatory = $true)][string] $Token)
 
-    $matches = [Collections.Generic.List[object]]::new()
+    $matchingItems = [Collections.Generic.List[object]]::new()
     $page = 1
     do {
         $response = Read-RehearsalJson `
@@ -1043,7 +1043,7 @@ function Get-RehearsalWorkspaceSummary {
             -Operation 'List owner workspaces'
         foreach ($item in @($response.items)) {
             if ([Guid]$item.organization.organizationId -eq $workspaceId) {
-                $matches.Add($item)
+                $matchingItems.Add($item)
             }
         }
         $page++
@@ -1052,10 +1052,10 @@ function Get-RehearsalWorkspaceSummary {
         }
     } while ([bool]$response.hasMore)
 
-    if ($matches.Count -ne 1) {
+    if ($matchingItems.Count -ne 1) {
         throw 'The synthetic workspace is not uniquely visible to its owner.'
     }
-    return $matches[0]
+    return $matchingItems[0]
 }
 
 function Wait-RehearsalOwnerStaff {
@@ -1277,7 +1277,7 @@ function Get-RehearsalStaffProfiles {
             -ExpectedStatus 200 `
             -Operation 'List synthetic Staff records for cleanup'
         foreach ($item in @($response.items)) {
-            $profile = Read-RehearsalJson `
+            $observedStaffProfile = Read-RehearsalJson `
                 -Response (Invoke-RehearsalApi `
                     -Path "/api/staff/members/$([Guid]$item.staffMemberId)/profile" `
                     -Method GET `
@@ -1286,10 +1286,10 @@ function Get-RehearsalStaffProfiles {
                     -Body $null) `
                 -ExpectedStatus 200 `
                 -Operation 'Read a synthetic Staff profile for cleanup'
-            if ([Guid]$profile.staffMemberId -ne [Guid]$item.staffMemberId) {
+            if ([Guid]$observedStaffProfile.staffMemberId -ne [Guid]$item.staffMemberId) {
                 throw 'Synthetic Staff cleanup returned a mismatched profile.'
             }
-            $profiles.Add($profile)
+            $profiles.Add($observedStaffProfile)
         }
         $page++
         if ($page -gt 100) {
@@ -1696,6 +1696,7 @@ try {
             -Operation $Operation
     }
     try {
+        # Activate the shared profile before any child can advance its version.
         if ($IncludeDataRightsAccessExport -or
             $IncludeReservationsInventory -or
             $IncludeGuestsStayHistory -or

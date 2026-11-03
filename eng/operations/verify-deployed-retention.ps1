@@ -207,24 +207,24 @@ function Get-ExpectedSchedule {
         [Parameter(Mandatory = $true)][object] $Expected
     )
 
-    $matches = @($Snapshot.Items | Where-Object {
+    $matchingItems = @($Snapshot.Items | Where-Object {
             [string]$_.ownerKey -ceq [string]$Expected.OwnerKey -and
             [string]$_.dataClassKey -ceq [string]$Expected.DataClassKey -and
             [int]$_.targetScopeKind -eq [int]$Expected.TargetScopeKind -and
             $null -eq $_.propertyId -and
             [int]$_.executionPolicyVersion -eq [int]$Expected.ExecutionPolicyVersion
         })
-    if ($matches.Count -ne 1) {
+    if ($matchingItems.Count -ne 1) {
         throw "Expected Retention schedule '$($Expected.OwnerKey).$($Expected.DataClassKey).v$($Expected.ExecutionPolicyVersion)' was not unique."
     }
-    return $matches[0]
+    return $matchingItems[0]
 }
 
 function Test-ExpectedCataloguePresent {
     param([Parameter(Mandatory = $true)][object] $Snapshot)
 
     foreach ($expected in $expectedSchedules) {
-        $matches = @($Snapshot.Items | Where-Object {
+        $matchingItems = @($Snapshot.Items | Where-Object {
                 [string]$_.ownerKey -ceq [string]$expected.OwnerKey -and
                 [string]$_.dataClassKey -ceq [string]$expected.DataClassKey -and
                 [int]$_.targetScopeKind -eq [int]$expected.TargetScopeKind -and
@@ -232,10 +232,10 @@ function Test-ExpectedCataloguePresent {
                 [int]$_.executionPolicyVersion -eq
                     [int]$expected.ExecutionPolicyVersion
             })
-        if ($matches.Count -gt 1) {
+        if ($matchingItems.Count -gt 1) {
             throw "Expected Retention schedule '$($expected.OwnerKey).$($expected.DataClassKey).v$($expected.ExecutionPolicyVersion)' was duplicated."
         }
-        if ($matches.Count -eq 0) {
+        if ($matchingItems.Count -eq 0) {
             return $false
         }
     }

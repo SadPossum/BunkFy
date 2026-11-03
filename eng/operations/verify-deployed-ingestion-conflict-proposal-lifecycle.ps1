@@ -284,7 +284,7 @@ function Assert-SmokeProblem {
 }
 
 function Get-SmokeWorkspaceMembership {
-    $matches = [Collections.Generic.List[object]]::new()
+    $matchingItems = [Collections.Generic.List[object]]::new()
     $page = 1
     do {
         $directory = Read-SmokeJson `
@@ -297,7 +297,7 @@ function Get-SmokeWorkspaceMembership {
             -Operation 'List proposal lifecycle operator workspaces'
         foreach ($entry in @($directory.items)) {
             if ([Guid]$entry.organization.organizationId -eq $WorkspaceId) {
-                [void]$matches.Add($entry.membership)
+                [void]$matchingItems.Add($entry.membership)
             }
         }
         $page++
@@ -306,9 +306,9 @@ function Get-SmokeWorkspaceMembership {
         }
     } while ([bool]$directory.hasMore)
 
-    if ($matches.Count -ne 1 -or
-        [string]$matches[0].status -cne 'active' -or
-        [string]::IsNullOrWhiteSpace([string]$matches[0].subjectId)) {
+    if ($matchingItems.Count -ne 1 -or
+        [string]$matchingItems[0].status -cne 'active' -or
+        [string]::IsNullOrWhiteSpace([string]$matchingItems[0].subjectId)) {
         throw 'The operator must have one active membership in the target workspace.'
     }
 }
@@ -606,7 +606,7 @@ function Wait-SmokeReservation {
 }
 
 function Get-SmokeTargetProposals {
-    $matches = [Collections.Generic.List[object]]::new()
+    $matchingItems = [Collections.Generic.List[object]]::new()
     $page = 1
     do {
         $directory = Read-SmokeJson `
@@ -619,7 +619,7 @@ function Get-SmokeTargetProposals {
         foreach ($proposal in @($directory.proposals)) {
             if ($reservationId -ne [Guid]::Empty -and
                 [Guid]$proposal.reservationId -eq $reservationId) {
-                [void]$matches.Add($proposal)
+                [void]$matchingItems.Add($proposal)
             }
         }
         $page++
@@ -627,7 +627,7 @@ function Get-SmokeTargetProposals {
             throw 'The proposal lifecycle directory exceeded 100 pages.'
         }
     } while ([bool]$directory.hasMore)
-    return @($matches)
+    return @($matchingItems)
 }
 
 function Get-SmokeProposal {

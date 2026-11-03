@@ -184,4 +184,45 @@ if (-not $approvedRejected) {
     throw 'Preview property-processing fixture treated an approved policy as engineering evidence.'
 }
 
-Write-Host 'BunkFy Preview property-processing fixture passed.'
+# Verify automatic onboarding without issuing a second activation.
+$script:processingReads = 0
+$script:baselineApi = $invokeApi
+$script:automaticApi = {
+    param($Path, $Method, $Body, $Operation)
+    if ($Method -ceq 'POST') { throw 'Automatic property must not be activated again.' }
+    $value = & $script:baselineApi -Path $Path -Method $Method -Body $Body -Operation $Operation
+    if ($Path.EndsWith('/country-policies', [StringComparison]::Ordinal)) {
+        $value.items[0].policyId = 'preview-ux-hostel-synthetic'
+        $value.items[0].policyVersion = 1
+        $value.items[0].requiredAcknowledgements = @()
+    }
+    elseif ($Path -ceq "/api/properties/$($propertyId.ToString('D'))") {
+        $value.processingStatus = 'enabled'
+        $value.version = 2
+        $value.governancePolicy = [pscustomobject]@{ policyId = 'preview-ux-hostel-synthetic' }
+    }
+    elseif ($null -ne $value.governancePolicy) {
+        $value.governancePolicy.policyId = 'preview-ux-hostel-synthetic'
+        $value.governancePolicy.policyVersion = 1
+        $value.governancePolicy.acknowledgements = @()
+    }
+    return $value
+}
+$automaticFixture = Enable-BunkFyPreviewEngineeringPropertyProcessing `
+    -InvokeApi $automaticApi -PropertyId $propertyId `
+    -ConvergenceTimeoutSeconds 2 -PollIntervalMilliseconds 1
+if ($automaticFixture.PropertyVersion -ne 2 -or $automaticFixture.PolicyVersion -ne 1 -or
+    $script:processingReads -ne 2) {
+    throw 'Automatic policy was not verified through exact readback.'
+}
+$suspendedApi = {
+    param($Path, $Method, $Body, $Operation)
+    $value = & $script:automaticApi -Path $Path -Method $Method -Body $Body -Operation $Operation
+    if ($Path -ceq "/api/properties/$($propertyId.ToString('D'))") { $value.processingStatus = 'suspended' }
+    return $value
+}
+$suspendedRejected = $false
+try { [void](Enable-BunkFyPreviewEngineeringPropertyProcessing -InvokeApi $suspendedApi -PropertyId $propertyId) }
+catch { $suspendedRejected = $_.Exception.Message.Contains('not a fresh active property') }
+if (-not $suspendedRejected) { throw 'Suspended property was accepted as a fresh test default.' }
+Write-Host 'BunkFy Preview property-processing fixture passed, including automatic defaults and suspension.'

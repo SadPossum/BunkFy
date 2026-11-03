@@ -197,7 +197,7 @@ function Test-SmokeTimestampReplayEquivalent {
 }
 
 function Get-SmokeWorkspaceMembership {
-    $matches = [Collections.Generic.List[object]]::new()
+    $matchingItems = [Collections.Generic.List[object]]::new()
     $page = 1
     do {
         $response = Read-SmokeJson `
@@ -210,7 +210,7 @@ function Get-SmokeWorkspaceMembership {
             -Operation 'List operator workspaces'
         foreach ($entry in @($response.items)) {
             if ([Guid]$entry.organization.organizationId -eq $WorkspaceId) {
-                [void]$matches.Add($entry.membership)
+                [void]$matchingItems.Add($entry.membership)
             }
         }
         $page++
@@ -219,9 +219,9 @@ function Get-SmokeWorkspaceMembership {
         }
     } while ([bool]$response.hasMore)
 
-    if ($matches.Count -ne 1 -or
-        [string]$matches[0].status -cne 'active' -or
-        [string]::IsNullOrWhiteSpace([string]$matches[0].subjectId)) {
+    if ($matchingItems.Count -ne 1 -or
+        [string]$matchingItems[0].status -cne 'active' -or
+        [string]::IsNullOrWhiteSpace([string]$matchingItems[0].subjectId)) {
         throw 'The operator must have one active membership in the target workspace.'
     }
 }
@@ -240,13 +240,13 @@ function Get-SmokeAvailabilityUnit {
         throw 'Inventory availability returned a different property or stay range.'
     }
 
-    $matches = @($response.units | Where-Object {
+    $matchingItems = @($response.units | Where-Object {
             [Guid]$_.unit.inventoryUnitId -eq $InventoryUnitId
         })
-    if ($matches.Count -ne 1) {
+    if ($matchingItems.Count -ne 1) {
         throw 'The selected Inventory unit was not unique in availability.'
     }
-    return $matches[0]
+    return $matchingItems[0]
 }
 
 function Get-SmokeGuest {
@@ -485,14 +485,14 @@ function Wait-SmokeGuestStay {
                 -Body $null) `
             -ExpectedStatus 200 `
             -Operation $Operation
-        $matches = @($history.stays | Where-Object {
+        $matchingItems = @($history.stays | Where-Object {
                 [Guid]$_.reservationId -eq $reservationId
             })
-        if ($matches.Count -gt 1) {
+        if ($matchingItems.Count -gt 1) {
             throw "$Operation returned duplicate stay-history entries."
         }
-        if ($matches.Count -eq 1) {
-            $stay = $matches[0]
+        if ($matchingItems.Count -eq 1) {
+            $stay = $matchingItems[0]
             if ([Guid]$stay.propertyId -ne $PropertyId -or
                 [int]$stay.role -ne 1 -or
                 [string]$stay.arrival -cne $arrivalText -or

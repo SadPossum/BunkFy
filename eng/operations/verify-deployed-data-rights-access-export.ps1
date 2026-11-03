@@ -162,7 +162,7 @@ function Test-SmokeTimestampReplayEquivalent {
 }
 
 function Get-SmokeWorkspaceMembership {
-    $matches = [Collections.Generic.List[object]]::new()
+    $matchingItems = [Collections.Generic.List[object]]::new()
     $page = 1
     do {
         $response = Read-SmokeJson `
@@ -176,7 +176,7 @@ function Get-SmokeWorkspaceMembership {
             -Operation 'List assured operator workspaces'
         foreach ($entry in @($response.items)) {
             if ([Guid]$entry.organization.organizationId -eq $WorkspaceId) {
-                [void]$matches.Add($entry.membership)
+                [void]$matchingItems.Add($entry.membership)
             }
         }
         $page++
@@ -185,9 +185,9 @@ function Get-SmokeWorkspaceMembership {
         }
     } while ([bool]$response.hasMore)
 
-    if ($matches.Count -ne 1 -or
-        [string]$matches[0].status -cne 'active' -or
-        [string]::IsNullOrWhiteSpace([string]$matches[0].subjectId)) {
+    if ($matchingItems.Count -ne 1 -or
+        [string]$matchingItems[0].status -cne 'active' -or
+        [string]::IsNullOrWhiteSpace([string]$matchingItems[0].subjectId)) {
         throw 'The assured operator must have one active membership in the target workspace.'
     }
 }

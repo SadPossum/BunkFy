@@ -8,6 +8,7 @@ if ([string]::IsNullOrWhiteSpace($RepositoryRoot)) {
     $RepositoryRoot = Split-Path -Parent $PSScriptRoot
 }
 $root = [System.IO.Path]::GetFullPath($RepositoryRoot)
+. (Join-Path $root 'eng/docker-test-workflow-policy.common.ps1')
 
 function Read-TextFile {
     param(
@@ -420,21 +421,8 @@ foreach ($component in @('apps/backend', 'apps/web')) {
 
 $dockerWorkflow = Read-TextFile `
     -RelativePath 'apps/backend/.github/workflows/docker-tests.yml'
-foreach ($token in @('schedule:', 'workflow_dispatch:')) {
-    if ($dockerWorkflow.IndexOf(
-            $token,
-            [System.StringComparison]::Ordinal) -lt 0) {
-        throw "Docker integration workflow is missing '$token'."
-    }
-}
-foreach ($forbiddenPattern in @(
-        '(?im)^\s*push:\s*$',
-        '(?im)^\s*pull_request:\s*$'
-    )) {
-    if ([regex]::IsMatch($dockerWorkflow, $forbiddenPattern)) {
-        throw 'Docker integration tests must be manual or scheduled, not per change.'
-    }
-}
+Assert-BunkFyDockerTestWorkflow -Content $dockerWorkflow
+& (Join-Path $root 'eng/test-docker-test-workflow-policy.ps1') -RepositoryRoot $root
 
 $task = Read-TextFile `
     -RelativePath 'docs/operations/product-image-evidence.md' `

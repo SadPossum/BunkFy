@@ -17,7 +17,8 @@ function Get-BunkFyPreviewEngineeringCountryPolicy {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory = $true)][scriptblock] $InvokeApi,
-        [Parameter(Mandatory = $true)][Guid] $PropertyId
+        [Parameter(Mandatory = $true)][Guid] $PropertyId,
+        [string] $PolicyId
     )
 
     if ($PropertyId -eq [Guid]::Empty) {
@@ -42,7 +43,9 @@ function Get-BunkFyPreviewEngineeringCountryPolicy {
             @($_.permittedDataRegions).Count -gt 0 -and
             @($_.permittedTransferProfiles).Count -gt 0 -and
             @($_.retentionPolicies).Count -gt 0 -and
-            @($_.requiredAcknowledgements).Count -gt 0 -and
+            (@($_.requiredAcknowledgements).Count -gt 0 -or
+                ($PolicyId -clike 'preview-ux-hostel-*' -and [string]$_.policyId -ceq $PolicyId)) -and
+            ([string]::IsNullOrEmpty($PolicyId) -or [string]$_.policyId -ceq $PolicyId) -and
             [string]$_.contentSha256 -cmatch '^[a-f0-9]{64}$'
         })
     if ($eligible.Count -ne 1) {
@@ -66,23 +69,28 @@ function Enable-BunkFyPreviewEngineeringPropertyProcessing {
         -Method 'GET' `
         -Body $null `
         -Operation 'Read Preview property before processing activation'
+    $automatic = (Test-BunkFyPreviewPropertyProcessingEnumValue `
+        -Value $property.processingStatus -NumericValue 2 -Name 'enabled') -and
+        [long]$property.version -eq 2 -and $null -ne $property.governancePolicy -and
+        [string]$property.governancePolicy.policyId -clike 'preview-ux-hostel-*'
     if ([Guid]$property.propertyId -ne $PropertyId -or
         -not (Test-BunkFyPreviewPropertyProcessingEnumValue `
             -Value $property.status `
             -NumericValue 1 `
             -Name 'active') -or
-        -not (Test-BunkFyPreviewPropertyProcessingEnumValue `
-            -Value $property.processingStatus `
-            -NumericValue 1 `
-            -Name 'unconfigured') -or
-        $null -ne $property.governancePolicy -or
+        (-not $automatic -and
+            (-not (Test-BunkFyPreviewPropertyProcessingEnumValue `
+                -Value $property.processingStatus -NumericValue 1 -Name 'unconfigured') -or
+                $null -ne $property.governancePolicy)) -or
         [long]$property.version -lt 1) {
         throw 'The Preview property is not a fresh active property with unconfigured processing.'
     }
 
+    $selectedPolicyId = if ($automatic) { [string]$property.governancePolicy.policyId } else { '' }
     $policy = Get-BunkFyPreviewEngineeringCountryPolicy `
         -InvokeApi $InvokeApi `
-        -PropertyId $PropertyId
+        -PropertyId $PropertyId `
+        -PolicyId $selectedPolicyId
     $dataRegionId = @($policy.permittedDataRegions | Sort-Object)[0]
     $transferProfileId = @($policy.permittedTransferProfiles | Sort-Object)[0]
     $retentionPolicy = @($policy.retentionPolicies | Sort-Object `
@@ -95,7 +103,7 @@ function Enable-BunkFyPreviewEngineeringPropertyProcessing {
                 }
             })
 
-    $receipt = & $InvokeApi `
+    $receipt = if ($automatic) { $property } else { & $InvokeApi `
         -Path "/api/properties/$($PropertyId.ToString('D'))/processing/activate" `
         -Method 'POST' `
         -Body ([ordered]@{
@@ -112,6 +120,7 @@ function Enable-BunkFyPreviewEngineeringPropertyProcessing {
             expectedVersion = [long]$property.version
         }) `
         -Operation 'Activate Preview engineering property processing'
+    }
     if ([Guid]$receipt.propertyId -ne $PropertyId -or
         -not (Test-BunkFyPreviewPropertyProcessingEnumValue `
             -Value $receipt.status `
@@ -121,7 +130,7 @@ function Enable-BunkFyPreviewEngineeringPropertyProcessing {
             -Value $receipt.processingStatus `
             -NumericValue 2 `
             -Name 'enabled') -or
-        [long]$receipt.version -le [long]$property.version) {
+        (-not $automatic -and [long]$receipt.version -le [long]$property.version)) {
         throw 'Preview property-processing activation returned an invalid receipt.'
     }
 

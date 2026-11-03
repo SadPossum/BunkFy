@@ -411,18 +411,18 @@ function Wait-SmokeTargetRun {
             }
 
             $receipts = @(Get-SmokeRunReceipts -RunId $runId)
-            $matches = @($receipts | Where-Object {
+            $matchingItems = @($receipts | Where-Object {
                     (Get-ExternalIdSha256 -ExternalId ([string]$_.externalId)) -ceq $ExpectedExternalIdSha256 -and
                     ([string]::IsNullOrWhiteSpace($ExpectedSourceRecordType) -or
                         [string]$_.sourceRecordType -ceq $ExpectedSourceRecordType)
                 })
-            if ($matches.Count -gt 1) {
+            if ($matchingItems.Count -gt 1) {
                 throw 'The synthetic source identity resolved to more than one receipt in a run.'
             }
-            if ($matches.Count -eq 1) {
+            if ($matchingItems.Count -eq 1) {
                 return [pscustomobject]@{
                     RunId = $runId
-                    ReceiptId = [Guid]$matches[0].receiptId
+                    ReceiptId = [Guid]$matchingItems[0].receiptId
                 }
             }
             if ($receipts.Count -ge [int]$candidate.acceptedCount) {

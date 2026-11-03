@@ -62,6 +62,7 @@
     <File Path="apps/backend/docs/operations/ingestion-runtime-baseline.md" />
     <File Path="apps/backend/docs/operations/migrations-host-production-safety.md" />
     <File Path="apps/backend/docs/operations/operations-notifications-production-admission.md" />
+    <File Path="apps/backend/docs/operations/stations-production-admission.md" />
     <File Path="apps/backend/docs/operations/tenant-termination-production-admission.md" />
   </Folder>
   <Folder Name="/apps/backend/docs/planning/">
@@ -105,6 +106,7 @@
     <File Path="apps/backend/docs/planning/guest-data-rights-and-lifecycle-workflow-task.md" />
     <File Path="apps/backend/docs/planning/guest-data-rights-anonymisation-and-ledger-task.md" />
     <File Path="apps/backend/docs/planning/guest-data-rights-restriction-task.md" />
+    <File Path="apps/backend/docs/planning/guest-multilanguage-contract-task.md" />
     <File Path="apps/backend/docs/planning/guest-record-retention-task.md" />
     <File Path="apps/backend/docs/planning/guest-records-module-task.md" />
     <File Path="apps/backend/docs/planning/guests-anonymisation-proof-audit-integrity-task.md" />
@@ -151,11 +153,13 @@
     <File Path="apps/backend/docs/planning/inventory-allocation-mutation-serialization-task.md" />
     <File Path="apps/backend/docs/planning/inventory-authoritative-state-integrity-task.md" />
     <File Path="apps/backend/docs/planning/inventory-data-rights-owner-capability-task.md" />
+    <File Path="apps/backend/docs/planning/inventory-manual-block-group-convergence-task.md" />
     <File Path="apps/backend/docs/planning/inventory-manual-block-idempotency-task.md" />
     <File Path="apps/backend/docs/planning/inventory-module-task.md" />
     <File Path="apps/backend/docs/planning/inventory-operational-surface-hardening-task.md" />
     <File Path="apps/backend/docs/planning/inventory-personal-data-catalogue-task.md" />
     <File Path="apps/backend/docs/planning/inventory-retirement-cancellation-recovery-task.md" />
+    <File Path="apps/backend/docs/planning/inventory-retirement-context-read-task.md" />
     <File Path="apps/backend/docs/planning/inventory-retirement-idempotency-task.md" />
     <File Path="apps/backend/docs/planning/inventory-retirement-outcome-convergence-task.md" />
     <File Path="apps/backend/docs/planning/inventory-room-retirement-and-throughput-hardening-task.md" />
@@ -204,6 +208,7 @@
     <File Path="apps/backend/docs/planning/reservation-guest-record-resume-attribution-task.md" />
     <File Path="apps/backend/docs/planning/reservation-record-retention-task.md" />
     <File Path="apps/backend/docs/planning/reservations-aggregate-query-shape-task.md" />
+    <File Path="apps/backend/docs/planning/reservations-allocation-mismatch-recovery-task.md" />
     <File Path="apps/backend/docs/planning/reservations-correction-assurance-task.md" />
     <File Path="apps/backend/docs/planning/reservations-data-rights-workflow-task.md" />
     <File Path="apps/backend/docs/planning/reservations-management-create-idempotency-task.md" />
@@ -281,6 +286,7 @@
     <File Path="apps/backend/docs/planning/workspace-staff-access-lifecycle-task.md" />
     <File Path="apps/backend/docs/planning/workspace-staff-access-mutation-serialization-task.md" />
     <File Path="apps/backend/docs/planning/workspace-staff-onboarding-authorization-task.md" />
+    <File Path="apps/backend/docs/planning/workspace-staff-onboarding-recovery-audit-task.md" />
     <File Path="apps/backend/docs/planning/workspace-staff-onboarding-retention-attempt-fencing-task.md" />
     <File Path="apps/backend/docs/planning/workspace-staff-onboarding-source-mutation-serialization-task.md" />
     <File Path="apps/backend/docs/planning/workspace-staff-onboarding-staging-retention-task.md" />
@@ -298,6 +304,7 @@
   </Folder>
   <Folder Name="/apps/backend/eng/">
     <File Path="apps/backend/eng/add-migration.ps1" />
+    <File Path="apps/backend/eng/build-provider-images.ps1" />
     <File Path="apps/backend/eng/build.ps1" />
     <File Path="apps/backend/eng/check-migrations.ps1" />
     <File Path="apps/backend/eng/check-repository-release.ps1" />
@@ -324,6 +331,9 @@
     <File Path="apps/backend/eng/test-ingestion-runtime.ps1" />
     <File Path="apps/backend/eng/update-solutions.ps1" />
     <File Path="apps/backend/eng/verify.ps1" />
+  </Folder>
+  <Folder Name="/apps/backend/eng/fixtures/minio/">
+    <File Path="apps/backend/eng/fixtures/minio/README.md" />
   </Folder>
   <Folder Name="/apps/backend/gma/extensions/src/">
     <Project Path="apps/backend/gma/extensions/src/Gma.Extensions.Auth.Notifications/Gma.Extensions.Auth.Notifications.csproj" />
@@ -805,6 +815,20 @@
   <Folder Name="/apps/backend/src/Modules/Staff/tests/">
     <Project Path="apps/backend/src/Modules/Staff/tests/BunkFy.Modules.Staff.Tests/BunkFy.Modules.Staff.Tests.csproj" />
   </Folder>
+  <Folder Name="/apps/backend/src/Modules/Stations/">
+    <Project Path="apps/backend/src/Modules/Stations/BunkFy.Modules.Stations.Api/BunkFy.Modules.Stations.Api.csproj" />
+    <Project Path="apps/backend/src/Modules/Stations/BunkFy.Modules.Stations.Application/BunkFy.Modules.Stations.Application.csproj" />
+    <Project Path="apps/backend/src/Modules/Stations/BunkFy.Modules.Stations.Contracts/BunkFy.Modules.Stations.Contracts.csproj" />
+    <Project Path="apps/backend/src/Modules/Stations/BunkFy.Modules.Stations.Domain/BunkFy.Modules.Stations.Domain.csproj" />
+    <Project Path="apps/backend/src/Modules/Stations/BunkFy.Modules.Stations.Persistence.PostgreSqlMigrations/BunkFy.Modules.Stations.Persistence.PostgreSqlMigrations.csproj" />
+    <Project Path="apps/backend/src/Modules/Stations/BunkFy.Modules.Stations.Persistence/BunkFy.Modules.Stations.Persistence.csproj" />
+  </Folder>
+  <Folder Name="/apps/backend/src/Modules/Stations/docs/">
+    <File Path="apps/backend/src/Modules/Stations/docs/README.md" />
+  </Folder>
+  <Folder Name="/apps/backend/src/Modules/Stations/tests/">
+    <Project Path="apps/backend/src/Modules/Stations/tests/BunkFy.Modules.Stations.Tests/BunkFy.Modules.Stations.Tests.csproj" />
+  </Folder>
   <Folder Name="/apps/backend/src/Modules/Workspaces/">
     <Project Path="apps/backend/src/Modules/Workspaces/BunkFy.Modules.Workspaces.Admin.Contracts/BunkFy.Modules.Workspaces.Admin.Contracts.csproj" />
     <Project Path="apps/backend/src/Modules/Workspaces/BunkFy.Modules.Workspaces.AdminApi/BunkFy.Modules.Workspaces.AdminApi.csproj" />
@@ -940,6 +964,7 @@
     <File Path="eng/check-repository-release.ps1" />
     <File Path="eng/check-repository-security.ps1" />
     <File Path="eng/common.ps1" />
+    <File Path="eng/docker-test-workflow-policy.common.ps1" />
     <File Path="eng/export-source-set.ps1" />
     <File Path="eng/guard-submodules-latest.ps1" />
     <File Path="eng/image-candidate.common.ps1" />
@@ -968,6 +993,7 @@
     <File Path="eng/test-deployed-staff-employment.ps1" />
     <File Path="eng/test-deployed-workspace-enrollment.ps1" />
     <File Path="eng/test-deployed-workspace-invitation.ps1" />
+    <File Path="eng/test-docker-test-workflow-policy.ps1" />
     <File Path="eng/test-image-candidate-package.ps1" />
     <File Path="eng/test-preview-adapter-host-rehearsal.ps1" />
     <File Path="eng/test-preview-browser-onboarding-rehearsal.ps1" />

@@ -141,7 +141,7 @@ function Get-SmokeWorkspaceMembership {
         [Parameter(Mandatory = $true)][string] $Label
     )
 
-    $matches = [Collections.Generic.List[object]]::new()
+    $matchingItems = [Collections.Generic.List[object]]::new()
     $page = 1
     do {
         $response = Read-SmokeJson `
@@ -155,7 +155,7 @@ function Get-SmokeWorkspaceMembership {
             -Operation "List $Label workspaces"
         foreach ($item in @($response.items)) {
             if ([Guid]$item.organization.organizationId -eq $WorkspaceId) {
-                $matches.Add($item.membership)
+                $matchingItems.Add($item.membership)
             }
         }
         $page++
@@ -164,13 +164,13 @@ function Get-SmokeWorkspaceMembership {
         }
     } while ([bool]$response.hasMore)
 
-    if ($matches.Count -ne 1 -or
-        [string]$matches[0].status -cne 'active' -or
-        [string]::IsNullOrWhiteSpace([string]$matches[0].subjectId)) {
+    if ($matchingItems.Count -ne 1 -or
+        [string]$matchingItems[0].status -cne 'active' -or
+        [string]::IsNullOrWhiteSpace([string]$matchingItems[0].subjectId)) {
         throw "The $Label must have one active membership in the target workspace."
     }
 
-    return $matches[0]
+    return $matchingItems[0]
 }
 
 function Get-SmokeNotificationPage {
@@ -215,15 +215,15 @@ function Wait-SmokeNotification {
 
     $deadline = [DateTimeOffset]::UtcNow.AddSeconds($ConvergenceTimeoutSeconds)
     do {
-        $matches = @(Get-SmokeNotificationMatches `
+        $matchingItems = @(Get-SmokeNotificationMatches `
                 -Token $observerToken `
                 -ExpectedBlockGroupId $ExpectedBlockGroupId `
                 -ExpectedName $ExpectedName)
-        if ($matches.Count -gt 1) {
+        if ($matchingItems.Count -gt 1) {
             throw "Notification '$ExpectedName' was projected more than once."
         }
-        if ($matches.Count -eq 1) {
-            return $matches[0]
+        if ($matchingItems.Count -eq 1) {
+            return $matchingItems[0]
         }
         Start-Sleep -Milliseconds $PollIntervalMilliseconds
     } while ([DateTimeOffset]::UtcNow -lt $deadline)

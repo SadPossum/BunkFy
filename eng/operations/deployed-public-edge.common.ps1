@@ -342,13 +342,16 @@ function Get-BunkFySmokeDeploymentIdentity {
     }
 
     $expectedNames = @(
-        'admissionEvidenceReference',
         'application',
         'releaseId',
         'service',
         'status',
         'timestampUtc')
     $actualNames = @($payload.PSObject.Properties.Name | Sort-Object)
+    $admission = $payload.PSObject.Properties['admissionEvidenceReference']
+    if ($null -ne $admission) {
+        $expectedNames = @('admissionEvidenceReference') + $expectedNames
+    }
     if (@(Compare-Object -ReferenceObject $expectedNames -DifferenceObject $actualNames).Count -gt 0) {
         throw 'The /api/smoke response does not have the expected closed shape.'
     }
@@ -361,7 +364,7 @@ function Get-BunkFySmokeDeploymentIdentity {
         $payload.releaseId -cnotmatch '^[a-z0-9][a-z0-9._-]{2,127}$') {
         throw 'The /api/smoke response contains an invalid release id.'
     }
-    $admissionReference = $payload.admissionEvidenceReference
+    $admissionReference = if ($null -eq $admission) { $null } else { $admission.Value }
     if ($null -ne $admissionReference -and
         ($admissionReference -isnot [string] -or
          $admissionReference -cnotmatch '^admission:[0-9a-f]{32}$' -or

@@ -178,7 +178,7 @@ function Test-SmokeTimestampReplayEquivalent {
 }
 
 function Get-SmokeWorkspaceMembership {
-    $matches = [Collections.Generic.List[object]]::new()
+    $matchingItems = [Collections.Generic.List[object]]::new()
     $page = 1
     do {
         $response = Read-SmokeJson `
@@ -191,7 +191,7 @@ function Get-SmokeWorkspaceMembership {
             -Operation 'List operator workspaces'
         foreach ($entry in @($response.items)) {
             if ([Guid]$entry.organization.organizationId -eq $WorkspaceId) {
-                [void]$matches.Add($entry.membership)
+                [void]$matchingItems.Add($entry.membership)
             }
         }
         $page++
@@ -200,9 +200,9 @@ function Get-SmokeWorkspaceMembership {
         }
     } while ([bool]$response.hasMore)
 
-    if ($matches.Count -ne 1 -or
-        [string]$matches[0].status -cne 'active' -or
-        [string]::IsNullOrWhiteSpace([string]$matches[0].subjectId)) {
+    if ($matchingItems.Count -ne 1 -or
+        [string]$matchingItems[0].status -cne 'active' -or
+        [string]::IsNullOrWhiteSpace([string]$matchingItems[0].subjectId)) {
         throw 'The operator must have one active membership in the target workspace.'
     }
 }
@@ -409,27 +409,27 @@ function Complete-SmokeStaffCleanup {
         Clear-SmokeResponseBody -Response $response
         return
     }
-    $profile = Read-SmokeJson `
+    $observedStaffProfile = Read-SmokeJson `
         -Response $response `
         -ExpectedStatus 200 `
         -Operation 'Read Staff profile during cleanup'
-    if ([int]$profile.status -eq 3) {
+    if ([int]$observedStaffProfile.status -eq 3) {
         $staffDeparted = $true
-        $finalVersion = [long]$profile.version
-        $currentAssignmentsClosed = @($profile.assignments | Where-Object {
+        $finalVersion = [long]$observedStaffProfile.version
+        $currentAssignmentsClosed = @($observedStaffProfile.assignments | Where-Object {
                 [bool]$_.isCurrent
             }).Count -eq 0
         return
     }
-    if ([int]$profile.status -notin @(1, 2)) {
-        throw "Staff proof cleanup found unsupported status '$([int]$profile.status)'."
+    if ([int]$observedStaffProfile.status -notin @(1, 2)) {
+        throw "Staff proof cleanup found unsupported status '$([int]$observedStaffProfile.status)'."
     }
 
     $departed = Read-SmokeJson `
         -Response (Invoke-SmokeStaffLifecycle `
             -Action depart `
             -OperationId ([Guid]::NewGuid()) `
-            -ExpectedVersion ([long]$profile.version)) `
+            -ExpectedVersion ([long]$observedStaffProfile.version)) `
         -ExpectedStatus 200 `
         -Operation 'Depart synthetic Staff during cleanup'
     if ([int]$departed.status -ne 3) {
@@ -522,7 +522,7 @@ try {
         $checks.Add([ordered]@{ name = 'staff-create-conflict-rejected'; status = 'passed' })
 
         $directoryMember = Get-SmokeStaffDirectoryMember
-        $profile = Get-SmokeStaffProfile
+        $observedStaffProfile = Get-SmokeStaffProfile
         $activeDirectory = Get-SmokeStaffDirectory -Status 1 -Search $initialLabel
         $activeMatches = @($activeDirectory.items | Where-Object {
                 [Guid]$_.staffMemberId -eq $staffMemberId
@@ -531,17 +531,17 @@ try {
             [string]$directoryMember.displayName -cne $initialLabel -or
             [long]$directoryMember.version -ne 1 -or
             @($directoryMember.assignments).Count -ne 0 -or
-            [Guid]$profile.staffMemberId -ne $staffMemberId -or
-            [string]$profile.displayName -cne $initialLabel -or
-            [long]$profile.version -ne 1 -or
-            $null -ne $profile.legalName -or
-            $null -ne $profile.workEmail -or
-            $null -ne $profile.workPhone -or
-            $null -ne $profile.employeeNumber -or
-            $null -ne $profile.jobTitle -or
-            $null -ne $profile.department -or
-            $null -ne $profile.authSubjectId -or
-            @($profile.assignments).Count -ne 0 -or
+            [Guid]$observedStaffProfile.staffMemberId -ne $staffMemberId -or
+            [string]$observedStaffProfile.displayName -cne $initialLabel -or
+            [long]$observedStaffProfile.version -ne 1 -or
+            $null -ne $observedStaffProfile.legalName -or
+            $null -ne $observedStaffProfile.workEmail -or
+            $null -ne $observedStaffProfile.workPhone -or
+            $null -ne $observedStaffProfile.employeeNumber -or
+            $null -ne $observedStaffProfile.jobTitle -or
+            $null -ne $observedStaffProfile.department -or
+            $null -ne $observedStaffProfile.authSubjectId -or
+            @($observedStaffProfile.assignments).Count -ne 0 -or
             $activeMatches.Count -ne 1 -or
             [int]$activeMatches[0].status -ne 1 -or
             [int]$activeMatches[0].currentPropertyCount -ne 0) {

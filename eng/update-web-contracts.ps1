@@ -11,7 +11,7 @@ $openApiPath = Join-Path $webRoot 'openapi\bunkfy-api.json'
 $generatedPath = Join-Path $webRoot 'src\api\contracts.generated.ts'
 $exporter = Join-BunkFyPath 'apps\backend\eng\export-openapi.ps1'
 
-& $exporter -OutputPath $openApiPath -Check:$Check -NoBuild:$NoBuild
+& $exporter -OutputPath $openApiPath -Check:$Check -NoBuild:$NoBuild -IncludeStationContracts -IncludeRememberedBrowserContracts
 if ($LASTEXITCODE -ne 0) {
     throw "OpenAPI export failed with exit code $LASTEXITCODE."
 }

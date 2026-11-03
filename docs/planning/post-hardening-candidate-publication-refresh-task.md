@@ -3,6 +3,13 @@
 Status: repository candidate evidence complete; deployment-owned gates remain
 Date: 2026-08-22
 
+Continuation, 2026-11-03: this task retains the earlier candidate's evidence.
+The subsequent source reconciliation pins accepted backend
+`04ddcdd9f09bf2dd4a4588e78602a5bd7f052a7d` and web
+`0fa0368de8d018f883d26c83e8166f0a6f759a40`. Its image, migration and deployment
+evidence must be regenerated and bound to that new composed root source. The
+records below do not qualify the later composition or grant Production admission.
+
 ## Goal
 
 Publish one exact source and image candidate after the current domain-by-domain

@@ -31,12 +31,12 @@ function Get-BunkFyPreviewSellableRoomFixture {
         if ($null -eq $response) {
             return $null
         }
-        $matches = @($response.rooms | Where-Object { [Guid]$_.roomId -eq $RoomId })
-        if ($matches.Count -gt 1) {
+        $matchingItems = @($response.rooms | Where-Object { [Guid]$_.roomId -eq $RoomId })
+        if ($matchingItems.Count -gt 1) {
             throw 'The preview sellable-room fixture was projected more than once.'
         }
-        if ($matches.Count -eq 1) {
-            return $matches[0]
+        if ($matchingItems.Count -eq 1) {
+            return $matchingItems[0]
         }
         $page++
         if ($page -gt 100) {

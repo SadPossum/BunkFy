@@ -38,8 +38,13 @@ Each AdapterHost deployment remains connection-scoped even though it consumes
 the shared artifact. The web has its own exact digest.
 
 Build caches may reduce repeated work, but a candidate is never rebuilt between
-its scans and evidence creation. Docker integration tests are manual or weekly,
-so development uses focused tests and one end-of-slice Docker gate.
+its scans and evidence creation. Backend Docker integration tests run for every
+pull request and also support weekly and manual runs. Their bounded provider
+matrix and exact predecessor comparison must both pass the final result gate.
+The root policy checks that committed workflow contract and rejects filtered PR
+triggers, optional provider failures, incorrect source fingerprints, and ignored
+comparison results. Its fixtures cover the actual workflow with LF and CRLF
+line endings and deliberate gate bypasses.
 
 ## Optional Exact-Byte Bundle
 
