@@ -28,6 +28,8 @@ def main():
     destination = Path('artifacts/postgres-context')
     destination.mkdir(parents=True, exist_ok=True)
     owner = 'bunkfy-pg-review-' + uuid.uuid4().hex
+    network = owner + '-network'
+    network_created = False
     password = secrets.token_hex(32)
     containers, volumes, observations = [], [], []
     report = {'schemaVersion': 1, 'sourceCommit': actual, 'owner': owner,
@@ -55,7 +57,7 @@ def main():
 
     def owned(kind, name):
         value = inspect(kind, name)
-        labels = value.get('Labels') if kind == 'volume' else value['Config'].get('Labels')
+        labels = value.get('Labels') if kind in ('volume', 'network') else value['Config'].get('Labels')
         if not labels or labels.get(LABEL) != owner:
             raise RuntimeError('Refusing to operate on an unowned Docker resource.')
         return value
@@ -70,7 +72,7 @@ def main():
     def create(suffix, image, data, nonroot):
         name = owner + '-' + suffix
         args = ['docker', 'create', '--name', name, '--label', LABEL + '=' + owner,
-                '--network', 'none', '--memory', '512m', '--memory-swap', '512m', '--cpus', '1',
+                '--network', network, '--memory', '512m', '--memory-swap', '512m', '--cpus', '1',
                 '--pids-limit', '128', '--security-opt', 'no-new-privileges:true',
                 '--mount', 'type=volume,src=' + data + ',dst=/var/lib/postgresql/data',
                 '--env', 'POSTGRES_DB=fixture', '--env', 'POSTGRES_USER=fixture',
@@ -109,10 +111,30 @@ def main():
         sequence = sql(identity, 'SELECT last_value FROM fixture_rows_id_seq').stdout.strip()
         return {'rows': json.loads(rows), 'sequence': int(sequence)}
 
+    def peer_sql(identity, secret, suffix):
+        server = owned('container', identity)['Name'].lstrip('/')
+        # Use a different container, matching the app's remote TCP connection.
+        # PostgreSQL's image-generated loopback HBA rules can intentionally trust
+        # localhost, so docker exec + 127.0.0.1 is not an authentication control.
+        peer = run(['docker', 'create', '--name', owner + '-' + suffix,
+                    '--label', LABEL + '=' + owner, '--network', network,
+                    '--memory', '128m', '--memory-swap', '128m', '--cpus', '1',
+                    '--pids-limit', '32', '--read-only', '--cap-drop', 'ALL',
+                    '--security-opt', 'no-new-privileges:true', '--user', '70:70',
+                    '--env', 'PGPASSWORD=' + secret, '--entrypoint', 'psql', NEW_IMAGE,
+                    '-h', server, '-U', 'fixture', '-d', 'fixture', '-X', '-A', '-t',
+                    '-v', 'ON_ERROR_STOP=1', '-c', 'SELECT 1']).stdout.strip()
+        if re.fullmatch(r'[a-f0-9]{64}', peer) is None:
+            raise RuntimeError('Unexpected peer container identity.')
+        containers.append(peer)
+        owned('container', peer)
+        return run(['docker', 'start', '--attach', peer], check=False)
+
     def context(identity, label):
         value = owned('container', identity)
         if (value['Image'] != NEW_CONFIG or value['Config']['User'] != '70:70' or
-                not value['HostConfig']['ReadonlyRootfs'] or value['HostConfig']['NetworkMode'] != 'none' or
+                not value['HostConfig']['ReadonlyRootfs'] or value['HostConfig']['NetworkMode'] != network or
+                any(value['HostConfig'].get('PortBindings', {}).values()) or
                 value['HostConfig']['CapDrop'] != ['ALL'] or
                 'no-new-privileges:true' not in value['HostConfig']['SecurityOpt'] or
                 sorted(mount['Destination'] for mount in value['Mounts'] if mount['Type'] == 'volume') !=
@@ -154,6 +176,10 @@ def main():
                              'entrypointSha256': hashlib.sha256(entrypoint.encode()).hexdigest()})
 
     try:
+        run(['docker', 'network', 'create', '--internal', '--label', LABEL + '=' + owner, network])
+        network_created = True
+        if not owned('network', network)['Internal']:
+            raise RuntimeError('Disposable network must prohibit external egress.')
         for image in [OLD_IMAGE, NEW_IMAGE]:
             run(['docker', 'pull', '--platform', 'linux/amd64', image], timeout=180)
         if inspect('image', NEW_IMAGE)['Id'] != NEW_CONFIG:
@@ -180,9 +206,13 @@ def main():
         if snapshot(upgraded) != baseline:
             raise RuntimeError('Old data changed during same-major nonroot upgrade.')
         context(upgraded, 'existing-17.5-data-upgrades-under-uid70')
-        if sql(upgraded, 'SELECT 1', secret='wrong-fixture-password', check=False).returncode == 0:
-            raise RuntimeError('Incorrect database password was accepted.')
-        observations.append({'case': 'incorrect-password-denied', 'passed': True})
+        authenticated = peer_sql(upgraded, password, 'authenticated-peer')
+        if authenticated.returncode != 0 or authenticated.stdout.strip() != '1':
+            raise RuntimeError('Correct password did not authenticate over the private network.')
+        denied = peer_sql(upgraded, 'wrong-fixture-password', 'denied-peer')
+        if denied.returncode == 0 or 'password authentication failed' not in denied.stderr.lower():
+            raise RuntimeError('Incorrect peer password was not explicitly rejected by PostgreSQL.')
+        observations.append({'case': 'correct-peer-password-accepted-and-incorrect-denied', 'passed': True})
         run(['docker', 'restart', '--time', '20', upgraded])
         deadline = time.monotonic() + 60
         while sql(upgraded, 'SELECT 1', check=False).returncode:
@@ -225,7 +255,15 @@ def main():
                 run(['docker', 'volume', 'rm', name])
             except Exception as error:
                 cleanup_errors.append(str(error).replace(password, '[REDACTED]'))
+        if network_created:
+            try:
+                if owned('network', network).get('Containers'):
+                    raise RuntimeError('Disposable network still has containers.')
+                run(['docker', 'network', 'rm', network])
+            except Exception as error:
+                cleanup_errors.append(str(error).replace(password, '[REDACTED]'))
         report['cleanup'] = {'containersCreated': len(containers), 'volumesCreated': len(volumes),
+                             'networkCreated': network_created,
                              'allOwnedResourcesRemoved': not cleanup_errors, 'errors': cleanup_errors}
         (destination / 'summary.json').write_text(json.dumps(report, indent=2) + '\n')
         print(json.dumps({key: report.get(key) for key in ['passed', 'observationsPassed', 'cleanup', 'failureType']}))
