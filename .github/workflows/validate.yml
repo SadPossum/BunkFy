@@ -1,66 +1,41 @@
-name: Preview storage candidate qualification
+name: Preview infrastructure advisory inventory
 
 on:
   workflow_dispatch:
+    inputs:
+      expected_head:
+        description: Exact reviewed inventory commit
+        type: string
+        required: true
 
 permissions:
   contents: read
 
 concurrency:
-  group: preview-storage-probe-${{ github.ref }}
+  group: preview-infrastructure-inventory-${{ github.ref }}
   cancel-in-progress: false
 
-env:
-  STORAGE_IMAGE: pgsty/silo:RELEASE.2026-10-26T00-00-00Z@sha256:7bb2aff6b89efe1cb1303c10fc21d579447434ed06649ac9ec05a5e2dbf30ad7
-
 jobs:
-  storage:
+  inventory:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
-      - name: Checkout reviewed probe only
+      - name: Checkout the reviewed inventory code only
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
           submodules: false
-
-      - name: Pull the exact reviewed Linux provider
-        run: docker pull --platform linux/amd64 "$STORAGE_IMAGE"
-
-      - name: Exercise authentic-report security boundaries without containers
-        run: python3 eng/operations/check-preview-storage-security.tests.py
-
-      - name: Install pinned local scanner
+      - name: Install the checksum-verified scanner
         run: python3 eng/operations/install-probe-trivy.py
-
-      - name: Record all raw high and critical security findings
-        id: scan
-        continue-on-error: true
-        run: |
-          mkdir -p artifacts
-          set +e
-          trivy image --scanners vuln,secret --severity HIGH,CRITICAL --exit-code 1 --format json --output artifacts/silo-security.json "$STORAGE_IMAGE"
-          scan_status=$?
-          echo "exit_code=$scan_status" >> "$GITHUB_OUTPUT"
-          exit "$scan_status"
-
-      - name: Retain provider component inventory
-        run: trivy image --format cyclonedx --output artifacts/silo-sbom.cdx.json "$STORAGE_IMAGE"
-
-      - name: Probe signed S3, denial, restart persistence and cleanup
-        run: python3 eng/operations/probe-preview-storage.py
-
-      - name: Require zero unresolved findings with exact source and binary fix evidence
-        if: always()
+      - name: Inspect all current pinned infrastructure images
         env:
-          SCAN_EXIT_CODE: ${{ steps.scan.outputs.exit_code }}
-        run: python3 eng/operations/check-preview-storage-security.py --scanner-exit-code "$SCAN_EXIT_CODE"
-
-      - name: Retain minimized qualification evidence
+          EXPECTED_SOURCE_SHA: ${{ inputs.expected_head }}
+        run: python3 eng/operations/inventory-preview-infrastructure.py
+      - name: Retain current subjects, raw findings and inventory
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: bunkfy-preview-storage-${{ github.run_id }}-${{ github.run_attempt }}
-          path: artifacts/*.json
+          name: bunkfy-infrastructure-inventory-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/infrastructure/*.json
           if-no-files-found: error
           retention-days: 7
