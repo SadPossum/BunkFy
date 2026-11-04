@@ -28,7 +28,20 @@ function Get-CodexSafeRuntimeFailure {
         $frames += [ordered]@{ function = $function; scriptRole = $role; line = $number }
         if ($frames.Count -ge 10) { break }
     }
-    return [ordered]@{ category = $category; type = $Failure.Exception.GetType().FullName; locations = $frames }
+    $result = [ordered]@{ category = $category; type = $Failure.Exception.GetType().FullName; locations = $frames }
+    if ($category -ceq 'docker-oci-image-import') {
+        # Only fixed public Docker import markers, never arbitrary stderr text.
+        if ($message -match '^Loading candidate image .+ failed with exit code (?<code>[0-9]{1,3})[.]') {
+            $result['dockerExitCode'] = [int]$Matches['code']
+        }
+        $result['dockerImportMarkers'] = @(
+            foreach ($marker in @('manifest.json','oci-layout','image index','unsupported','not supported',
+                    'unrecognized','not found','no such file','invalid tar','permission denied',
+                    'no space left','cannot connect','digest mismatch','archive/tar','platform')) {
+                if ($message.Contains($marker,[StringComparison]::OrdinalIgnoreCase)) { $marker }
+            })
+    }
+    return $result
 }
 
 function New-CodexCandidateRuntimeHook {

@@ -116,6 +116,44 @@ jobs:
           submodules: recursive
           persist-credentials: false
 
+      - name: Record the stock Docker store before configuring the disposable runner
+        shell: python
+        run: |
+          import json, pathlib, subprocess
+          def docker(*args):
+              return subprocess.check_output(['docker', *args], text=True, timeout=30).strip()
+          if docker('container', 'ls', '--all', '--quiet'):
+              raise RuntimeError('Disposable runtime runner unexpectedly has existing containers.')
+          value = {'serverVersion': docker('version', '--format', '{{.Server.Version}}'),
+                   'driverStatus': json.loads(docker('info', '--format', '{{json .DriverStatus}}')),
+                   'scope': 'Stock hosted runner; no application containers or production workloads.'}
+          pathlib.Path('evidence/docker-store-before.json').write_text(json.dumps(value, indent=2) + '\n')
+
+      - name: Start an isolated Docker daemon with OCI index support
+        uses: docker/setup-docker-action@7ec28a010822b4626af4874f9448a4b05ac6f3e5 # v5.6.0
+        with:
+          version: v29.9.3
+          set-host: true
+          daemon-config: |
+            {"features":{"containerd-snapshotter":true}}
+
+      - name: Require the pinned OCI-capable Docker store
+        shell: python
+        run: |
+          import json, pathlib, subprocess
+          def docker(*args):
+              return subprocess.check_output(['docker', *args], text=True, timeout=30).strip()
+          version = docker('version', '--format', '{{.Server.Version}}')
+          driver = docker('info', '--format', '{{.Driver}}')
+          status = json.loads(docker('info', '--format', '{{json .DriverStatus}}'))
+          if version != '29.9.3' or ['driver-type', 'io.containerd.snapshotter.v1'] not in status:
+              raise RuntimeError('Exact OCI rehearsal requires Docker29.9.3 and its containerd image store.')
+          value = {'serverVersion': version, 'driver': driver, 'driverStatus': status,
+                   'composeVersion': docker('compose', 'version', '--short'),
+                   'source': 'Pinned official Docker setup action on a disposable hosted runner.',
+                   'scope': 'Pinned current stable security release with OCI index support on a disposable runner; observed live29.7.1 daemon unchanged.'}
+          pathlib.Path('evidence/docker-engine.json').write_text(json.dumps(value, indent=2) + '\n')
+
       - name: Download the exact candidate with digest mismatch treated as an error
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
@@ -190,6 +228,8 @@ jobs:
           path: |
             evidence/artifact-receipt.json
             evidence/dependency-images.json
+            evidence/docker-store-before.json
+            evidence/docker-engine.json
             evidence/runtime.json
             evidence/runtime-error.json
             evidence/full-runtime.json
