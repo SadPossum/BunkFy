@@ -258,33 +258,40 @@ function Invoke-CodexExactCandidateCanaries {
     & (Join-Path $candidate 'eng/preview.ps1') down -EnvironmentPath $EnvironmentPath
     $running = Get-QualificationCompose $EnvironmentPath -Tail @('ps','--status','running','--quiet')
     if ($running -cne '') { throw 'Original candidate remained running during cold recovery.' }
-    $script:stage = 'actual-empty-target-recovery'
-    $recoveryOutput = Join-Path $evidenceDirectory 'recovery-operator.json'
-    & (Join-Path $operations 'rehearse-preview-recovery.ps1') -BackupPath $backup -ExpectedManifestSha256 $digest `
-        -EnvironmentPath $EnvironmentPath -BackendImage $BackendReference -WebImage $WebReference `
-        -OutputPath $recoveryOutput -KeepRestoredTarget -Confirm:$false
-    $recovery = Get-Content $recoveryOutput -Raw | ConvertFrom-Json
-    $shortId = ([Guid]$recovery.rehearsalId).ToString('N').Substring(0,12)
-    if ($recovery.result -cne 'passed' -or $recovery.backup.manifestSha256 -cne $digest -or
-        $recovery.target.projectName -cne "bunkfy-recovery-$shortId" -or -not $recovery.target.keptAfterRehearsal) {
-        throw 'Recovery operator evidence did not bind the isolated target and verified backup.'
+    try {
+        $script:stage = 'actual-empty-target-recovery'
+        $recoveryOutput = Join-Path $evidenceDirectory 'recovery-operator.json'
+        & (Join-Path $operations 'rehearse-preview-recovery.ps1') -BackupPath $backup -ExpectedManifestSha256 $digest `
+            -EnvironmentPath $EnvironmentPath -BackendImage $BackendReference -WebImage $WebReference `
+            -OutputPath $recoveryOutput -KeepRestoredTarget -Confirm:$false
+        $recovery = Get-Content $recoveryOutput -Raw | ConvertFrom-Json
+        $shortId = ([Guid]$recovery.rehearsalId).ToString('N').Substring(0,12)
+        if ($recovery.result -cne 'passed' -or $recovery.backup.manifestSha256 -cne $digest -or
+            $recovery.target.projectName -cne "bunkfy-recovery-$shortId" -or -not $recovery.target.keptAfterRehearsal) {
+            throw 'Recovery operator evidence did not bind the isolated target and verified backup.'
+        }
+        $recoveredEnvironment = Join-Path $privateDirectory 'recovered.env'
+        $settings = [IO.File]::ReadAllText($EnvironmentPath)
+        $overrides = [ordered]@{
+            BUNKFY_COMPOSE_PROJECT_NAME = "bunkfy-recovery-$shortId"; BUNKFY_VOLUME_PREFIX = "bunkfy-recovery-$shortId"
+            BUNKFY_PUBLIC_PORT = ([Uri]$recovery.target.publicOrigin).Port
+            BUNKFY_ADMIN_PORT = ([Uri]$recovery.target.adminOrigin).Port; BUNKFY_RELEASE_ID = "recovery-$shortId"
+        }
+        foreach ($entry in $overrides.GetEnumerator()) {
+            if ([regex]::Matches($settings, '(?m)^' + $entry.Key + '=').Count -ne 1) { throw 'Unexpected generated environment setting shape.' }
+            $settings = [regex]::Replace($settings, '(?m)^' + $entry.Key + '=[^\r\n]*', [string]($entry.Key + '=' + $entry.Value))
+        }
+        Write-BunkFyLocalSensitiveTextFile $recoveredEnvironment $settings -Description 'Private recovered configuration'
+        $script:stage = 'real-cold-restored-broker-cache-and-objects'
+        Invoke-ProtocolCanary restore (Write-ProtocolConfiguration $recoveredEnvironment $recovery.target.projectName 'restored')
+        $script:stage = 'real-cold-restored-ui-mfa-booking-and-tenant'
+        Invoke-Canary restore ([Uri]$recovery.target.publicOrigin) "recovery-$shortId"
     }
-    $recoveredEnvironment = Join-Path $privateDirectory 'recovered.env'
-    $settings = [IO.File]::ReadAllText($EnvironmentPath)
-    $overrides = [ordered]@{
-        BUNKFY_COMPOSE_PROJECT_NAME = "bunkfy-recovery-$shortId"; BUNKFY_VOLUME_PREFIX = "bunkfy-recovery-$shortId"
-        BUNKFY_PUBLIC_PORT = ([Uri]$recovery.target.publicOrigin).Port
-        BUNKFY_ADMIN_PORT = ([Uri]$recovery.target.adminOrigin).Port; BUNKFY_RELEASE_ID = "recovery-$shortId"
+    finally {
+        # Release recovered consumers before the original runtime operator
+        # verifies removal of its imported candidate image tags.
+        Remove-OwnedRecoveryResources
     }
-    foreach ($entry in $overrides.GetEnumerator()) {
-        if ([regex]::Matches($settings, '(?m)^' + $entry.Key + '=').Count -ne 1) { throw 'Unexpected generated environment setting shape.' }
-        $settings = [regex]::Replace($settings, '(?m)^' + $entry.Key + '=[^\r\n]*', [string]($entry.Key + '=' + $entry.Value))
-    }
-    Write-BunkFyLocalSensitiveTextFile $recoveredEnvironment $settings -Description 'Private recovered configuration'
-    $script:stage = 'real-cold-restored-broker-cache-and-objects'
-    Invoke-ProtocolCanary restore (Write-ProtocolConfiguration $recoveredEnvironment $recovery.target.projectName 'restored')
-    $script:stage = 'real-cold-restored-ui-mfa-booking-and-tenant'
-    Invoke-Canary restore ([Uri]$recovery.target.publicOrigin) "recovery-$shortId"
     $script:callbackCompleted = $true
 }
 
