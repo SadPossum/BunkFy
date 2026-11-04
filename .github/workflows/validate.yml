@@ -28,10 +28,7 @@ jobs:
         run: docker pull --platform linux/amd64 "$STORAGE_IMAGE"
 
       - name: Install pinned local scanner
-        uses: aquasecurity/setup-trivy@81e514348e19b6112ce2a7e3ecbafe19c1e1f567 # v0.3.1
-        with:
-          version: v0.76.1
-          cache: 'true'
+        run: python3 eng/operations/install-probe-trivy.py
 
       - name: Require no high or critical security findings
         run: |
