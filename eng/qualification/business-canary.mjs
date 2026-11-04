@@ -5,6 +5,7 @@ import { createHmac, randomUUID } from 'node:crypto';
 import { readFileSync, writeFileSync, statSync, lstatSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { assertExpectedUiStatus, bookingReceiptObservation, safeBusinessFailure } from './business-canary.contracts.mjs';
 
 const root = process.env.CANDIDATE_ROOT;
 const origin = new URL(process.env.CANDIDATE_PROBE_PUBLIC_ORIGIN);
@@ -57,7 +58,14 @@ async function responseFor(path, method, action, expected = [200, 201, 202]) {
   void pending.catch(() => {});
   await action();
   const response = await pending;
-  assert(expected.includes(response.status()), 'Real UI mutation returned an unexpected status.');
+  let problem;
+  if (!expected.includes(response.status())) {
+    try {
+      const body = await response.body();
+      if (body.length <= 16384) problem = JSON.parse(body.toString('utf8'));
+    } catch { /* Unexpected responses still fail; no unreviewed content is retained. */ }
+  }
+  assertExpectedUiStatus(response.status(), expected, problem);
   return { status: response.status(), body: await response.json(), request: response.request().postDataJSON() };
 }
 async function signIn(state, mfa) {
@@ -157,21 +165,29 @@ try {
       return item && (item.salesMode === 2 || same(item.salesMode, 'roomLevel'))
         && item.units.length === 1 && item.units[0].isSellable;
     }, 'actual-room-selling-projection');
+    checked('actual-room-inventory-and-selling-projections');
+    stage = 'actual-booking-workspace';
     await page.goto(new URL('/workspace', origin).href);
     await page.getByRole('heading', { name: state.owner.workspaceName, exact: true }).waitFor({ timeout: 120000 });
     await page.goto(new URL('/reservations', origin).href);
+    stage = 'actual-booking-dialog';
     await page.getByRole('button', { name: 'New reservation', exact: true }).click();
     const dialog = page.getByRole('dialog');
     await dialog.getByRole('button', { name: 'Expand all', exact: true }).click();
+    stage = 'actual-booking-room-choice';
     const choice = dialog.locator('section[aria-label="' + roomName + '"] input[type="checkbox"]');
     await expect(choice).toHaveCount(1); await choice.check();
+    stage = 'actual-booking-guest-entry';
     await dialog.getByLabel('Primary guest', { exact: true }).fill('Synthetic recovery guest');
     await dialog.getByRole('checkbox', { name: /Save as a Guest Record/ }).check();
     await dialog.getByRole('button', { name: 'Continue', exact: true }).click();
     await dialog.getByLabel('Legal name (optional)', { exact: true }).fill('Synthetic recovery guest');
     const path = '/api/reservations/properties/' + state.owner.propertyId;
+    stage = 'actual-booking-create-http-response';
     const created = await responseFor(path, 'POST',
       () => dialog.getByRole('button', { name: 'Create reservation', exact: true }).click());
+    stage = 'actual-booking-receipt-operation-identity';
+    report.bookingReceipt = bookingReceiptObservation(created.request, created.body);
     state.reservationId = created.body.reservationId; state.request = created.request;
     assert(state.reservationId === state.request.operationId);
     const reservation = await until(() => own(path + '/' + state.reservationId),
@@ -233,7 +249,7 @@ try {
   report.result = 'passed';
 } catch (error) {
   // No assertion values, credentials, response bodies, traces or screenshots.
-  report.failure = { stage, type: error?.name ?? 'Error' }; process.exitCode = 1;
+  report.failure = safeBusinessFailure(stage, error); process.exitCode = 1;
 } finally {
   for (const value of [context, setup, mail, browser]) {
     if (!value) continue;
