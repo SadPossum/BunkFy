@@ -147,6 +147,9 @@ Check-Case 'pure-guards-create-no-daemon-resources' {
 $fixture = [pscustomobject]@{
     Mode = 'volume'; Compose = $maintained; Volumes = @{}; Containers = @{}
     ImageIds = @{}; Calls = [Collections.Generic.List[string]]::new()
+    RecoveryProbeCount = 0; RecoveryTemporaryRoot = $null
+    SnapshotPermissionFailures = [Collections.Generic.List[string]]::new()
+    ExistingRecoveryDirectories = @()
 }
 $references = Get-BunkFyPreviewInfrastructureReferences $maintained
 foreach ($entry in $references.GetEnumerator()) { $fixture.ImageIds[$entry.Value] = $ids[$entry.Key] }
@@ -157,6 +160,25 @@ $fixture.ImageIds[[string]$maintained.services.web.image] = $webId
 $dockerShim = {
     $fixture.Calls.Add(($args -join ' '))
     $global:LASTEXITCODE = 0
+    if ($fixture.Mode -ceq 'recovery-failure' -and $args[0] -ceq 'run') {
+        # This shim lives in a closure module when invoked by the full suite.
+        # Import its permission predicates there rather than relying on caller scope.
+        . (Join-Path $root 'eng/operations/local-sensitive-state.common.ps1')
+        $fixture.RecoveryProbeCount++
+        $new = @(Get-ChildItem -LiteralPath ([IO.Path]::GetTempPath()) -Directory -Filter 'bunkfy-recovery-*' |
+                Where-Object { $_.FullName -cnotin $fixture.ExistingRecoveryDirectories })
+        if ($new.Count -ne 1) { throw 'The fixture did not observe one new recovery workspace.' }
+        $fixture.RecoveryTemporaryRoot = $new[0].FullName
+        foreach ($path in @($new[0].FullName, (Join-Path $new[0].FullName 'archive-key-ring'),
+                (Join-Path $new[0].FullName 'restored-key-ring'))) {
+            try { Assert-BunkFyLocalSensitivePath -Path $path -PathType Container -Description 'Recovery key snapshot fixture' }
+            catch { $fixture.SnapshotPermissionFailures.Add($_.Exception.Message) }
+        }
+        # Simulate an unreadable archive before any target resources exist.
+        $global:LASTEXITCODE = 1
+        return
+    }
+    if ($fixture.Mode -ceq 'recovery-failure' -and $args[0] -ceq 'compose' -and $args -contains 'down') { return }
     if ($args[0] -ceq 'volume' -and $args[1] -ceq 'ls') { $fixture.Volumes.Keys; return }
     if ($args[0] -ceq 'volume' -and $args[1] -ceq 'inspect') {
         $fixture.Volumes[[string]$args[-1]] | ConvertTo-Json -Compress; return
@@ -360,6 +382,59 @@ try {
     & $recovery -BackupPath $backupPath -EnvironmentPath $environmentPath `
         -ExpectedManifestSha256 $manifestDigest -WhatIf
     $cases.Add([pscustomobject]@{ name = 'actual-operators-retain-original-schema5-MinIO-on-legacy-servers'; passed = $true; expectedRejection = $false; error = $null })
+
+    $fixture.Mode = 'recovery-failure'
+    $fixture.Compose = $maintained
+    $manifestDigest = Save-OperatorManifest (Copy-Value $operatorManifest)
+    $recoveryVariables = @('BUNKFY_COMPOSE_PROJECT_NAME', 'BUNKFY_VOLUME_PREFIX',
+        'BUNKFY_PUBLIC_PORT', 'BUNKFY_ADMIN_PORT', 'BUNKFY_RELEASE_ID')
+    $savedVariables = @{}
+    foreach ($name in $recoveryVariables) {
+        $savedVariables[$name] = @{ Exists = Test-Path "Env:$name"; Value = [Environment]::GetEnvironmentVariable($name) }
+    }
+    try {
+        foreach ($variant in @('originally-absent', 'originally-present')) {
+            foreach ($name in $recoveryVariables) {
+                if ($variant -ceq 'originally-absent') { Remove-Item "Env:$name" -ErrorAction SilentlyContinue }
+                else { [Environment]::SetEnvironmentVariable($name, 'fixture-original-' + $name) }
+            }
+            $fixture.RecoveryProbeCount = 0
+            $fixture.RecoveryTemporaryRoot = $null
+            $fixture.SnapshotPermissionFailures.Clear()
+            $fixture.ExistingRecoveryDirectories = @(Get-ChildItem -LiteralPath ([IO.Path]::GetTempPath()) `
+                -Directory -Filter 'bunkfy-recovery-*' | ForEach-Object FullName)
+            $caught = $null
+            try {
+                & $recovery -BackupPath $backupPath -EnvironmentPath $environmentPath `
+                    -ExpectedManifestSha256 $manifestDigest -Confirm:$false
+            }
+            catch { $caught = $_ }
+            if ($null -eq $caught -or $caught.Exception.Message -notmatch 'failed structural validation' -or
+                $fixture.RecoveryProbeCount -ne 1) { throw "Recovery fixture failed outside its intended archive boundary: $caught" }
+            $environmentRestored = $true
+            foreach ($name in $recoveryVariables) {
+                if ($variant -ceq 'originally-absent') {
+                    if (Test-Path "Env:$name") { $environmentRestored = $false }
+                }
+                elseif ([Environment]::GetEnvironmentVariable($name) -cne ('fixture-original-' + $name)) {
+                    $environmentRestored = $false
+                }
+            }
+            $cases.Add([pscustomobject]@{ name = "failed-recovery-restores-$variant-environment";
+                passed = $environmentRestored; expectedRejection = $false; error = $null })
+            $cases.Add([pscustomobject]@{ name = "recovery-key-workspaces-private-from-creation-$variant";
+                passed = $fixture.SnapshotPermissionFailures.Count -eq 0; expectedRejection = $false;
+                error = $fixture.SnapshotPermissionFailures -join '; ' })
+            $cases.Add([pscustomobject]@{ name = "failed-recovery-removes-owned-temporary-keys-$variant";
+                passed = -not (Test-Path -LiteralPath $fixture.RecoveryTemporaryRoot); expectedRejection = $false; error = $null })
+        }
+    }
+    finally {
+        foreach ($name in $recoveryVariables) {
+            if ($savedVariables[$name].Exists) { [Environment]::SetEnvironmentVariable($name, [string]$savedVariables[$name].Value) }
+            else { Remove-Item "Env:$name" -ErrorAction SilentlyContinue }
+        }
+    }
 }
 finally {
     if ($originalBackendExists) { [Environment]::SetEnvironmentVariable('BUNKFY_BACKEND_IMAGE', $originalBackend) }

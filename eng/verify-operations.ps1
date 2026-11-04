@@ -1223,6 +1223,8 @@ foreach ($requiredToken in @(
         'verify-deployed-public-edge.ps1',
         'verify-deployed-admin-boundary.ps1',
         'Get-BunkFyStateTreeFingerprint',
+        'New-BunkFyLocalSensitiveDirectory',
+        'Protect-BunkFyLocalSensitiveTree',
         '$archiveUtilityImage',
         "evidenceKind = 'bunkfy-preview-recovery-rehearsal'",
         "'protected-authenticator-decryption-not-exercised'",
@@ -1232,6 +1234,7 @@ foreach ($requiredToken in @(
     }
 }
 foreach ($forbiddenToken in @(
+        'chmod -R a+rX',
         'DangerousAcceptAnyServerCertificateValidator',
         'ServerCertificateCustomValidationCallback',
         '-SkipCertificateCheck',

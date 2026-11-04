@@ -25,6 +25,13 @@ broker or cache images does not migrate an old backup's file formats. Both
 restore commands perform these checks before target creation. `-WhatIf` does
 not create archive-probe containers or a recovery deployment.
 
+Temporary key snapshots use private local directories from creation and private
+file permissions after copying. On Unix the helper restores ownership to the
+current operator without making keys world-readable; Windows uses the protected
+local ACL. The runner removes the key workspace and restores the original
+process environment on failure as well as success. Cleanup failure prevents a
+passing rehearsal result.
+
 ## Prepare A Recovery Canary
 
 Before taking the backup, use a dedicated smoke account to configure and verify
