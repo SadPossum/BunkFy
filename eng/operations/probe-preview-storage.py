@@ -2,6 +2,7 @@
 """Probe one immutable S3 fixture on a disposable runner, without application builds."""
 
 import datetime
+import gzip
 import hashlib
 import hmac
 import json
@@ -9,6 +10,7 @@ import os
 from pathlib import Path
 import re
 import secrets
+import struct
 import subprocess
 import tempfile
 import time
@@ -16,6 +18,8 @@ import urllib.error
 import urllib.parse
 import urllib.request
 import uuid
+import xml.etree.ElementTree as ET
+import zlib
 
 
 IMAGE = 'pgsty/silo:RELEASE.2026-10-26T00-00-00Z@sha256:7bb2aff6b89efe1cb1303c10fc21d579447434ed06649ac9ec05a5e2dbf30ad7'
@@ -40,7 +44,7 @@ def request(endpoint, key, password, method, path, body=b'', headers=None, signe
         signed_headers = 'host;x-amz-content-sha256;x-amz-date'
         canonical_headers = 'host:' + host + '\nx-amz-content-sha256:' + payload + '\nx-amz-date:' + stamp + '\n'
         parsed = urllib.parse.urlsplit(path)
-        query = urllib.parse.urlencode(sorted(urllib.parse.parse_qsl(parsed.query)), quote_via=urllib.parse.quote)
+        query = urllib.parse.urlencode(sorted(urllib.parse.parse_qsl(parsed.query, keep_blank_values=True)), quote_via=urllib.parse.quote)
         canonical = '\n'.join([method, parsed.path, query, canonical_headers, signed_headers, payload])
         scope = date + '/us-east-1/s3/aws4_request'
         signing = ('AWS4' + password).encode()
@@ -58,6 +62,34 @@ def request(endpoint, key, password, method, path, body=b'', headers=None, signe
             return response.status, response.read(1024 * 1024), dict(response.headers)
     except urllib.error.HTTPError as error:
         return error.code, error.read(1024 * 1024), dict(error.headers)
+
+
+def select_result(body):
+    if body.startswith(b'<?xml') or body.startswith(b'<Error>'):
+        return ET.fromstring(body).findtext('Code'), b''
+    records, error, offset = [], None, 0
+    while offset < len(body):
+        total, header_length, checksum = struct.unpack('>III', body[offset:offset + 12])
+        frame = body[offset:offset + total]
+        if (total < 16 or len(frame) != total or header_length > total - 16
+                or zlib.crc32(frame[:8]) != checksum
+                or zlib.crc32(frame[:-4]) != struct.unpack('>I', frame[-4:])[0]):
+            raise RuntimeError('Invalid S3 Select event stream frame.')
+        position, headers = 12, {}
+        while position < 12 + header_length:
+            length = frame[position]; position += 1
+            name = frame[position:position + length].decode(); position += length
+            kind = frame[position]; position += 1
+            if kind != 7:
+                raise RuntimeError('Unexpected S3 Select header type.')
+            length = struct.unpack('>H', frame[position:position + 2])[0]; position += 2
+            headers[name] = frame[position:position + length].decode(); position += length
+        if headers.get(':message-type') == 'error':
+            error = headers.get(':error-code')
+        if headers.get(':event-type') == 'Records':
+            records.append(frame[12 + header_length:-4])
+        offset += total
+    return error, b''.join(records)
 
 
 def main():
@@ -82,6 +114,7 @@ def main():
             docker('volume', 'create', volume)
             docker('run', '--detach', '--name', name, '--network', network,
                    '--cap-drop', 'ALL', '--security-opt', 'no-new-privileges:true',
+                   '--memory', '768m', '--memory-swap', '768m', '--cpus', '1', '--pids-limit', '128',
                    '--env-file', str(environment), '--publish', '127.0.0.1::9000',
                    '--mount', 'type=volume,source=' + volume + ',target=/data',
                    IMAGE, 'server', '/data', '--console-address', ':9001')
@@ -137,7 +170,41 @@ def main():
             body, _ = expect('bounded prefix listing', 'GET', bucket + '?list-type=2&prefix=private-', 200)
             if b'private-probe.bin' not in body:
                 raise RuntimeError('Prefix listing omitted the committed object.')
+
+            # Exercise the actual CVE path in the pinned binary. Payloads stay
+            # below 2 MiB, with a hard container memory/CPU bound and no shared data.
+            for label, serialization, expression, small, large in (
+                ('CSV', '<CSV><FileHeaderInfo>NONE</FileHeaderInfo></CSV>', 'SELECT s._1 FROM S3Object s', b'fixture-sentinel\n', b'a' * ((1 << 20) + 65536)),
+                ('JSON Lines', '<JSON><Type>LINES</Type></JSON>', 'SELECT s.name FROM S3Object s', b'{"name":"fixture-sentinel"}\n', b'{"name":"' + b'a' * ((1 << 20) + 65536) + b'"}'),
+                ('gzip CSV', '<CSV><FileHeaderInfo>NONE</FileHeaderInfo></CSV>', 'SELECT s._1 FROM S3Object s', b'fixture-sentinel\n', b'a' * ((1 << 20) + 65536)),
+            ):
+                compression = 'GZIP' if label == 'gzip CSV' else 'NONE'
+                select_path = bucket + '/record-probe'
+                query = ('<SelectObjectContentRequest xmlns="http://s3.amazonaws.com/doc/2006-03-01/">'
+                         '<Expression>' + expression + '</Expression><ExpressionType>SQL</ExpressionType>'
+                         '<InputSerialization><CompressionType>' + compression + '</CompressionType>' + serialization
+                         + '</InputSerialization><OutputSerialization><CSV/></OutputSerialization></SelectObjectContentRequest>').encode()
+                for oversized, data in ((False, small), (True, large)):
+                    if compression == 'GZIP':
+                        data = gzip.compress(data)
+                    expect(label + ' probe object write', 'PUT', select_path, 200, body=data)
+                    status, response, _ = request(endpoint, key, password, 'POST', select_path + '?select=&select-type=2', body=query)
+                    error, records = select_result(response)
+                    if oversized:
+                        if status not in (200, 400) or error != 'OverMaxRecordSize':
+                            raise RuntimeError(label + ' did not reject the oversized record with its bounded error.')
+                    elif status != 200 or error is not None or records != b'fixture-sentinel\n':
+                        raise RuntimeError(label + ' positive control did not select the expected record.')
+                    receipt['observations'].append({'case': label + (' oversized record rejected' if oversized else ' positive Select control'),
+                                                    'httpStatus': status, 'errorCode': error, 'inputBytes': len(data)})
+                    expect(label + ' service remains ready', 'GET', '/minio/health/ready', 200, signed=False)
+                expect(label + ' probe object deletion', 'DELETE', select_path, 204)
+            receipt['recordLimitScope'] = 'Three positive and three bounded oversized-record binary regressions plus exact-source review; not a memory benchmark, distributed-storage acceptance or scanner clearance.'
             docker('restart', name)
+            binding = docker('port', name, '9000/tcp')
+            if not re.fullmatch(r'127\.0\.0\.1:[0-9]+', binding):
+                raise RuntimeError('Restarted fixture lost its loopback-only binding.')
+            endpoint = 'http://' + binding
             ready()
             body, _ = expect('object survives provider restart', 'GET', object_path, 200)
             if body != payload:

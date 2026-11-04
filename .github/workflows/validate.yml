@@ -31,6 +31,8 @@ jobs:
         run: python3 eng/operations/install-probe-trivy.py
 
       - name: Require no high or critical security findings
+        id: scan
+        continue-on-error: true
         run: |
           mkdir -p artifacts
           trivy image --scanners vuln,secret --severity HIGH,CRITICAL --exit-code 1 --format json --output artifacts/silo-security.json "$STORAGE_IMAGE"
@@ -40,6 +42,12 @@ jobs:
 
       - name: Probe signed S3, denial, restart persistence and cleanup
         run: python3 eng/operations/probe-preview-storage.py
+
+      - name: Preserve the unresolved security gate
+        if: always()
+        env:
+          SCAN_OUTCOME: ${{ steps.scan.outcome }}
+        run: test "$SCAN_OUTCOME" = success
 
       - name: Retain minimized qualification evidence
         if: always()
