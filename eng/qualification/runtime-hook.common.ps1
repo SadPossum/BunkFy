@@ -1,5 +1,36 @@
 Set-StrictMode -Version Latest
 
+function Get-CodexSafeRuntimeFailure {
+    param([Parameter(Mandatory)][Management.Automation.ErrorRecord] $Failure)
+    $message = [string]$Failure.Exception.Message
+    $category = if ($message -match "^Candidate image '.+' does not match its attested manifest[.]$") {
+        'imported-image-identity-mismatch'
+    } elseif ($message -match '^GitHub attestation verification failed for ') {
+        'github-attestation-verification'
+    } elseif ($message -match '^Loading candidate image .+ failed with exit code ') {
+        'docker-oci-image-import'
+    } elseif ($message -match '^Candidate Preview did not resolve the expected ') {
+        'resolved-compose-images'
+    } else { 'unclassified' }
+    $frames = @()
+    foreach ($line in ([string]$Failure.ScriptStackTrace -split '\r?\n')) {
+        if ($line -notmatch '^at (?<function>[A-Za-z0-9_<>.-]+), (?<file>.+): line (?<number>[0-9]{1,7})$') { continue }
+        $function = $Matches['function']
+        $number = [int]$Matches['number']
+        $file = [IO.Path]::GetFileName($Matches['file'])
+        $role = switch -Regex ($file) {
+            '^\.qualified-runtime-[a-f0-9]{32}\.ps1$' { 'instrumented-runtime-operator'; break }
+            '^verify-image-candidate\.ps1$' { 'candidate-verifier'; break }
+            '^image-candidate\.common\.ps1$' { 'candidate-format-helper'; break }
+            '^rehearse-full-candidate\.ps1$' { 'full-runtime-controller'; break }
+            default { 'other-reviewed-script' }
+        }
+        $frames += [ordered]@{ function = $function; scriptRole = $role; line = $number }
+        if ($frames.Count -ge 10) { break }
+    }
+    return [ordered]@{ category = $category; type = $Failure.Exception.GetType().FullName; locations = $frames }
+}
+
 function New-CodexCandidateRuntimeHook {
     param([Parameter(Mandatory)][string] $Source, [Parameter(Mandatory)][string] $OperationsDirectory)
     # The instrumentation is test-only. Preserve every original binding,

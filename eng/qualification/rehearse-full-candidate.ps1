@@ -346,6 +346,7 @@ try {
 catch {
     $report['failureType'] = $_.Exception.GetType().FullName
     $report['failureStage'] = $stage
+    $report['safeFailure'] = Get-CodexSafeRuntimeFailure -Failure $_
 }
 finally {
     try {
