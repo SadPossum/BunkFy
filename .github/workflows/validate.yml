@@ -1,57 +1,203 @@
-name: validate
+name: Exact candidate runtime rehearsal
 
 on:
-  pull_request:
-  push:
-    branches:
-      - main
-      - dev
   workflow_dispatch:
+    inputs:
+      expected_harness_commit:
+        description: Exact reviewed manual harness commit
+        required: true
+        type: string
+      candidate_source_commit:
+        description: Exact qualified application source commit for the image candidate
+        required: true
+        type: string
+      image_run_id:
+        description: Successful Product Image Evidence run containing the retained candidate
+        required: true
+        type: string
 
 permissions:
   contents: read
 
+concurrency:
+  group: exact-candidate-runtime-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
-  validate:
-    runs-on: windows-latest
+  rehearse:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      actions: read
+      attestations: read
+    env:
+      CANDIDATE_SOURCE_COMMIT: ${{ inputs.candidate_source_commit }}
+      IMAGE_EVIDENCE_RUN_ID: ${{ inputs.image_run_id }}
     steps:
-      - name: Checkout root
+      - name: Require qualified source and immutable image artifact metadata
+        id: evidence
+        shell: python
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXPECTED_HARNESS_COMMIT: ${{ inputs.expected_harness_commit }}
+        run: |
+          import json, os, pathlib, re, subprocess
+          os.umask(0o077)
+          if os.environ['GITHUB_SHA'] != os.environ['EXPECTED_HARNESS_COMMIT']:
+              raise RuntimeError('Manual harness source differs from the reviewed commit.')
+          source = os.environ['CANDIDATE_SOURCE_COMMIT']
+          run_id = os.environ['IMAGE_EVIDENCE_RUN_ID']
+          if not re.fullmatch(r'[0-9a-f]{40}', source) or source == '0' * 40:
+              raise RuntimeError('Expected a non-placeholder application source SHA.')
+          if not re.fullmatch(r'[1-9][0-9]{0,19}', run_id):
+              raise RuntimeError('Expected a positive image evidence run ID.')
+          def api(path):
+              result = subprocess.run(['gh', 'api', 'repos/SadPossum/BunkFy/' + path],
+                                      capture_output=True, check=True, timeout=60)
+              return json.loads(result.stdout)
+          checks = api('commits/' + source + '/check-runs?per_page=100')
+          required = {'validate', 'Analyze csharp', 'Analyze javascript-typescript',
+                      'Product source, dependency and configuration scan', 'storage'}
+          if checks['total_count'] > 100:
+              raise RuntimeError('Source checks require a separate pagination review.')
+          for name in required:
+              matches = [value for value in checks['check_runs'] if value['name'] == name]
+              if len(matches) != 1 or matches[0]['status'] != 'completed' or matches[0]['conclusion'] != 'success':
+                  raise RuntimeError('Required current source qualification is missing or failed: ' + name)
+          run = api('actions/runs/' + run_id)
+          if (run['head_sha'] != source or run['workflow_id'] != 322308864
+                  or run['event'] != 'workflow_dispatch' or run['status'] != 'completed'
+                  or run['conclusion'] != 'success'
+                  or run['head_repository']['full_name'] != 'SadPossum/BunkFy'
+                  or run['path'].split('@', 1)[0] != '.github/workflows/image-evidence.yml'):
+              raise RuntimeError('Image run does not qualify the expected application source.')
+          inventory = api('actions/runs/' + run_id + '/artifacts?per_page=100')
+          if inventory['total_count'] > 100:
+              raise RuntimeError('Artifact inventory requires a separate pagination review.')
+          matches = [value for value in inventory['artifacts']
+                     if value['name'] == 'product-image-candidate-' + source]
+          if len(matches) != 1 or matches[0]['expired']:
+              raise RuntimeError('Expected exactly one retained, unexpired candidate artifact.')
+          artifact = matches[0]
+          if not re.fullmatch(r'sha256:[0-9a-f]{64}', artifact.get('digest', '')):
+              raise RuntimeError('Artifact server digest is missing or malformed.')
+          evidence = pathlib.Path('evidence')
+          evidence.mkdir(mode=0o700)
+          private = pathlib.Path(os.environ['RUNNER_TEMP']) / 'candidate-rehearsal-private'
+          private.mkdir(mode=0o700)
+          receipt = {'schemaVersion': 1, 'repository': 'SadPossum/BunkFy',
+                     'requiredSourceJobs': sorted(required),
+                     'sourceReportingChecks': [{'name': item['name'], 'conclusion': item['conclusion']}
+                                               for item in checks['check_runs']],
+                     'applicationSourceCommit': source, 'imageRunId': int(run_id),
+                     'imageRunAttempt': run['run_attempt'], 'artifactId': artifact['id'],
+                     'artifactName': artifact['name'], 'serverArtifactDigest': artifact['digest'],
+                     'harnessCommit': os.environ['GITHUB_SHA'],
+                     'purpose': 'Engineering Preview composition on a disposable hosted runner.'}
+          (evidence / 'artifact-receipt.json').write_text(json.dumps(receipt, indent=2) + '\n')
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              output.write('artifact_id=' + str(artifact['id']) + '\n')
+
+      - name: Checkout the exact reviewed manual harness
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          fetch-depth: 0
+          ref: ${{ inputs.expected_harness_commit }}
+          path: harness
+          submodules: false
+          persist-credentials: false
+
+      - name: Checkout exact application source and recorded components
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.candidate_source_commit }}
+          path: candidate
+          fetch-depth: 1
           submodules: recursive
           persist-credentials: false
 
-      - name: Setup .NET
-        uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
+      - name: Download the exact candidate with digest mismatch treated as an error
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
-          dotnet-version: 10.0.403
+          artifact-ids: ${{ steps.evidence.outputs.artifact_id }}
+          run-id: ${{ inputs.image_run_id }}
+          repository: SadPossum/BunkFy
+          github-token: ${{ github.token }}
+          path: candidate/.tmp/image-candidate
+          digest-mismatch: error
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
-        with:
-          version: 11.7.0
+      - name: Resolve and verify all six exact Preview infrastructure and helper images
+        working-directory: candidate
+        shell: pwsh
+        run: |
+          $outputPath = Join-Path $env:GITHUB_WORKSPACE 'evidence/dependency-images.json'
+          & (Join-Path $env:GITHUB_WORKSPACE 'harness/eng/qualification/prepare-exact-dependencies.ps1') `
+            -CandidateDirectory (Get-Location).Path `
+            -ExpectedSourceCommit $env:CANDIDATE_SOURCE_COMMIT `
+            -OutputPath $outputPath
 
-      - name: Setup Node
+      - name: Set up the reviewed Node runtime for browser tooling
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: 22
-          cache: pnpm
-          cache-dependency-path: apps/web/pnpm-lock.yaml
+          node-version: 24
 
-      - name: Bootstrap
-        shell: pwsh
-        run: ./eng/bootstrap.ps1
-
-      - name: Check Preview storage security evidence boundaries
+      - name: Install only locked browser tooling and the hash-locked official broker client
+        shell: bash
         run: |
-          python3 eng/operations/check-preview-storage-security.tests.py
-          python3 eng/operations/check-preview-infrastructure-security.tests.py
+          python3 harness/eng/qualification/install-browser-fixture.py candidate
+          node candidate/apps/web/node_modules/playwright/cli.js install chromium
+          python3 -m pip install --disable-pip-version-check --no-deps --require-hashes \
+            --target "$RUNNER_TEMP/candidate-nats-client" \
+            -r harness/eng/qualification/nats-probe-requirements.txt
 
-      - name: Install Chromium
-        working-directory: apps/web
-        run: pnpm exec playwright install chromium
-
-      - name: Verify
+      - name: Verify attestations and exercise actual UI, booking, tenant fences and cold recovery
+        working-directory: candidate
         shell: pwsh
-        run: ./eng/verify.ps1
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $evidenceDirectory = Join-Path $env:GITHUB_WORKSPACE 'evidence'
+          $privateLog = Join-Path $env:RUNNER_TEMP 'candidate-rehearsal-private/runtime.log'
+          $env:PYTHONPATH = Join-Path $env:RUNNER_TEMP 'candidate-nats-client'
+          try {
+            & (Join-Path $env:GITHUB_WORKSPACE 'harness/eng/qualification/rehearse-full-candidate.ps1') `
+              -CandidateDirectory (Get-Location).Path `
+              -BundleDirectory (Join-Path (Get-Location) '.tmp/image-candidate') `
+              -ExpectedSourceCommit $env:CANDIDATE_SOURCE_COMMIT `
+              -ExpectedHarnessCommit $env:GITHUB_SHA `
+              -EvidenceDirectory $evidenceDirectory `
+              -PrivateDirectory (Join-Path $env:RUNNER_TEMP 'candidate-rehearsal-private/full') *> $privateLog
+            Write-Host 'Exact OCI UI, Worker, booking, tenant isolation, protected MFA and cold recovery passed.'
+          }
+          catch {
+            [ordered]@{ result = 'failed'; phase = 'full-runtime';
+              sourceCommit = $env:CANDIDATE_SOURCE_COMMIT;
+              exceptionType = $_.Exception.GetType().FullName } |
+              ConvertTo-Json | Set-Content -LiteralPath (Join-Path $evidenceDirectory 'runtime-error.json')
+            Write-Error 'Full candidate qualification failed; see minimized evidence.'
+            exit 1
+          }
+          finally {
+            Remove-Item -LiteralPath $privateLog -Force -ErrorAction SilentlyContinue
+          }
+
+      - name: Retain minimized runtime and artifact identity evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: bunkfy-candidate-runtime-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            evidence/artifact-receipt.json
+            evidence/dependency-images.json
+            evidence/runtime.json
+            evidence/runtime-error.json
+            evidence/full-runtime.json
+            evidence/onboarding.json
+            evidence/business-create.json
+            evidence/business-restore.json
+            evidence/protocol-create.json
+            evidence/protocol-restore.json
+            evidence/recovery-operator.json
+          if-no-files-found: error
+          retention-days: 30
