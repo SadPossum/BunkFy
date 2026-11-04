@@ -1,0 +1,49 @@
+{
+  "schemaVersion": 1,
+  "image": "postgres:17.11-alpine3.23@sha256:05aa77262db9277fde6374bb2f901c9604b8a9373029e1a7993440c6aae48736",
+  "imageConfigDigest": "sha256:63fb01dbab2f21a30c1188f6b05319df39b786a5845a5541299ed0dc3ed5bc69",
+  "helperRelease": "https://github.com/tianon/gosu/releases/tag/1.19",
+  "helperAsset": "https://github.com/tianon/gosu/releases/download/1.19/gosu-amd64",
+  "helperSha256": "52c8749d0142edd234e9d6bd5237dff2d81e71f43537e2f4f66f75dd4b243dd0",
+  "baselineArtifact": {
+    "id": 13319286667,
+    "sha256": "ffaaa91c90ad40039022cc9a0c8d9c22f28f37e1bbe2cd540934c25334537a92",
+    "run": 41825543855,
+    "head": "0a1a42da8475cac4a3f05ded251f77deb21f06f7"
+  },
+  "baselineCves": [
+    "CVE-2025-61726",
+    "CVE-2025-61729",
+    "CVE-2025-68121",
+    "CVE-2026-111943",
+    "CVE-2026-25679",
+    "CVE-2026-27145",
+    "CVE-2026-32280",
+    "CVE-2026-32281",
+    "CVE-2026-32283",
+    "CVE-2026-33811",
+    "CVE-2026-33814",
+    "CVE-2026-33818",
+    "CVE-2026-39820",
+    "CVE-2026-39821",
+    "CVE-2026-39822",
+    "CVE-2026-39836",
+    "CVE-2026-42499",
+    "CVE-2026-42504",
+    "CVE-2026-56853",
+    "CVE-2026-56858",
+    "CVE-2026-56859",
+    "CVE-2026-56860",
+    "CVE-2026-56862",
+    "CVE-2026-78667",
+    "CVE-2026-78669",
+    "CVE-2026-97031"
+  ],
+  "go": {
+    "version": "1.27.3",
+    "url": "https://go.dev/dl/go1.27.3.linux-amd64.tar.gz",
+    "sha256": "65efbc80fdc1fa2cd2631cad5b481777a68e8725f34e89f50fc6ac714e379b40"
+  },
+  "analyzer": "golang.org/x/vuln/cmd/govulncheck@v1.9.0",
+  "intent": "Manual conservative binary symbol analysis, no vendor excludes, advisory ignores, product changes or approval. Also retains any findings outside baseline26."
+}
