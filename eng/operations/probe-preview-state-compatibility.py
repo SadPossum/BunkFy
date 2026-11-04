@@ -2,6 +2,7 @@
 """Bounded real Redis/NATS/Mailpit/archive compatibility; no application builds."""
 
 import asyncio
+import argparse
 import base64
 import datetime
 from email.message import EmailMessage
@@ -15,6 +16,7 @@ import secrets
 import smtplib
 import subprocess
 import time
+import traceback
 import urllib.request
 import uuid
 
@@ -236,10 +238,15 @@ class Probe:
         async def consumer(client):
             return await api(client, '$JS.API.CONSUMER.INFO.COMPAT.WORK')
         async def pull(client, expected):
+            # Pull replies retain the stored message's original subject. The
+            # normal request multiplexer routes by inbox subject, so use the
+            # official client's one-shot SID-based request for this endpoint.
             message = await client.request('$JS.API.CONSUMER.MSG.NEXT.COMPAT.WORK',
-                                           b'{"batch":1,"expires":2000000000}', timeout=3)
+                                           b'{"batch":1,"expires":2000000000}', timeout=3, old_style=True)
             if message.data != expected or not message.reply.startswith('$JS.ACK.'):
                 raise RuntimeError('Durable pull payload or acknowledgement subject changed.')
+            self.check(message.subject == 'compat.values',
+                       'nats-pull-retains-original-subject-' + expected.decode())
             await client.request(message.reply, b'+ACK', timeout=3)
         old = server('nats-old', 'natsOld', data)
         client = await ready(old)
@@ -403,18 +410,27 @@ class Probe:
 
 
 def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--phase', choices=('all', 'nats'), default='all')
+    options = parser.parse_args()
     actual = subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip()
     expected = os.environ.get('EXPECTED_SOURCE_SHA', '')
     if re.fullmatch(r'[a-f0-9]{40}', expected) is None or actual != expected:
         raise RuntimeError('Probe source does not match the reviewed immutable commit.')
     policy = json.loads(Path('.gma/preview-state-compatibility-review.json').read_text())
     probe = Probe(policy)
+    required_phases = ['redis', 'nats', 'mailpit', 'archives'] if options.phase == 'all' else ['nats']
     report = {'schemaVersion': 1, 'sourceCommit': actual,
               'capturedAt': datetime.datetime.now(datetime.timezone.utc).isoformat(),
               'owner': probe.owner, 'subjects': policy['images'], 'probeOnlyClient': policy['probeOnlyClient'],
-              'observations': probe.observations, 'phases': [], 'passed': False, 'scope': policy['scope']}
+              'observations': probe.observations, 'phases': [], 'passed': False,
+              'requiredPhases': required_phases, 'fullQualification': options.phase == 'all',
+              'scope': policy['scope'] + (' NATS-only repaired-source evidence; other three groups are not rerun or requalified here.'
+                                         if options.phase == 'nats' else '')}
     try:
-        for subject in policy['images'].values():
+        subjects = policy['images'] if options.phase == 'all' else {
+            name: policy['images'][name] for name in ('natsOld', 'nats', 'archive')}
+        for subject in subjects.values():
             probe.run(['docker', 'pull', '--platform', 'linux/amd64', subject['image']], timeout=180)
             actual_image = probe.inspect('image', subject['image'])
             if (actual_image['Id'] != subject['configDigest'] or actual_image['Os'] != 'linux' or
@@ -425,13 +441,16 @@ def main():
         probe.owned('network', probe.network)
         for name, operation in [('redis', probe.redis), ('nats', lambda: asyncio.run(probe.nats())),
                                 ('mailpit', probe.mailpit), ('archives', probe.archives)]:
+            if name not in required_phases:
+                continue
             try:
                 operation()
                 report['phases'].append({'name': name, 'passed': True})
             except Exception as error:
                 report['phases'].append({'name': name, 'passed': False, 'failureType': type(error).__name__,
-                                         'failure': str(error).replace(probe.password, '[REDACTED]')})
-        report['passed'] = len(report['phases']) == 4 and all(x['passed'] for x in report['phases'])
+                                         'failure': str(error).replace(probe.password, '[REDACTED]'),
+                                         'failureTrace': traceback.format_exc().replace(probe.password, '[REDACTED]')[-5000:]})
+        report['passed'] = len(report['phases']) == len(required_phases) and all(x['passed'] for x in report['phases'])
     finally:
         report['cleanup'] = probe.cleanup()
         report['passed'] = report['passed'] and report['cleanup']['allOwnedResourcesRemoved']
