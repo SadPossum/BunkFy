@@ -27,15 +27,22 @@ jobs:
       - name: Pull the exact reviewed Linux provider
         run: docker pull --platform linux/amd64 "$STORAGE_IMAGE"
 
+      - name: Exercise authentic-report security boundaries without containers
+        run: python3 eng/operations/check-preview-storage-security.tests.py
+
       - name: Install pinned local scanner
         run: python3 eng/operations/install-probe-trivy.py
 
-      - name: Require no high or critical security findings
+      - name: Record all raw high and critical security findings
         id: scan
         continue-on-error: true
         run: |
           mkdir -p artifacts
+          set +e
           trivy image --scanners vuln,secret --severity HIGH,CRITICAL --exit-code 1 --format json --output artifacts/silo-security.json "$STORAGE_IMAGE"
+          scan_status=$?
+          echo "exit_code=$scan_status" >> "$GITHUB_OUTPUT"
+          exit "$scan_status"
 
       - name: Retain provider component inventory
         run: trivy image --format cyclonedx --output artifacts/silo-sbom.cdx.json "$STORAGE_IMAGE"
@@ -43,11 +50,11 @@ jobs:
       - name: Probe signed S3, denial, restart persistence and cleanup
         run: python3 eng/operations/probe-preview-storage.py
 
-      - name: Preserve the unresolved security gate
+      - name: Require zero unresolved findings with exact source and binary fix evidence
         if: always()
         env:
-          SCAN_OUTCOME: ${{ steps.scan.outcome }}
-        run: test "$SCAN_OUTCOME" = success
+          SCAN_EXIT_CODE: ${{ steps.scan.outputs.exit_code }}
+        run: python3 eng/operations/check-preview-storage-security.py --scanner-exit-code "$SCAN_EXIT_CODE"
 
       - name: Retain minimized qualification evidence
         if: always()
