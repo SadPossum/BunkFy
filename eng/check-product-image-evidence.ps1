@@ -109,7 +109,7 @@ $requiredWorkflowTokens = @(
     './apps/backend/eng/gma-bootstrap.ps1',
     'docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c',
     'docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a',
-    'aquasecurity/setup-trivy@3fb12ec12f41e471780db15c232d5dd185dcb514',
+    'aquasecurity/setup-trivy@81e514348e19b6112ce2a7e3ecbafe19c1e1f567',
     'version: v0.70.0',
     'context: apps/backend',
     'file: apps/backend/Dockerfile',
@@ -129,11 +129,11 @@ $requiredWorkflowTokens = @(
     './eng/verify-image-candidate.ps1',
     '-ExpectedSourceCommit "${{ github.sha }}"',
     '-AllowUnattested',
-    'github/codeql-action/upload-sarif@7188fc363630916deb702c7fdcf4e481b751f97a',
-    'actions/attest@f7c74d28b9d84cb8768d0b8ca14a4bac6ef463e6',
+    'github/codeql-action/upload-sarif@1fc58d04a4d4374f921bdac573c3811c240f9c26',
+    'actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6',
     'subject-checksums: artifacts/image-evidence/checksums.sha256',
     'subject-checksums: artifacts/image-candidate/checksums.sha256',
-    'actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a',
+    'actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9',
     'path: artifacts/image-evidence',
     'name: product-image-candidate-${{ github.sha }}',
     'path: artifacts/image-candidate',
@@ -189,13 +189,13 @@ if ([regex]::Matches(
 }
 if ([regex]::Matches(
         $workflow,
-        'actions/attest@f7c74d28b9d84cb8768d0b8ca14a4bac6ef463e6',
+        'actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6',
         [System.Text.RegularExpressions.RegexOptions]::IgnoreCase).Count -ne 2) {
     throw 'Product image evidence must attest evidence and exact candidate bytes separately.'
 }
 if ([regex]::Matches(
         $workflow,
-        'actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a',
+        'actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9',
         [System.Text.RegularExpressions.RegexOptions]::IgnoreCase).Count -ne 2) {
     throw 'Product image evidence must retain separate evidence and candidate artifacts.'
 }

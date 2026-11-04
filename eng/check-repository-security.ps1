@@ -4,7 +4,7 @@ param()
 . (Join-Path $PSScriptRoot 'common.ps1')
 
 $root = Get-BunkFyRepositoryRoot
-$skeletonSecurityRevision = 'ec0e1345ce36f2d2e25e6fad231bc031f690b255'
+$skeletonSecurityRevision = '02210e3379976fd342251ffd6d967bbb541b7384'
 $requiredFiles = @(
     '.github\dependabot.yml',
     '.github\workflows\codeql.yml',
@@ -329,8 +329,8 @@ $requiredSecurityTokens = @(
     'Validate repository security policy',
     './eng/check-repository-security.ps1',
     'exception-file: .gma/security-exceptions.json',
-    'github/codeql-action/upload-sarif@7188fc363630916deb702c7fdcf4e481b751f97a',
-    'actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a',
+    'github/codeql-action/upload-sarif@1fc58d04a4d4374f921bdac573c3811c240f9c26',
+    'actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9',
     'security-events: write',
     'if-no-files-found: error',
     'retention-days: 30'
@@ -344,8 +344,8 @@ foreach ($token in $requiredSecurityTokens) {
 $codeQlWorkflow = [System.IO.File]::ReadAllText(
     (Join-Path $root '.github\workflows\codeql.yml'))
 foreach ($token in @(
-    'github/codeql-action/init@7188fc363630916deb702c7fdcf4e481b751f97a',
-    'github/codeql-action/analyze@7188fc363630916deb702c7fdcf4e481b751f97a',
+    'github/codeql-action/init@1fc58d04a4d4374f921bdac573c3811c240f9c26',
+    'github/codeql-action/analyze@1fc58d04a4d4374f921bdac573c3811c240f9c26',
     'language: csharp',
     'language: javascript-typescript',
     'build-mode: manual',
