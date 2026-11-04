@@ -45,6 +45,7 @@ jobs:
 
       - name: Check Preview storage security evidence boundaries
         run: |
+          python3 eng/operations/probe-preview-storage.tests.py
           python3 eng/operations/check-preview-storage-security.tests.py
           python3 eng/operations/check-preview-infrastructure-security.tests.py
 

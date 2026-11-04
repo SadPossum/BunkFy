@@ -17,7 +17,7 @@ on:
       - eng/operations/collect-preview-infrastructure.py
       - eng/operations/preview-infrastructure.common.ps1
       - eng/new-preview-env.ps1
-      - eng/operations/probe-preview-storage.py
+      - eng/operations/probe-preview-storage*
       - eng/operations/install-probe-trivy.py
       - eng/operations/fixtures/preview-storage-reviewed-evidence.json.gz
       - eng/operations/fixtures/preview-infrastructure-reviewed-evidence.json.gz
@@ -49,6 +49,7 @@ jobs:
 
       - name: Exercise authentic-report security boundaries without containers
         run: |
+          python3 eng/operations/probe-preview-storage.tests.py
           python3 eng/operations/check-preview-storage-security.tests.py
           python3 eng/operations/check-preview-infrastructure-security.tests.py
 

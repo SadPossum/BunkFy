@@ -36,15 +36,19 @@ def docker(*arguments, required=True):
 
 
 def request(endpoint, key, password, method, path, body=b'', headers=None, signed=True, bad_signature=False, timeout=15):
-    headers = dict(headers or {})
+    headers = {name.lower(): value for name, value in (headers or {}).items()}
     if signed:
+        headers.pop('authorization', None)
         now = datetime.datetime.now(datetime.timezone.utc)
         date, stamp = now.strftime('%Y%m%d'), now.strftime('%Y%m%dT%H%M%SZ')
         payload = hashlib.sha256(body).hexdigest()
         host = urllib.parse.urlsplit(endpoint).netloc
-        headers.update({'Host': host, 'x-amz-date': stamp, 'x-amz-content-sha256': payload})
-        signed_headers = 'host;x-amz-content-sha256;x-amz-date'
-        canonical_headers = 'host:' + host + '\nx-amz-content-sha256:' + payload + '\nx-amz-date:' + stamp + '\n'
+        headers.update({'host': host, 'x-amz-date': stamp, 'x-amz-content-sha256': payload})
+        # S3 requires every supplied x-amz-* header (including object metadata)
+        # in the signature. Bind all caller headers, including Range/If-Match.
+        names = sorted(headers)
+        signed_headers = ';'.join(names)
+        canonical_headers = ''.join(name + ':' + ' '.join(headers[name].split()) + '\n' for name in names)
         parsed = urllib.parse.urlsplit(path)
         query = urllib.parse.urlencode(sorted(urllib.parse.parse_qsl(parsed.query, keep_blank_values=True)), quote_via=urllib.parse.quote)
         canonical = '\n'.join([method, parsed.path, query, canonical_headers, signed_headers, payload])
@@ -158,11 +162,20 @@ def main():
             bucket = '/bunk-fixture-' + nonce
             object_path = bucket + '/private-probe.bin'
             payload = secrets.token_bytes(4096)
+            object_metadata = {'x-amz-meta-file-name': 'backup-canary.bin',
+                               'x-amz-meta-kind': 'synthetic-recovery-canary'}
+
+            def require_metadata(status, headers):
+                actual = {name.lower(): value for name, value in headers.items()}
+                if status != 200 or any(actual.get(name) != value for name, value in object_metadata.items()):
+                    raise RuntimeError('S3 object metadata changed or was not preserved.')
+
             expect('readiness', 'GET', '/minio/health/ready', 200, signed=False)
             expect('liveness', 'GET', '/minio/health/live', 200, signed=False)
             expect('anonymous account listing denied', 'GET', '/', 403, signed=False)
             expect('create private bucket', 'PUT', bucket, 200)
-            _, metadata = expect('signed private object put', 'PUT', object_path, 200, body=payload)
+            _, metadata = expect('signed private object put', 'PUT', object_path, 200,
+                                 body=payload, headers=object_metadata)
             etag = next((value for field, value in metadata.items() if field.lower() == 'etag'), None)
             if not etag:
                 raise RuntimeError('S3 write omitted its entity tag.')
@@ -171,7 +184,8 @@ def main():
                 raise RuntimeError('S3 object bytes changed.')
             expect('anonymous object read denied', 'GET', object_path, 403, signed=False)
             expect('invalid signature denied', 'GET', object_path, 403, bad_signature=True)
-            expect('signed object head', 'HEAD', object_path, 200)
+            _, metadata = expect('signed object head', 'HEAD', object_path, 200)
+            require_metadata(200, metadata)
             body, _ = expect('bounded range read', 'GET', object_path, 206, headers={'Range': 'bytes=0-31'})
             if body != payload[:32]:
                 raise RuntimeError('S3 range bytes changed.')
@@ -218,6 +232,9 @@ def main():
             body, _ = expect('object survives provider restart', 'GET', object_path, 200)
             if body != payload:
                 raise RuntimeError('S3 object did not survive provider restart.')
+            status, _, metadata = request(endpoint, key, password, 'HEAD', object_path)
+            require_metadata(status, metadata)
+            receipt['objectMetadataVerifiedOnHeadAndAfterRestart'] = True
             expect('signed object deletion', 'DELETE', object_path, 204)
             expect('deleted object unavailable', 'GET', object_path, 404)
             expect('empty bucket deletion', 'DELETE', bucket, 204)
