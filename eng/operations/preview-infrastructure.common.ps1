@@ -1,6 +1,25 @@
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+. (Join-Path $PSScriptRoot 'docker-image-identity.common.ps1')
+
+function Resolve-BunkFyQualifiedImageConfiguration {
+    param([string] $Name, [string] $Reference, [string] $RuntimeImageId, [string] $ExpectedConfigurationId)
+
+    # Classic Docker reports the configuration digest as Id. Containerd reports
+    # the content-addressed manifest/index Id instead. Keep container bindings
+    # on runtime IDs, while the backup/security contract retains config hashes.
+    if ($RuntimeImageId -ceq $ExpectedConfigurationId) { return $RuntimeImageId }
+    if ($Reference -cnotmatch '@(?<digest>sha256:[a-f0-9]{64})$' -or $RuntimeImageId -cne $Matches['digest']) {
+        throw "Local infrastructure image '$Name' differs from the qualified Linux amd64 configuration."
+    }
+    $configurationId = Get-BunkFyDockerImageConfigurationDigest -Reference $Reference -RuntimeImageId $RuntimeImageId
+    if ($configurationId -cne $ExpectedConfigurationId) {
+        throw "Local infrastructure image '$Name' differs from the qualified Linux amd64 configuration."
+    }
+    return $configurationId
+}
+
 function Get-BunkFyPreviewInfrastructurePolicy {
     $path = Join-Path $PSScriptRoot '..\..\.gma\preview-infrastructure-profiles.json'
     $policy = Get-Content -LiteralPath $path -Raw | ConvertFrom-Json
@@ -236,25 +255,36 @@ function New-BunkFyPreviewInfrastructureRecord {
     if ($ImageIds.Count -ne $references.Count) {
         throw 'A measured Docker image identity is required for every infrastructure component.'
     }
+    $configurationIds = [ordered]@{}
+    foreach ($entry in $references.GetEnumerator()) {
+        if (-not $ImageIds.Contains($entry.Key) -or [string]$ImageIds[$entry.Key] -cnotmatch '^sha256:[a-f0-9]{64}$') {
+            throw "Infrastructure image identity '$($entry.Key)' is invalid."
+        }
+        $configurationIds[$entry.Key] = [string]$ImageIds[$entry.Key]
+    }
     if ($profile.Name -ceq 'maintained') {
         foreach ($name in @('postgres', 'redis', 'nats', 'mailpit', 'archiveUtility')) {
             if ($null -eq $profile.ConfigurationIds -or
-                $null -eq $profile.ConfigurationIds.PSObject.Properties[$name] -or
-                [string]$ImageIds[$name] -cne [string]$profile.ConfigurationIds.PSObject.Properties[$name].Value) {
+                $null -eq $profile.ConfigurationIds.PSObject.Properties[$name]) {
                 throw "Local infrastructure image '$name' differs from the qualified Linux amd64 configuration."
             }
+            $configurationIds[$name] = Resolve-BunkFyQualifiedImageConfiguration -Name $name `
+                -Reference ([string]$references[$name]) -RuntimeImageId ([string]$ImageIds[$name]) `
+                -ExpectedConfigurationId ([string]$profile.ConfigurationIds.PSObject.Properties[$name].Value)
         }
     }
     $storage = Get-BunkFyPreviewStorageProfile -ComposeDefinition $ComposeDefinition
     if ($storage.Provider -ceq 'silo') {
         $storageReview = Get-Content -LiteralPath (Join-Path $PSScriptRoot '..\..\.gma\preview-storage-review.json') -Raw | ConvertFrom-Json
-        if ([string]$storageReview.image -cne $storage.Image -or
-            [string]$ImageIds['minio'] -cne [string]$storageReview.imageConfigDigest) {
+        if ([string]$storageReview.image -cne $storage.Image) {
             throw 'Local infrastructure storage image differs from the qualified Silo configuration.'
         }
+        $configurationIds['minio'] = Resolve-BunkFyQualifiedImageConfiguration -Name minio `
+            -Reference ([string]$references['minio']) -RuntimeImageId ([string]$ImageIds['minio']) `
+            -ExpectedConfigurationId ([string]$storageReview.imageConfigDigest)
     }
     $images = @($references.GetEnumerator() | ForEach-Object {
-        $id = [string]$ImageIds[$_.Key]
+        $id = [string]$configurationIds[$_.Key]
         if ($id -cnotmatch '^sha256:[a-f0-9]{64}$') {
             throw "Infrastructure image identity '$($_.Key)' is invalid."
         }

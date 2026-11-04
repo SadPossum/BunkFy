@@ -10,11 +10,13 @@ $scripts = @(
     (Join-Path $PSScriptRoot 'operations\preview-state.common.ps1'),
     (Join-Path $PSScriptRoot 'operations\preview-storage.common.ps1'),
     (Join-Path $PSScriptRoot 'operations\preview-infrastructure.common.ps1'),
+    (Join-Path $PSScriptRoot 'operations\docker-image-identity.common.ps1'),
     (Join-Path $PSScriptRoot 'operations\native-binary-command.common.ps1'),
     (Join-Path $PSScriptRoot 'operations\fixtures\native-binary-command-probe.ps1'),
     (Join-Path $PSScriptRoot 'test-native-binary-command.ps1'),
     (Join-Path $PSScriptRoot 'test-preview-storage-guard.ps1'),
     (Join-Path $PSScriptRoot 'test-preview-infrastructure-guard.ps1'),
+    (Join-Path $PSScriptRoot 'test-docker-image-identity.ps1'),
     (Join-Path $PSScriptRoot 'operations\preview-workspace-access-estate.common.ps1'),
     (Join-Path $PSScriptRoot 'operations\backup-preview.ps1'),
     (Join-Path $PSScriptRoot 'operations\restore-preview.ps1'),
@@ -93,6 +95,7 @@ foreach ($script in $scripts) {
 Write-Host 'BunkFy operations scripts are syntactically valid.'
 & (Join-Path $PSScriptRoot 'test-preview-storage-guard.ps1')
 & (Join-Path $PSScriptRoot 'test-native-binary-command.ps1')
+& (Join-Path $PSScriptRoot 'test-docker-image-identity.ps1')
 & (Join-Path $PSScriptRoot 'test-preview-infrastructure-guard.ps1')
 
 $deployedEvidenceCommon = Get-Content -LiteralPath (

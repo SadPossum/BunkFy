@@ -25,6 +25,21 @@ broker or cache images does not migrate an old backup's file formats. Both
 restore commands perform these checks before target creation. `-WhatIf` does
 not create archive-probe containers or a recovery deployment.
 
+The schema-7 infrastructure `imageId` values are the reviewed Linux amd64
+configuration digests. Docker's containerd image store can report a manifest
+or index digest as the local runtime ID. The operators retain that runtime ID
+for container bindings and independently measure the configuration bytes from
+a completed, read-only image export when the IDs differ. The configuration's
+content address and selected platform must still match the reviewed policy.
+Exports are streamed with bounded memory; they create no containers or image
+tags and are not retained as extra archives. Repeated measurements of the same
+immutable runtime identity are cached within the operator process.
+
+Loading the retained application OCI archives requires a Docker image store
+that supports OCI indexes, such as the containerd image store. Configure a new
+test host before loading candidates; changing the store of a running deployment
+is a separate host-maintenance operation.
+
 Temporary key snapshots use private local directories from creation and private
 file permissions after copying. On Unix the helper restores ownership to the
 current operator without making keys world-readable; Windows uses the protected
