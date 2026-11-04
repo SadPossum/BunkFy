@@ -5,10 +5,10 @@ import datetime
 import gzip
 import hashlib
 import hmac
+import ipaddress
 import json
 import os
 from pathlib import Path
-import re
 import secrets
 import struct
 import subprocess
@@ -24,16 +24,18 @@ import zlib
 
 IMAGE = 'pgsty/silo:RELEASE.2026-10-26T00-00-00Z@sha256:7bb2aff6b89efe1cb1303c10fc21d579447434ed06649ac9ec05a5e2dbf30ad7'
 SOURCE = 'c3ad836aed0d8a7d23c2e44a5eaa3009d08525e3'
+HTTP = urllib.request.build_opener(urllib.request.ProxyHandler({}))
 
 
 def docker(*arguments, required=True):
     result = subprocess.run(['docker', *arguments], capture_output=True, text=True, timeout=120)
     if required and result.returncode:
-        raise RuntimeError('Docker fixture command failed: ' + arguments[0])
+        diagnostic = result.stderr.splitlines()[0][:300] if result.stderr else 'no daemon diagnostic'
+        raise RuntimeError('Docker fixture command failed: ' + arguments[0] + ': ' + diagnostic)
     return result.stdout.strip()
 
 
-def request(endpoint, key, password, method, path, body=b'', headers=None, signed=True, bad_signature=False):
+def request(endpoint, key, password, method, path, body=b'', headers=None, signed=True, bad_signature=False, timeout=15):
     headers = dict(headers or {})
     if signed:
         now = datetime.datetime.now(datetime.timezone.utc)
@@ -58,7 +60,7 @@ def request(endpoint, key, password, method, path, body=b'', headers=None, signe
     value = urllib.request.Request(endpoint + path, data=body if method in ('PUT', 'POST') else None,
                                    method=method, headers=headers)
     try:
-        with urllib.request.urlopen(value, timeout=15) as response:
+        with HTTP.open(value, timeout=timeout) as response:
             return response.status, response.read(1024 * 1024), dict(response.headers)
     except urllib.error.HTTPError as error:
         return error.code, error.read(1024 * 1024), dict(error.headers)
@@ -115,19 +117,29 @@ def main():
             docker('run', '--detach', '--name', name, '--network', network,
                    '--cap-drop', 'ALL', '--security-opt', 'no-new-privileges:true',
                    '--memory', '768m', '--memory-swap', '768m', '--cpus', '1', '--pids-limit', '128',
-                   '--env-file', str(environment), '--publish', '127.0.0.1::9000',
+                   '--env-file', str(environment),
                    '--mount', 'type=volume,source=' + volume + ',target=/data',
                    IMAGE, 'server', '/data', '--console-address', ':9001')
-            binding = docker('port', name, '9000/tcp')
-            match = re.fullmatch(r'127\.0\.0\.1:([0-9]+)', binding)
-            if not match or int(match[1]) < 1024:
-                raise RuntimeError('S3 must bind only to loopback on a dynamic unprivileged port.')
-            endpoint = 'http://' + binding
+            def private_endpoint():
+                networks = json.loads(docker('inspect', '--format', '{{json .NetworkSettings.Networks}}', name))
+                if set(networks) != {network}:
+                    raise RuntimeError('Fixture must use only its dedicated internal network.')
+                address = ipaddress.ip_address(networks[network]['IPAddress'])
+                if address.version != 4 or not address.is_private or address.is_loopback:
+                    raise RuntimeError('Fixture address must be private IPv4 on its owned bridge.')
+                published = json.loads(docker('inspect', '--format', '{{json .HostConfig.PortBindings}}', name))
+                if published:
+                    raise RuntimeError('Storage fixture must not publish any host ports.')
+                return 'http://' + str(address) + ':9000'
+            endpoint = private_endpoint()
+            receipt['networkIsolation'] = 'Dedicated internal bridge, no published host ports; requests bypass external proxies.'
 
             def ready():
-                for _ in range(60):
+                deadline = time.monotonic() + 60
+                while time.monotonic() < deadline:
                     try:
-                        status, _, _ = request(endpoint, key, password, 'GET', '/minio/health/ready', signed=False)
+                        status, _, _ = request(endpoint, key, password, 'GET', '/minio/health/ready', signed=False,
+                                               timeout=min(2, max(0.1, deadline - time.monotonic())))
                         if status == 200:
                             return
                     except (OSError, urllib.error.URLError):
@@ -201,10 +213,7 @@ def main():
                 expect(label + ' probe object deletion', 'DELETE', select_path, 204)
             receipt['recordLimitScope'] = 'Three positive and three bounded oversized-record binary regressions plus exact-source review; not a memory benchmark, distributed-storage acceptance or scanner clearance.'
             docker('restart', name)
-            binding = docker('port', name, '9000/tcp')
-            if not re.fullmatch(r'127\.0\.0\.1:[0-9]+', binding):
-                raise RuntimeError('Restarted fixture lost its loopback-only binding.')
-            endpoint = 'http://' + binding
+            endpoint = private_endpoint()
             ready()
             body, _ = expect('object survives provider restart', 'GET', object_path, 200)
             if body != payload:
@@ -217,6 +226,11 @@ def main():
     except Exception as error:
         # Never retain raw environment, Authorization, object bytes or container logs.
         receipt['error'] = {'type': type(error).__name__, 'firstLine': str(error).splitlines()[0]}
+        try:
+            state = json.loads(docker('inspect', '--format', '{{json .State}}', name))
+            receipt['failedContainerState'] = {field: state[field] for field in ('Status', 'ExitCode', 'OOMKilled')}
+        except Exception:
+            pass
     finally:
         docker('rm', '--force', name, required=False)
         docker('volume', 'rm', volume, required=False)
