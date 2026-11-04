@@ -8,6 +8,13 @@ $scripts = @(
     (Join-Path $PSScriptRoot 'operations\verify-preview-isolation.ps1'),
     (Join-Path $PSScriptRoot 'operations\local-sensitive-state.common.ps1'),
     (Join-Path $PSScriptRoot 'operations\preview-state.common.ps1'),
+    (Join-Path $PSScriptRoot 'operations\preview-storage.common.ps1'),
+    (Join-Path $PSScriptRoot 'operations\preview-infrastructure.common.ps1'),
+    (Join-Path $PSScriptRoot 'operations\native-binary-command.common.ps1'),
+    (Join-Path $PSScriptRoot 'operations\fixtures\native-binary-command-probe.ps1'),
+    (Join-Path $PSScriptRoot 'test-native-binary-command.ps1'),
+    (Join-Path $PSScriptRoot 'test-preview-storage-guard.ps1'),
+    (Join-Path $PSScriptRoot 'test-preview-infrastructure-guard.ps1'),
     (Join-Path $PSScriptRoot 'operations\preview-workspace-access-estate.common.ps1'),
     (Join-Path $PSScriptRoot 'operations\backup-preview.ps1'),
     (Join-Path $PSScriptRoot 'operations\restore-preview.ps1'),
@@ -84,6 +91,9 @@ foreach ($script in $scripts) {
 }
 
 Write-Host 'BunkFy operations scripts are syntactically valid.'
+& (Join-Path $PSScriptRoot 'test-preview-storage-guard.ps1')
+& (Join-Path $PSScriptRoot 'test-native-binary-command.ps1')
+& (Join-Path $PSScriptRoot 'test-preview-infrastructure-guard.ps1')
 
 $deployedEvidenceCommon = Get-Content -LiteralPath (
     Join-Path $PSScriptRoot 'operations\deployed-public-edge.common.ps1') -Raw
@@ -127,6 +137,7 @@ foreach ($scriptName in $deployedEvidenceWriters) {
 . (Join-Path $PSScriptRoot 'operations\admin-api.common.ps1')
 . (Join-Path $PSScriptRoot 'operations\local-sensitive-state.common.ps1')
 . (Join-Path $PSScriptRoot 'operations\preview-state.common.ps1')
+. (Join-Path $PSScriptRoot 'operations\preview-storage.common.ps1')
 if ((Assert-BunkFyAdminApiBaseUri -BaseUri 'http://127.0.0.1:5195') -ne
     'http://127.0.0.1:5195') {
     throw 'The Admin API loopback origin validator did not preserve a valid origin.'
@@ -431,11 +442,11 @@ if ($LASTEXITCODE -ne 0) {
 }
 $sourceCompose = $sourceComposeJson | ConvertFrom-Json
 $expectedInfrastructureImages = [ordered]@{
-    postgres = 'postgres:17.5-alpine@sha256:6567bca8d7bc8c82c5922425a0baee57be8402df92bae5eacad5f01ae9544daa'
-    redis = 'redis:8.0-alpine@sha256:5f61955be8ab2ccee9372b84ae4d4da2e2b156f87281e3f218544055e7ee04d4'
-    nats = 'nats:2.11-alpine@sha256:e4bf19f15fd3218814a4e3c9e0064e1334bd8aa20d5984b9f1a0afd084f8cc00'
-    minio = 'minio/minio:RELEASE.2025-04-22T22-12-26Z@sha256:a1ea29fa28355559ef137d71fc570e508a214ec84ff8083e39bc5428980b015e'
-    mailpit = 'axllent/mailpit:v1.30.7@sha256:d5ecbb067db3705fa953d79e1b7f81ef84038df67aba6c52825d8c02a1ea748a'
+    postgres = 'postgres:17.11-alpine3.23@sha256:05aa77262db9277fde6374bb2f901c9604b8a9373029e1a7993440c6aae48736'
+    redis = 'redis:8.2.11-alpine@sha256:489a769e0a54dc245896132a15c72d2bc7296719954da99398f43a3877e5f8eb'
+    nats = 'nats:2.14.9-alpine@sha256:127c5ccbc538a93f53ebb19461dc193130df386c2d6dab8199661a28a30d85bd'
+    minio = 'pgsty/silo:RELEASE.2026-10-26T00-00-00Z@sha256:7bb2aff6b89efe1cb1303c10fc21d579447434ed06649ac9ec05a5e2dbf30ad7'
+    mailpit = 'axllent/mailpit:v1.33.0@sha256:9b3a463be15354c0f0eba91697d80e3e0d8a5623ef0e627cacc836bc17fd5231'
 }
 foreach ($entry in $expectedInfrastructureImages.GetEnumerator()) {
     $actual = [string]$resolvedCompose.services.PSObject.Properties[$entry.Key].Value.image
@@ -443,9 +454,40 @@ foreach ($entry in $expectedInfrastructureImages.GetEnumerator()) {
         throw "Preview infrastructure image '$($entry.Key)' is not pinned to the reviewed digest."
     }
 }
+if ([string]$resolvedCompose.services.minio.platform -cne 'linux/amd64' -or
+    [string]$resolvedCompose.volumes.'minio-data'.labels.'com.bunkfy.preview.storage-provider' -cne 'silo' -or
+    [string]$resolvedCompose.volumes.'minio-data'.labels.'com.bunkfy.preview.storage-image' -cne $expectedInfrastructureImages.minio) {
+    throw 'Preview storage must bind the qualified platform and provider/image volume labels.'
+}
+$legacyEnvironmentFile = [IO.Path]::GetTempFileName()
+try {
+    # Placeholder-only template: exercise an existing env file with no new
+    # storage settings, without starting any containers or exposing secrets.
+    $legacyEnvironment = (Get-Content -LiteralPath $environmentFile) | Where-Object { $_ -cnotmatch '^BUNKFY_STORAGE_' }
+    [IO.File]::WriteAllLines($legacyEnvironmentFile, [string[]]$legacyEnvironment)
+    $legacyCompose = Get-BunkFyPreviewComposeDefinition -Root (Split-Path -Parent $PSScriptRoot) -ComposePath $composeFile -EnvironmentPath $legacyEnvironmentFile
+    $legacyProfile = Get-BunkFyPreviewStorageProfile -ComposeDefinition $legacyCompose
+    if ($legacyProfile.Provider -cne 'legacy-minio') { throw 'Existing env files must retain their original provider.' }
+    $expectedLegacy = ($resolvedCompose | ConvertTo-Json -Depth 100) | ConvertFrom-Json
+    $expectedLegacy.services.minio.image = $script:BunkFyPreviewLegacyStorageImage
+    $expectedLegacy.services.minio.PSObject.Properties.Remove('platform')
+    $expectedLegacy.volumes.'minio-data'.labels.'com.bunkfy.preview.storage-provider' = 'legacy-minio'
+    $expectedLegacy.volumes.'minio-data'.labels.'com.bunkfy.preview.storage-image' = $script:BunkFyPreviewLegacyStorageImage
+    if (($expectedLegacy | ConvertTo-Json -Depth 100 -Compress) -cne
+        ($legacyCompose | ConvertTo-Json -Depth 100 -Compress)) {
+        throw 'Selecting the legacy provider changed unrelated resolved Compose settings.'
+    }
+}
+finally { Remove-Item -LiteralPath $legacyEnvironmentFile -Force }
+Write-Host 'Preview storage retains legacy Compose behavior and explicit maintained-provider selection.'
 $expectedArchiveUtilityImage = 'alpine:3.21@sha256:48b0309ca019d89d40f670aa1bc06e426dc0931948452e8491e3d65087abc07d'
 if ($script:BunkFyPreviewArchiveUtilityImage -cne $expectedArchiveUtilityImage) {
     throw 'Preview backup and recovery utility image is not pinned to the reviewed digest.'
+}
+if ((Get-BunkFyPreviewInfrastructureProfile $resolvedCompose).Name -cne 'maintained' -or
+    (Get-BunkFyPreviewArchiveUtilityImage $resolvedCompose) -cne
+        'alpine:3.23.7@sha256:ff7f0c727dd796aa36787bfcd9a64bf35a6ce72a73451b3359fde849b6703d63') {
+    throw 'Fresh Preview infrastructure must select the reviewed maintained tuple and utility.'
 }
 $expectedVolumeNames = [ordered]@{
     'postgres-data' = 'bunkfy-preview-postgres-data'
@@ -943,7 +985,7 @@ foreach ($serviceName in @(
 
 $mailpit = $resolvedOperationsCompose.services.mailpit
 if ($mailpit.image -cne
-    'axllent/mailpit:v1.30.7@sha256:d5ecbb067db3705fa953d79e1b7f81ef84038df67aba6c52825d8c02a1ea748a' -or
+    'axllent/mailpit:v1.33.0@sha256:9b3a463be15354c0f0eba91697d80e3e0d8a5623ef0e627cacc836bc17fd5231' -or
     $mailpit.restart -cne 'unless-stopped' -or
     $mailpit.environment.MP_MAX_MESSAGES -ne '500' -or
     $mailpit.environment.MP_DISABLE_VERSION_CHECK -ne 'true') {
@@ -1075,11 +1117,16 @@ foreach ($requiredToken in @(
         'Get-BunkFyPreviewVolumeMap',
         'Assert-BunkFyGitWorktreeClean',
         'Get-BunkFyDockerImageId',
-        'schemaVersion = 5',
+        "schemaVersion = if (`$infrastructureProfile.Name -ceq 'maintained') { 7 }",
+        "elseif (`$storageProfile.Provider -ceq 'silo') { 6 } else { 5 }",
+        'New-BunkFyPreviewInfrastructureRecord',
+        'Assert-BunkFyPreviewInfrastructureContainers',
+        'Assert-BunkFyPreviewInfrastructureVolumes',
+        'objectStorage =',
         'backupId =',
         'stateContract =',
         'protectedLedgerSnapshot =',
-        '$script:BunkFyPreviewArchiveUtilityImage',
+        '$archiveUtilityImage',
         "restorePolicy = 'explicit-current-snapshot-required'",
         '$script:BunkFyPreviewManifestDigestFileName',
         'New-BunkFyLocalSensitiveDirectory',
@@ -1087,7 +1134,10 @@ foreach ($requiredToken in @(
         'Assert-BunkFyLocalSensitiveTree',
         "'create', '--name', `$containerName",
         '${containerName}:/tmp/bunkfy-volume.tar.gz',
-        'pg_restore --list',
+        'Invoke-BunkFyNativeBinaryCommand',
+        "'pg_restore', '--list'",
+        '-OutputPath $dumpPath',
+        '-InputPath $dumpPath',
         '$concurrentOperators',
         "docker volume ls --format '{{.Name}}'",
         '$defaultServices')) {
@@ -1107,7 +1157,8 @@ foreach ($requiredToken in @(
         'Get-BunkFyDockerImageId',
         'ProtectedLedgerSnapshotPath',
         'ProtectedLedgerSnapshotSha256',
-        '$script:BunkFyPreviewArchiveUtilityImage',
+        '$archiveUtilityImage',
+        'Assert-BunkFyPreviewBackupInfrastructure',
         'BUNKFY_BACKEND_IMAGE',
         'BUNKFY_WEB_IMAGE',
         'Assert-BunkFyPreviewImageReference',
@@ -1117,6 +1168,8 @@ foreach ($requiredToken in @(
         'explicitly allow the backup-point snapshot only for a disposable rehearsal',
         'Assert-BunkFyVolumeArchiveReadable',
         '--exit-on-error',
+        'Invoke-BunkFyNativeBinaryCommand',
+        "-InputPath (Join-Path `$BackupPath 'postgres.dump')",
         "@('create', '--no-build')",
         '$RemoveFailedTarget',
         'already has containers',
@@ -1136,7 +1189,8 @@ $protectPreviewStateScript = Get-Content -LiteralPath (
 foreach ($requiredToken in @(
         'Get-BunkFyLocalSensitiveTreeEntries',
         'Get-BunkFyLocalUnixIdentity',
-        '$script:BunkFyPreviewArchiveUtilityImage',
+        '$repairUtilityImage',
+        'Get-BunkFyPreviewInfrastructurePolicy',
         "'--network', 'none'",
         'chown -R "$1:$2" /state',
         'find /state -type d -exec chmod 700',
@@ -1160,7 +1214,8 @@ foreach ($requiredToken in @(
         'WebImage',
         'Assert-BunkFyLocalSensitivePath',
         'Assert-BunkFyLocalSensitiveTree',
-        "schemaVersion -notin @(4, 5)",
+        "schemaVersion -notin @(4, 5, 6, 7)",
+        'Assert-BunkFyPreviewBackupInfrastructure',
         '-AllowBackupPointProtectedLedger',
         '-RemoveFailedTarget',
         'BUNKFY_RELEASE_ID',
@@ -1168,7 +1223,7 @@ foreach ($requiredToken in @(
         'verify-deployed-public-edge.ps1',
         'verify-deployed-admin-boundary.ps1',
         'Get-BunkFyStateTreeFingerprint',
-        '$script:BunkFyPreviewArchiveUtilityImage',
+        '$archiveUtilityImage',
         "evidenceKind = 'bunkfy-preview-recovery-rehearsal'",
         "'protected-authenticator-decryption-not-exercised'",
         "'hosted-rpo-and-rto-not-established'")) {

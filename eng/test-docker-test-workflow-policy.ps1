@@ -20,8 +20,19 @@ $mutants = [ordered]@{
     'wrong predecessor source' = $content.Replace('ref: ${{ needs.plan.outputs.control-sha }}', 'ref: dev')
     'wrong candidate fingerprint' = $content.Replace('CANDIDATE_FINGERPRINT: ${{ github.sha }}', 'CANDIDATE_FINGERPRINT: ${{ github.event.pull_request.base.sha }}')
     'missing artifact digest rejection' = $content.Replace('digest-mismatch: error', 'digest-mismatch: warn')
-    'missing comparison dependency' = $content.Replace('needs: [plan, provider-tests, ordinary-control, ordinary-compare]', 'needs: [plan, provider-tests, ordinary-control]')
+    'missing comparison dependency' = $content.Replace('needs: [plan, storage-fixture, provider-tests, ordinary-control, ordinary-compare]', 'needs: [plan, storage-fixture, provider-tests, ordinary-control]')
     'ignored comparison result' = $content.Replace('test "$COMPARISON_RESULT" = success', 'true')
+    'optional storage qualification' = $content.Replace('  storage-fixture:', "  storage-fixture:`n    continue-on-error: true")
+    'skipped storage qualification' = $content.Replace('  storage-fixture:', "  storage-fixture:`n    if: false")
+    'changed raw-scan command' = $content.Replace('exit "$scan_status"', 'exit 0')
+    'ignored inventory failure' = $content.Replace('test "$inventory_status" -eq 0 || exit "$inventory_status"', 'true')
+    'conditional storage classifier' = $content.Replace("name: Require exact reviewed provenance and zero unresolved findings`n        if: always()", "name: Require exact reviewed provenance and zero unresolved findings`n        if: success()")
+    'missing storage final dependency' = $content.Replace('needs: [plan, storage-fixture, provider-tests, ordinary-control, ordinary-compare]', 'needs: [plan, provider-tests, ordinary-control, ordinary-compare]')
+    'ignored storage result' = $content.Replace('test "$STORAGE_RESULT" = success', 'true')
+    'provider bypasses storage producer' = $content.Replace('    needs: [plan, storage-fixture]', '    needs: plan')
+    'wrong transferred image identity' = $content.Replace('EXPECTED_FIXTURE_ID: ${{ needs.storage-fixture.outputs.image-id }}', "EXPECTED_FIXTURE_ID: 'unverified'")
+    'ignored classifier failure' = $content.Replace(' --scanner-exit-code "$SCAN_EXIT_CODE"', ' --scanner-exit-code "$SCAN_EXIT_CODE" || true')
+    'ignored native provider failure' = $content.Replace('run: python3 eng/test-docker-groups.py --group "${{ matrix.group }}"', 'run: python3 eng/test-docker-groups.py --group "${{ matrix.group }}" || true')
 }
 foreach ($name in $mutants.Keys) {
     if ($mutants[$name] -ceq $content) { throw "Fixture mutation '$name' did not alter the actual workflow." }

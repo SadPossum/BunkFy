@@ -20,6 +20,8 @@ param(
 
 . (Join-Path $PSScriptRoot 'common.ps1')
 . (Join-Path $PSScriptRoot 'operations\local-sensitive-state.common.ps1')
+. (Join-Path $PSScriptRoot 'operations\preview-storage.common.ps1')
+. (Join-Path $PSScriptRoot 'operations\preview-state.common.ps1')
 
 $root = Get-BunkFyRepositoryRoot
 $composeFile = Join-BunkFyPath 'deploy\preview\compose.yaml'
@@ -160,6 +162,12 @@ foreach ($provider in @('GOOGLE', 'MICROSOFT')) {
          [string]::IsNullOrWhiteSpace([string]$settings["BUNKFY_${provider}_OIDC_CLIENT_SECRET"]))) {
         throw "$provider OIDC is enabled but its client id or secret is missing."
     }
+}
+
+if ($Action -in @('up', 'open-operations', 'migrate')) {
+    $storageCompose = Get-BunkFyPreviewComposeDefinition -Root $root -ComposePath $composeFile -EnvironmentPath $environmentFile
+    Assert-BunkFyPreviewStorageVolume -ComposeDefinition $storageCompose
+    Assert-BunkFyPreviewInfrastructureVolumes -ComposeDefinition $storageCompose
 }
 
 $arguments = @('compose', '--env-file', $environmentFile, '-f', $composeFile)

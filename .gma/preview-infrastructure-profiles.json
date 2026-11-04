@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "profiles": {
+    "legacy": {
+      "images": {
+        "postgres": "postgres:17.5-alpine@sha256:6567bca8d7bc8c82c5922425a0baee57be8402df92bae5eacad5f01ae9544daa",
+        "redis": "redis:8.0-alpine@sha256:5f61955be8ab2ccee9372b84ae4d4da2e2b156f87281e3f218544055e7ee04d4",
+        "nats": "nats:2.11-alpine@sha256:e4bf19f15fd3218814a4e3c9e0064e1334bd8aa20d5984b9f1a0afd084f8cc00",
+        "mailpit": "axllent/mailpit:v1.30.7@sha256:d5ecbb067db3705fa953d79e1b7f81ef84038df67aba6c52825d8c02a1ea748a"
+      },
+      "archiveUtilityImage": "alpine:3.21@sha256:48b0309ca019d89d40f670aa1bc06e426dc0931948452e8491e3d65087abc07d",
+      "postgresExecution": null
+    },
+    "maintained": {
+      "images": {
+        "postgres": "postgres:17.11-alpine3.23@sha256:05aa77262db9277fde6374bb2f901c9604b8a9373029e1a7993440c6aae48736",
+        "redis": "redis:8.2.11-alpine@sha256:489a769e0a54dc245896132a15c72d2bc7296719954da99398f43a3877e5f8eb",
+        "nats": "nats:2.14.9-alpine@sha256:127c5ccbc538a93f53ebb19461dc193130df386c2d6dab8199661a28a30d85bd",
+        "mailpit": "axllent/mailpit:v1.33.0@sha256:9b3a463be15354c0f0eba91697d80e3e0d8a5623ef0e627cacc836bc17fd5231"
+      },
+      "archiveUtilityImage": "alpine:3.23.7@sha256:ff7f0c727dd796aa36787bfcd9a64bf35a6ce72a73451b3359fde849b6703d63",
+      "postgresExecution": {
+        "user": "70:70",
+        "readOnly": true,
+        "capDrop": [
+          "ALL"
+        ],
+        "securityOptions": [
+          "no-new-privileges:true"
+        ],
+        "tmpfs": [
+          "/var/run/postgresql:size=8388608,uid=70,gid=70,mode=3775",
+          "/tmp:size=33554432,mode=1777"
+        ]
+      },
+      "configurationIds": {
+        "postgres": "sha256:63fb01dbab2f21a30c1188f6b05319df39b786a5845a5541299ed0dc3ed5bc69",
+        "redis": "sha256:d9d971e33375563038e653feb0fb6a43680c8fd93ccc4524f711d38a19ce3a4b",
+        "nats": "sha256:6118c58290dfdf94b68a232f56dc4a04d2d4455c46b799296d783b5551d042ef",
+        "mailpit": "sha256:580a202b5088e9c651a8e8b4e461e3213fbd3a3aacaa3d2251892a546a734116",
+        "archiveUtility": "sha256:742fde26380a2719b0001c4e2a63d051c60f0a56eb1305a83697ee7ce5b409b9"
+      }
+    }
+  },
+  "purpose": "Exact reviewed infrastructure tuples. Legacy remains default for existing env/backups. Maintained requires the qualified nonroot PostgreSQL profile and new infrastructure-bound backup metadata."
+}

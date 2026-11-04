@@ -17,6 +17,7 @@ $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot '..\common.ps1')
 . (Join-Path $PSScriptRoot 'local-sensitive-state.common.ps1')
 . (Join-Path $PSScriptRoot 'preview-state.common.ps1')
+. (Join-Path $PSScriptRoot 'preview-storage.common.ps1')
 
 $root = Get-BunkFyRepositoryRoot
 $composePath = Join-BunkFyPath 'deploy\preview\compose.yaml'
@@ -63,8 +64,8 @@ catch {
 $schemaVersion = 0
 if ($null -eq $manifest.PSObject.Properties['schemaVersion'] -or
     -not [int]::TryParse([string]$manifest.schemaVersion, [ref]$schemaVersion) -or
-    $schemaVersion -notin @(4, 5)) {
-    throw 'Preview recovery rehearsal requires a schema-4 or schema-5 backup.'
+    $schemaVersion -notin @(4, 5, 6, 7)) {
+    throw 'Preview recovery rehearsal requires a supported provider-bound backup.'
 }
 $manifestDigest = Assert-BunkFyBackupManifestIntegrity `
     -ManifestPath $manifestPath `
@@ -72,6 +73,14 @@ $manifestDigest = Assert-BunkFyBackupManifestIntegrity `
     -ExpectedSha256 $ExpectedManifestSha256
 $stateContract = Get-BunkFyPreviewStateContract -Manifest $manifest
 Assert-BunkFyPreviewStateContractCompatible -Contract $stateContract
+$storageCompose = Get-BunkFyPreviewComposeDefinition -Root $root -ComposePath $composePath -EnvironmentPath $EnvironmentPath
+Assert-BunkFyPreviewBackupStorageProvider -Manifest $manifest -ComposeDefinition $storageCompose
+$infrastructureImageIds = if ($schemaVersion -eq 7) {
+    Get-BunkFyPreviewInfrastructureImageIds -ComposeDefinition $storageCompose
+} else { @{} }
+Assert-BunkFyPreviewBackupInfrastructure -Manifest $manifest -ComposeDefinition $storageCompose `
+    -TargetImageIds $infrastructureImageIds
+$archiveUtilityImage = Get-BunkFyPreviewArchiveUtilityImage -ComposeDefinition $storageCompose
 $backupStateArchives = Get-BunkFyPreviewStateArchives -Version $stateContract.Version
 
 $backupId = [Guid]::Empty
@@ -251,7 +260,7 @@ try {
         'run', '--rm',
         '--mount', "type=bind,src=$archiveDirectory,dst=/backup,readonly",
         '--mount', "type=bind,src=$archiveKeyTreePath,dst=/target",
-        $script:BunkFyPreviewArchiveUtilityImage,
+        $archiveUtilityImage,
         'sh', '-euc',
         'tar -xzf "/backup/$1" -C /target && chmod -R a+rX /target',
         '--', $archiveName
@@ -260,7 +269,7 @@ try {
         'run', '--rm',
         '--mount', "type=volume,src=$dataProtectionVolume,dst=/source,readonly",
         '--mount', "type=bind,src=$restoredKeyTreePath,dst=/target",
-        $script:BunkFyPreviewArchiveUtilityImage,
+        $archiveUtilityImage,
         'sh', '-euc',
         'cp -a /source/. /target/ && chmod -R a+rX /target'
     ) -WorkingDirectory $root

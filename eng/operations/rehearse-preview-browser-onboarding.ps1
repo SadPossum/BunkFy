@@ -78,6 +78,11 @@ if (-not (Test-Path -LiteralPath $driverPath -PathType Leaf) -or
     -not (Test-Path -LiteralPath $playwrightPath -PathType Container)) {
     throw 'Install the pinned web dependencies and Chromium before the browser rehearsal.'
 }
+$webPackage = Get-Content -LiteralPath (Join-Path $webPath 'package.json') -Raw | ConvertFrom-Json
+$installedPlaywright = Get-Content -LiteralPath (Join-Path $playwrightPath 'package.json') -Raw | ConvertFrom-Json
+if ([string]$installedPlaywright.version -cne [string]$webPackage.devDependencies.'@playwright/test') {
+    throw 'Installed Playwright differs from the pinned web dependency. Reinstall the frozen lockfile before rehearsal.'
+}
 
 if ([string]::IsNullOrWhiteSpace($OutputPath)) {
     $stamp = [DateTimeOffset]::UtcNow.ToString(

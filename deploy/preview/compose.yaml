@@ -80,7 +80,9 @@ x-preview-country-policy-volume: &preview-country-policy-volume
 
 services:
   postgres:
-    image: postgres:17.5-alpine@sha256:6567bca8d7bc8c82c5922425a0baee57be8402df92bae5eacad5f01ae9544daa
+    extends:
+      file: compose.infrastructure.yaml
+      service: "postgres-${BUNKFY_INFRA_PROFILE:-legacy}"
     restart: unless-stopped
     logging: *preview-logging
     environment:
@@ -97,7 +99,9 @@ services:
     networks: [backend]
 
   redis:
-    image: redis:8.0-alpine@sha256:5f61955be8ab2ccee9372b84ae4d4da2e2b156f87281e3f218544055e7ee04d4
+    extends:
+      file: compose.infrastructure.yaml
+      service: "redis-${BUNKFY_INFRA_PROFILE:-legacy}"
     restart: unless-stopped
     logging: *preview-logging
     command: ["redis-server", "--appendonly", "yes", "--requirepass", "${BUNKFY_REDIS_PASSWORD:?set BUNKFY_REDIS_PASSWORD}"]
@@ -113,7 +117,9 @@ services:
     networks: [backend]
 
   nats:
-    image: nats:2.11-alpine@sha256:e4bf19f15fd3218814a4e3c9e0064e1334bd8aa20d5984b9f1a0afd084f8cc00
+    extends:
+      file: compose.infrastructure.yaml
+      service: "nats-${BUNKFY_INFRA_PROFILE:-legacy}"
     restart: unless-stopped
     logging: *preview-logging
     command:
@@ -132,7 +138,8 @@ services:
     networks: [backend]
 
   minio:
-    image: minio/minio:RELEASE.2025-04-22T22-12-26Z@sha256:a1ea29fa28355559ef137d71fc570e508a214ec84ff8083e39bc5428980b015e
+    image: ${BUNKFY_STORAGE_IMAGE:-minio/minio:RELEASE.2025-04-22T22-12-26Z@sha256:a1ea29fa28355559ef137d71fc570e508a214ec84ff8083e39bc5428980b015e}
+    platform: ${BUNKFY_STORAGE_PLATFORM:-}
     restart: unless-stopped
     logging: *preview-logging
     command: ["server", "/data", "--console-address", ":9001"]
@@ -149,7 +156,9 @@ services:
     networks: [backend]
 
   mailpit:
-    image: axllent/mailpit:v1.30.7@sha256:d5ecbb067db3705fa953d79e1b7f81ef84038df67aba6c52825d8c02a1ea748a
+    extends:
+      file: compose.infrastructure.yaml
+      service: "mailpit-${BUNKFY_INFRA_PROFILE:-legacy}"
     restart: unless-stopped
     logging: *preview-logging
     environment:
@@ -470,12 +479,21 @@ networks:
 volumes:
   postgres-data:
     name: ${BUNKFY_VOLUME_PREFIX:-bunkfy-preview}-postgres-data
+    labels:
+      com.bunkfy.preview.infrastructure-generation: "${BUNKFY_INFRA_PROFILE:-legacy}:1"
   redis-data:
     name: ${BUNKFY_VOLUME_PREFIX:-bunkfy-preview}-redis-data
+    labels:
+      com.bunkfy.preview.infrastructure-generation: "${BUNKFY_INFRA_PROFILE:-legacy}:1"
   nats-data:
     name: ${BUNKFY_VOLUME_PREFIX:-bunkfy-preview}-nats-data
+    labels:
+      com.bunkfy.preview.infrastructure-generation: "${BUNKFY_INFRA_PROFILE:-legacy}:1"
   minio-data:
     name: ${BUNKFY_VOLUME_PREFIX:-bunkfy-preview}-minio-data
+    labels:
+      com.bunkfy.preview.storage-provider: ${BUNKFY_STORAGE_PROVIDER:-legacy-minio}
+      com.bunkfy.preview.storage-image: ${BUNKFY_STORAGE_IMAGE:-minio/minio:RELEASE.2025-04-22T22-12-26Z@sha256:a1ea29fa28355559ef137d71fc570e508a214ec84ff8083e39bc5428980b015e}
   data-protection:
     name: ${BUNKFY_VOLUME_PREFIX:-bunkfy-preview}-data-protection
   adapter-file-drop:

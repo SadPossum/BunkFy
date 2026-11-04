@@ -43,6 +43,11 @@ jobs:
         shell: pwsh
         run: ./eng/bootstrap.ps1
 
+      - name: Check Preview storage security evidence boundaries
+        run: |
+          python3 eng/operations/check-preview-storage-security.tests.py
+          python3 eng/operations/check-preview-infrastructure-security.tests.py
+
       - name: Install Chromium
         working-directory: apps/web
         run: pnpm exec playwright install chromium

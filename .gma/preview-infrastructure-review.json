@@ -1,0 +1,185 @@
+{
+  "schemaVersion": 1,
+  "purpose": "Exact Linux amd64 engineering Preview assessment; not general PostgreSQL image clearance or production admission. New/changed advisories, subjects or execution profiles require review.",
+  "reviewedAt": "2026-11-04T14:23:49.836114+00:00",
+  "reviewExpiresAt": "2026-12-04T14:23:49.836114+00:00",
+  "fixtureSha256": "db117216d0451b6d026e428c09bec019ad9c6cbfc698d20af1280fe46889b6a5",
+  "postgres": {
+    "image": "postgres:17.11-alpine3.23@sha256:05aa77262db9277fde6374bb2f901c9604b8a9373029e1a7993440c6aae48736",
+    "imageConfigDigest": "sha256:63fb01dbab2f21a30c1188f6b05319df39b786a5845a5541299ed0dc3ed5bc69",
+    "helperSha256": "52c8749d0142edd234e9d6bd5237dff2d81e71f43537e2f4f66f75dd4b243dd0",
+    "helperRawReportSha256": "c3f81a9529f261da2476b7c7a0952759de0b16176a866abfcbfe25da6effaf36",
+    "analyzerSha256": "430ca1cdc47cdab85673a244fd78e628c26d189081f0bc0ad23f73457c724086",
+    "entrypointSha256": "9c440299ae04a0a79d55b8bf03307036d890a40979d2fb698073c9050d4b20a5",
+    "helperInputFiles": [
+      {
+        "path": "/etc/passwd",
+        "uid": "0",
+        "gid": "0",
+        "mode": "644",
+        "size": 748,
+        "sha256": "7e4d76a6252d1b22b4db845d151663801e84e05e3f57f80c1b54664a2d630ea8"
+      },
+      {
+        "path": "/etc/group",
+        "uid": "0",
+        "gid": "0",
+        "mode": "644",
+        "size": 533,
+        "sha256": "96e5294cea7cfbbb31f2f93f23d4828afbd8d00a6a5fc85dfd1276d7fee3a3a0"
+      },
+      {
+        "path": "/usr/local/bin/gosu",
+        "uid": "0",
+        "gid": "0",
+        "mode": "755",
+        "size": 1769900,
+        "sha256": "52c8749d0142edd234e9d6bd5237dff2d81e71f43537e2f4f66f75dd4b243dd0"
+      }
+    ],
+    "stdlibCves": {
+      "CVE-2025-61726": [
+        "GO-2026-4341"
+      ],
+      "CVE-2025-61729": [
+        "GO-2025-4155"
+      ],
+      "CVE-2025-68121": [
+        "GO-2026-4337"
+      ],
+      "CVE-2026-111943": [
+        "GO-2026-6809"
+      ],
+      "CVE-2026-25679": [
+        "GO-2026-4601"
+      ],
+      "CVE-2026-27145": [
+        "GO-2026-5037"
+      ],
+      "CVE-2026-32280": [
+        "GO-2026-4947"
+      ],
+      "CVE-2026-32281": [
+        "GO-2026-4946"
+      ],
+      "CVE-2026-32283": [
+        "GO-2026-4870"
+      ],
+      "CVE-2026-33811": [
+        "GO-2026-4981"
+      ],
+      "CVE-2026-33814": [
+        "GO-2026-4918"
+      ],
+      "CVE-2026-33818": [
+        "GO-2026-5972"
+      ],
+      "CVE-2026-39820": [
+        "GO-2026-4986"
+      ],
+      "CVE-2026-39821": [
+        "GO-2026-5026"
+      ],
+      "CVE-2026-39822": [
+        "GO-2026-4970"
+      ],
+      "CVE-2026-39836": [
+        "GO-2026-4971"
+      ],
+      "CVE-2026-42499": [
+        "GO-2026-4977"
+      ],
+      "CVE-2026-42504": [
+        "GO-2026-5038"
+      ],
+      "CVE-2026-56853": [
+        "GO-2026-6089"
+      ],
+      "CVE-2026-56858": [
+        "GO-2026-6091"
+      ],
+      "CVE-2026-56859": [
+        "GO-2026-6088"
+      ],
+      "CVE-2026-56860": [
+        "GO-2026-6218"
+      ],
+      "CVE-2026-56862": [
+        "GO-2026-6090"
+      ],
+      "CVE-2026-78667": [
+        "GO-2026-6609"
+      ],
+      "CVE-2026-78669": [
+        "GO-2026-6611"
+      ],
+      "CVE-2026-97031": [
+        "GO-2026-6607"
+      ]
+    },
+    "contextCve": "CVE-2026-61801",
+    "contextOsv": "GO-2026-6686",
+    "advisorySha256": {
+      "GO-2025-4155": "461b069dbe153517d6229619ff9564d146d0bdc2ad315acd9ef951ab79afd9bd",
+      "GO-2026-4337": "62d51fb73f7bfb41f05c2e1e53109e16c4ee06c33e3a97d33b75f75607ec7337",
+      "GO-2026-4341": "bfb1ff131a087ea46a5de6fc42d371834a2357d19116e3674436285292770f64",
+      "GO-2026-4601": "07bb5788ebda47c1c3adb11b317dbae024a4f9557756f36a225b2e1b655a820a",
+      "GO-2026-4870": "d22f6e8faf691f0d15a257de899c4cbb4ff60735a4ee2cb258dff31567623075",
+      "GO-2026-4918": "4bfc417d6a8f3a8fd9ed5ab9a3590648726d3e56c3870c3a67cbd0210dd8cc6b",
+      "GO-2026-4946": "f9589a6c23d107b2616464150a0b448106d0ab342d5d54e0a4f20e189e6b32b8",
+      "GO-2026-4947": "4eee87e39e951f6a6684fcf80e7f6274947ad023ec9d9acef8f80347c7986a2c",
+      "GO-2026-4970": "9dae750270f8d25a6ea83a8621f8bf3b8e59a7ef425710a0308d159b05040502",
+      "GO-2026-4971": "cf0d1ab78c7e0f6cf563e4a2216f02cfc15a2fe1ddca335ce519f11c2a80ee97",
+      "GO-2026-4977": "bade6517538887368b9a45f2441afb94e37c624a170038dfe73e4b249ab94b06",
+      "GO-2026-4981": "3d9fb9c9653454d9e01369242b42a0c9e5d2e38e83b9341e1d25329fa7f65090",
+      "GO-2026-4986": "03692f6c131f1f7dbc6911597bbc0ed81680a40da9091da27cac61bac16b2d97",
+      "GO-2026-5026": "2aae2492f07cf5d4361f55a513da0ecf8ddfbba2c8c1cb569c8f06f44c1c5327",
+      "GO-2026-5037": "e5bdfbcff9b1df848f8f3bb1708ac298117a16dbc09af74b8e1513ce11601613",
+      "GO-2026-5038": "21e3c25e5270721807d8f1c1ec2e5551a7eab4eaf4d8545c31a13e31b19607d2",
+      "GO-2026-5972": "b73da008e93ef77daacd756f6cc31e28bb20d536619ec62820978df6749dda32",
+      "GO-2026-6088": "e453e622ac3bb12b21d29d42f5339b91726a9520fd4f64a6b6e5cfc4cab72bd6",
+      "GO-2026-6089": "93681e70038505e43a7d71c969be59d27a9f582d9074e10d068fab24ad0b782d",
+      "GO-2026-6090": "ac2e42aec69413394c5d2bc834cefe6710632e3ef8116e46166c3c86aa541131",
+      "GO-2026-6091": "fe6c5ff34b58faccad6f0cb02d1d6eee4822170591db1f6ba3e925c34ca77cf9",
+      "GO-2026-6218": "7810a407394b4e19efa43e6b96b0415f257ec6bdc8857e53167cd24a161cf122",
+      "GO-2026-6607": "385050baebc0d8b0f2914806df99da18a5b1e35c1aedfe3aa6d8fdc3b7e97431",
+      "GO-2026-6609": "019f257a447ebb3efd3e598cc352acf098bcfe0e078532063a95bb3de9aca549",
+      "GO-2026-6611": "5092b86b3fb1a53bcf83502236abae70633e9567ebd12b828b40123668f34a7e",
+      "GO-2026-6686": "eb2d42daa2af9eca5d6008e51e5c414f69d038505a4a8e9d62e4341eefe7967b",
+      "GO-2026-6809": "de4d9bca56ac815cf747145e4a5774747d07130d1f51f277a7e5f117041f17a1"
+    },
+    "assessment": "Original 26 stdlib advisories have explicit affected symbols and no matching function in the exact helper binary under unmodified govulncheck 1.9.0. Additional moby/sys/user unbounded-file DoS symbols are present; only the enforced UID70/read-only-root/capability-free/no-new-privileges/data-volume-only context with fixed bounded root-owned unwritable passwd/group files qualifies that conditional assessment. Raw findings remain retained; no global ignores."
+  },
+  "coverage": {
+    "redis": {
+      "redis:8.2.11-alpine@sha256:489a769e0a54dc245896132a15c72d2bc7296719954da99398f43a3877e5f8eb (alpine 3.22.7)": 22
+    },
+    "mailpit": {
+      "axllent/mailpit:v1.33.0@sha256:9b3a463be15354c0f0eba91697d80e3e0d8a5623ef0e627cacc836bc17fd5231 (alpine 3.24.3)": 17,
+      "mailpit": 53
+    },
+    "postgres": {
+      "postgres:17.11-alpine3.23@sha256:05aa77262db9277fde6374bb2f901c9604b8a9373029e1a7993440c6aae48736 (alpine 3.23.7)": 45,
+      "usr/local/bin/gosu": 4
+    },
+    "nats": {
+      "nats:2.14.9-alpine@sha256:127c5ccbc538a93f53ebb19461dc193130df386c2d6dab8199661a28a30d85bd (alpine 3.22.7)": 18,
+      "usr/local/bin/nats-server": 11
+    },
+    "archiveUtility": {
+      "alpine:3.23.7@sha256:ff7f0c727dd796aa36787bfcd9a64bf35a6ce72a73451b3359fde849b6703d63 (alpine 3.23.7)": 16
+    }
+  },
+  "qualifiedEvidence": {
+    "helperArtifact": 13319671672,
+    "helperArtifactSha256": "eab367e1813f425479d230c0e30b1fb7031c2c222f85cc425d1255d3e64cb75e",
+    "helperRawSha256": "c3f81a9529f261da2476b7c7a0952759de0b16176a866abfcbfe25da6effaf36",
+    "contextArtifact": 13322248396,
+    "contextArtifactSha256": "f8ddb0ba0c94aeffaacaf9495fc8d31177fed103a61648a179df595682cbf593",
+    "rawInventoryArtifact": 13319286667,
+    "rawInventoryArtifactSha256": "ffaaa91c90ad40039022cc9a0c8d9c22f28f37e1bbe2cd540934c25334537a92",
+    "archiveArtifact": 13325091908,
+    "archiveArtifactSha256": "ef51557b7a2f123c90a0cb88ad4be57a4ef656081e109818bd92d4815e1d9090",
+    "note": "Authenticated immutable raw reports. Context is the sanitized fresh-volume observation plus independently verified cleanup from the actual five-observation hosted probe; this normalization is not a new current Compose runtime claim."
+  }
+}
