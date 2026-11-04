@@ -1,10 +1,10 @@
-name: Preview infrastructure candidate advisory inventory
+name: Preview state compatibility and archive-tool security probe
 
 on:
   workflow_dispatch:
     inputs:
       expected_head:
-        description: Exact reviewed inventory commit
+        description: Exact reviewed state probe commit
         type: string
         required: true
 
@@ -12,30 +12,43 @@ permissions:
   contents: read
 
 concurrency:
-  group: preview-infrastructure-inventory-${{ github.ref }}
+  group: preview-state-compatibility-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
-  inventory:
+  probe:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - name: Checkout the reviewed inventory code only
+      - name: Checkout the reviewed probe code only
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
           submodules: false
       - name: Install the checksum-verified scanner
         run: python3 eng/operations/install-probe-trivy.py
-      - name: Inspect all current pinned infrastructure images
+      - name: Scan the fifth archive-tool subject with raw inventory
+        id: archive-scan
+        run: |
+          mkdir -p artifacts/state-compatibility
+          cp artifacts/tool-identity.json artifacts/state-compatibility/tool-identity.json
+          archive_image=$(python3 -c 'import json; print(json.load(open(".gma/preview-state-compatibility-review.json"))["images"]["archive"]["image"])')
+          trivy image --image-src remote --platform linux/amd64 --scanners vuln,secret --severity HIGH,CRITICAL --list-all-pkgs --exit-code 1 --format json --output artifacts/state-compatibility/archive-security.json "$archive_image"
+      - name: Install only the hash-pinned official protocol client for the probe
+        if: always()
+        run: |
+          python3 -m pip install --only-binary=:all: --no-deps --require-hashes --target "$RUNNER_TEMP/nats-probe" --requirement eng/operations/fixtures/nats-probe-requirements.txt
+      - name: Prove old state, new servers, cold restore, mail capture and archive compatibility
+        if: always()
         env:
           EXPECTED_SOURCE_SHA: ${{ inputs.expected_head }}
-        run: python3 eng/operations/inventory-preview-infrastructure.py
-      - name: Retain current subjects, raw findings and inventory
+          PYTHONPATH: ${{ runner.temp }}/nats-probe
+        run: python3 eng/operations/probe-preview-state-compatibility.py
+      - name: Retain exact subjects, raw findings, observations and cleanup
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: bunkfy-infrastructure-inventory-${{ github.run_id }}-${{ github.run_attempt }}
-          path: artifacts/infrastructure/*.json
+          name: bunkfy-state-compatibility-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/state-compatibility/*
           if-no-files-found: error
-          retention-days: 7
+          retention-days: 30

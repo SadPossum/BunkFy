@@ -1,0 +1,54 @@
+{
+  "schemaVersion": 1,
+  "images": {
+    "redisOld": {
+      "image": "redis:8.0-alpine@sha256:5f61955be8ab2ccee9372b84ae4d4da2e2b156f87281e3f218544055e7ee04d4",
+      "configDigest": "sha256:24268b5adfa9a5faf13e04d872b984beb4cbbbf53322d2e105790684a3ba745f"
+    },
+    "redis": {
+      "service": "redis",
+      "image": "redis:8.2.11-alpine@sha256:489a769e0a54dc245896132a15c72d2bc7296719954da99398f43a3877e5f8eb",
+      "configDigest": "sha256:d9d971e33375563038e653feb0fb6a43680c8fd93ccc4524f711d38a19ce3a4b"
+    },
+    "natsOld": {
+      "image": "nats:2.11-alpine@sha256:e4bf19f15fd3218814a4e3c9e0064e1334bd8aa20d5984b9f1a0afd084f8cc00",
+      "configDigest": "sha256:b2c7ef2d2b735068633f2dc9012ce5189e5f006096b6dad5ecff36dd3c6eb9b6"
+    },
+    "nats": {
+      "service": "nats",
+      "image": "nats:2.14.9-alpine@sha256:127c5ccbc538a93f53ebb19461dc193130df386c2d6dab8199661a28a30d85bd",
+      "configDigest": "sha256:6118c58290dfdf94b68a232f56dc4a04d2d4455c46b799296d783b5551d042ef"
+    },
+    "mailpit": {
+      "service": "mailpit",
+      "image": "axllent/mailpit:v1.33.0@sha256:9b3a463be15354c0f0eba91697d80e3e0d8a5623ef0e627cacc836bc17fd5231",
+      "configDigest": "sha256:580a202b5088e9c651a8e8b4e461e3213fbd3a3aacaa3d2251892a546a734116"
+    },
+    "archiveOld": {
+      "image": "alpine:3.21@sha256:48b0309ca019d89d40f670aa1bc06e426dc0931948452e8491e3d65087abc07d",
+      "configDigest": "sha256:2607caa9805847fac4de202017bb1b830deb09f4c07dc9964a0157abbc604577"
+    },
+    "archive": {
+      "service": "archiveUtility",
+      "image": "alpine:3.23.7@sha256:ff7f0c727dd796aa36787bfcd9a64bf35a6ce72a73451b3359fde849b6703d63",
+      "configDigest": "sha256:742fde26380a2719b0001c4e2a63d051c60f0a56eb1305a83697ee7ce5b409b9"
+    }
+  },
+  "scope": "Onebatcheddisposablecompatibilityprobe. No wholeapp, current.NETSDKconsumer, distributedbroker, realbackuporproductionadmission claim.",
+  "probeOnlyClient": {
+    "name": "nats-py",
+    "version": "2.16.0",
+    "requiresPython": ">=3.7",
+    "projectUrls": {
+      "Bug Tracker": "https://github.com/nats-io/nats.py/issues",
+      "Homepage": "https://github.com/nats-io/nats.py"
+    },
+    "wheel": {
+      "filename": "nats_py-2.16.0-py3-none-any.whl",
+      "sha256": "aeb1ff123966c05833d26c7df7e1d54c1c6d32b612428b21677a2e921f1fecae",
+      "url": "https://files.pythonhosted.org/packages/48/a3/16cec37172144d3362d7551bb823a098b2b2903281fc095dfe4480b8c2fd/nats_py-2.16.0-py3-none-any.whl",
+      "size": 93578
+    },
+    "capturedAt": "2026-11-04T12:58:52.544381+00:00"
+  }
+}
