@@ -24,13 +24,22 @@ $operations = Join-Path $candidate 'eng/operations'
 $composePath = Join-Path $candidate 'deploy/preview/compose.yaml'
 $composeWorkingDirectory = Split-Path -Parent $composePath
 $mailpitOverlay = Join-Path $candidate 'deploy/preview/compose.mailpit-operator.yaml'
-$stage = 'preflight'
+$qualificationState = [ordered]@{ Stage = 'preflight'; InstrumentedBrowserPath = $null; CallbackCompleted = $false }
 $privateCreated = $false
 $cleanupPassed = $false
 $instrumentedPath = $null
-$callbackCompleted = $false
 $previousEnvironment = [ordered]@{}
 $environmentSaved = $false
+
+function Set-QualificationStage {
+    param([string] $Value)
+    # Mutate the shared object across the separate instrumented script scope.
+    $qualificationState.Stage = $Value
+}
+
+function Complete-QualificationCallback {
+    $qualificationState.CallbackCompleted = $true
+}
 
 function Invoke-QualificationProcess {
     param([string] $Executable, [string[]] $Arguments, [hashtable] $Environment = @{}, [int] $TimeoutSeconds = 180)
@@ -219,7 +228,7 @@ function Close-QualificationMailpit {
 function Invoke-CodexExactCandidateCanaries {
     param([string] $EnvironmentPath, [Uri] $PublicOrigin, [string] $Project, [string] $Release,
         [string] $BackendReference, [string] $WebReference)
-    $script:stage = 'real-onboarding-and-worker-restart'
+    Set-QualificationStage 'real-onboarding-and-worker-restart'
     $env:BUNKFY_MAILPIT_OPERATOR_PORT = '0'
     try {
         [void](Get-QualificationCompose $EnvironmentPath -OperatorWindow -Tail @('up','--detach','--wait','--wait-timeout','180','--no-deps','--no-build','--pull','never','--force-recreate','mailpit'))
@@ -228,24 +237,29 @@ function Invoke-CodexExactCandidateCanaries {
         if ($ports -cnotmatch '^127\.0\.0\.1:([0-9]{1,5})$') { throw 'Mailpit operator window must use exactly one loopback binding.' }
         $mailpitOrigin = "http://$ports/"
         $browserOutput = Join-Path $evidenceDirectory 'onboarding.json'
-        [void](Invoke-QualificationProcess -Executable node -Arguments @((Join-Path $operations 'rehearse-preview-browser-onboarding.mjs')) -Environment @{
+        $qualificationState.InstrumentedBrowserPath = Join-Path $candidate ('.tmp/.qualified-onboarding-' + [Guid]::NewGuid().ToString('N') + '.mjs')
+        $browserHook = Invoke-QualificationProcess -Executable node -Arguments @(
+            (Join-Path $qualification 'enrollment-diagnostics.mjs'), $operations, $qualificationState.InstrumentedBrowserPath)
+        $browserHook | Set-Content (Join-Path $evidenceDirectory 'onboarding-instrumentation.json')
+        [void](Invoke-QualificationProcess -Executable node -Arguments @($qualificationState.InstrumentedBrowserPath) -Environment @{
             BUNKFY_BROWSER_PUBLIC_ORIGIN = $PublicOrigin.AbsoluteUri
             BUNKFY_BROWSER_EXPECTED_RELEASE_ID = $Release; BUNKFY_BROWSER_MAILPIT_ORIGIN = $mailpitOrigin
             BUNKFY_BROWSER_COMPOSE_PATH = $composePath; BUNKFY_BROWSER_ENVIRONMENT_PATH = $EnvironmentPath
             BUNKFY_BROWSER_COMPOSE_PROJECT_NAME = $Project; BUNKFY_BROWSER_RESULT_PATH = $browserOutput
+            BUNKFY_ENROLLMENT_DIAGNOSTIC_PATH = Join-Path $evidenceDirectory 'enrollment-diagnostic.json'
             BUNKFY_BROWSER_FORCE = 'true'; BUNKFY_BROWSER_HEADLESS = 'true'; BUNKFY_BROWSER_EXERCISE_WORKER_RESTART = 'true'
             BUNKFY_BROWSER_INCLUDE_CUSTOM_PROFILE_ADMINISTRATION = 'false'; BUNKFY_BROWSER_ALLOW_LOOPBACK_HTTP = 'true'
             BUNKFY_BROWSER_REQUEST_TIMEOUT_MS = '15000'; BUNKFY_BROWSER_CONVERGENCE_TIMEOUT_MS = '180000'
             BUNKFY_BROWSER_POLL_INTERVAL_MS = '1000'
         } -TimeoutSeconds 1800)
         if ((Get-Content $browserOutput -Raw | ConvertFrom-Json).result -cne 'passed') { throw 'Actual onboarding evidence did not pass.' }
-        $script:stage = 'real-booking-tenant-and-protected-authenticator'
+        Set-QualificationStage 'real-booking-tenant-and-protected-authenticator'
         Invoke-Canary create $PublicOrigin $Release $mailpitOrigin
-        $script:stage = 'real-broker-cache-and-object-markers'
+        Set-QualificationStage 'real-broker-cache-and-object-markers'
         Invoke-ProtocolCanary create (Write-ProtocolConfiguration $EnvironmentPath $Project 'source')
     }
     finally { Close-QualificationMailpit $EnvironmentPath $Project }
-    $script:stage = 'actual-schema-seven-backup'
+    Set-QualificationStage 'actual-schema-seven-backup'
     $backup = Join-Path $privateDirectory 'backup'
     & (Join-Path $operations 'backup-preview.ps1') -EnvironmentPath $EnvironmentPath -OutputPath $backup -Confirm:$false
     $manifestPath = Join-Path $backup 'manifest.json'
@@ -255,12 +269,12 @@ function Invoke-CodexExactCandidateCanaries {
         throw 'Backup did not bind the current candidate and all eight state artifacts.'
     }
     $digest = (Get-FileHash $manifestPath -Algorithm SHA256).Hash.ToLowerInvariant()
-    $script:stage = 'stop-original-stack-before-restore'
+    Set-QualificationStage 'stop-original-stack-before-restore'
     & (Join-Path $candidate 'eng/preview.ps1') down -EnvironmentPath $EnvironmentPath
     $running = Get-QualificationCompose $EnvironmentPath -Tail @('ps','--status','running','--quiet')
     if ($running -cne '') { throw 'Original candidate remained running during cold recovery.' }
     try {
-        $script:stage = 'actual-empty-target-recovery'
+        Set-QualificationStage 'actual-empty-target-recovery'
         $recoveryOutput = Join-Path $evidenceDirectory 'recovery-operator.json'
         & (Join-Path $operations 'rehearse-preview-recovery.ps1') -BackupPath $backup -ExpectedManifestSha256 $digest `
             -EnvironmentPath $EnvironmentPath -BackendImage $BackendReference -WebImage $WebReference `
@@ -283,9 +297,9 @@ function Invoke-CodexExactCandidateCanaries {
             $settings = [regex]::Replace($settings, '(?m)^' + $entry.Key + '=[^\r\n]*', [string]($entry.Key + '=' + $entry.Value))
         }
         Write-BunkFyLocalSensitiveTextFile $recoveredEnvironment $settings -Description 'Private recovered configuration'
-        $script:stage = 'real-cold-restored-broker-cache-and-objects'
+        Set-QualificationStage 'real-cold-restored-broker-cache-and-objects'
         Invoke-ProtocolCanary restore (Write-ProtocolConfiguration $recoveredEnvironment $recovery.target.projectName 'restored')
-        $script:stage = 'real-cold-restored-ui-mfa-booking-and-tenant'
+        Set-QualificationStage 'real-cold-restored-ui-mfa-booking-and-tenant'
         Invoke-Canary restore ([Uri]$recovery.target.publicOrigin) "recovery-$shortId"
     }
     finally {
@@ -293,11 +307,11 @@ function Invoke-CodexExactCandidateCanaries {
         # verifies removal of its imported candidate image tags.
         Remove-OwnedRecoveryResources
     }
-    $script:callbackCompleted = $true
+    Complete-QualificationCallback
 }
 
 $report = [ordered]@{ schemaVersion = 1; result = 'failed'; applicationSourceCommit = $ExpectedSourceCommit
-    harnessCommit = $ExpectedHarnessCommit; stage = $stage; cleanup = @{}
+    harnessCommit = $ExpectedHarnessCommit; stage = $qualificationState.Stage; cleanup = @{}
     scope = 'Disposable exact OCI Preview qualification; no production deployment or cross-version migration acceptance.' }
 try {
     if ($env:GITHUB_ACTIONS -cne 'true' -or $env:RUNNER_OS -cne 'Linux' -or
@@ -329,10 +343,10 @@ try {
         instrumentedOperatorSha256 = (Get-FileHash $instrumentedPath -Algorithm SHA256).Hash.ToLowerInvariant()
         checkedHookCount = 1; originalAssertionsPreserved = $true; trackedCandidateFilesChanged = $false
     }
-    $script:stage = 'attested-image-startup-and-isolation'
+    Set-QualificationStage 'attested-image-startup-and-isolation'
     & $instrumentedPath -BundleDirectory $BundleDirectory -ExpectedSourceCommit $ExpectedSourceCommit `
         -OutputPath (Join-Path $evidenceDirectory 'runtime.json')
-    if (-not $callbackCompleted) { throw 'Full candidate callback did not complete.' }
+    if (-not $qualificationState.CallbackCompleted) { throw 'Full candidate callback did not complete.' }
     $runtime = Get-Content (Join-Path $evidenceDirectory 'runtime.json') -Raw | ConvertFrom-Json
     if ($runtime.result -cne 'passed' -or $runtime.sourceCommit -cne $ExpectedSourceCommit -or
         -not $runtime.candidate.attestationsVerified -or $runtime.runtime.profile -cne 'Preview') {
@@ -345,7 +359,7 @@ try {
 }
 catch {
     $report['failureType'] = $_.Exception.GetType().FullName
-    $report['failureStage'] = $stage
+    $report['failureStage'] = $qualificationState.Stage
     $report['safeFailure'] = Get-CodexSafeRuntimeFailure -Failure $_
 }
 finally {
@@ -355,6 +369,7 @@ finally {
     catch { $report.result = 'failed'; $report['recoveryCleanupFailureType'] = $_.Exception.GetType().FullName }
     try {
         if ($null -ne $instrumentedPath -and (Test-Path $instrumentedPath)) { Remove-Item $instrumentedPath -Force }
+        if ($null -ne $qualificationState.InstrumentedBrowserPath -and (Test-Path $qualificationState.InstrumentedBrowserPath)) { Remove-Item $qualificationState.InstrumentedBrowserPath -Force }
         if ($privateCreated) { Remove-Item $privateDirectory -Recurse -Force }
         if ($privateCreated -and (Test-Path $privateDirectory)) { throw 'Private qualification material remains.' }
         $cleanupPassed = -not $report.Contains('recoveryCleanupFailureType')
@@ -364,9 +379,9 @@ finally {
         foreach ($item in Get-ChildItem Env: | Where-Object { $_.Name -cmatch '^(BUNKFY_|COMPOSE_)' }) { Remove-Item "Env:$($item.Name)" }
         foreach ($name in $previousEnvironment.Keys) { [Environment]::SetEnvironmentVariable($name,[string]$previousEnvironment[$name]) }
     }
-    $report.stage = $stage
+    $report.stage = $qualificationState.Stage
     $report.cleanup = @{ recoveredResourcesAndPrivateMaterialRemoved = $cleanupPassed }
     $report | ConvertTo-Json -Depth 8 | Set-Content (Join-Path $evidenceDirectory 'full-runtime.json')
 }
-if ($report.result -cne 'passed') { throw "Full candidate qualification failed during '$stage'; see minimized evidence." }
+if ($report.result -cne 'passed') { throw "Full candidate qualification failed during '$($qualificationState.Stage)'; see minimized evidence." }
 Write-Host 'Exact OCI onboarding, Worker, booking, tenant isolation, cold backup/recovery and protected MFA passed.'
