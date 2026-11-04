@@ -1,52 +1,54 @@
-name: validate
+name: Preview storage candidate qualification
 
 on:
-  pull_request:
-  push:
-    branches:
-      - main
-      - dev
   workflow_dispatch:
 
 permissions:
   contents: read
 
+concurrency:
+  group: preview-storage-probe-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  STORAGE_IMAGE: pgsty/silo:RELEASE.2026-10-26T00-00-00Z@sha256:7bb2aff6b89efe1cb1303c10fc21d579447434ed06649ac9ec05a5e2dbf30ad7
+
 jobs:
-  validate:
-    runs-on: windows-latest
+  storage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
-      - name: Checkout root
+      - name: Checkout reviewed probe only
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          fetch-depth: 0
-          submodules: recursive
           persist-credentials: false
+          submodules: false
 
-      - name: Setup .NET
-        uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
+      - name: Pull the exact reviewed Linux provider
+        run: docker pull --platform linux/amd64 "$STORAGE_IMAGE"
+
+      - name: Install pinned local scanner
+        uses: aquasecurity/setup-trivy@81e514348e19b6112ce2a7e3ecbafe19c1e1f567 # v0.3.1
         with:
-          dotnet-version: 10.0.403
+          version: v0.76.1
+          cache: 'true'
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+      - name: Require no high or critical security findings
+        run: |
+          mkdir -p artifacts
+          trivy image --scanners vuln,secret --severity HIGH,CRITICAL --exit-code 1 --format json --output artifacts/silo-security.json "$STORAGE_IMAGE"
+
+      - name: Retain provider component inventory
+        run: trivy image --format cyclonedx --output artifacts/silo-sbom.cdx.json "$STORAGE_IMAGE"
+
+      - name: Probe signed S3, denial, restart persistence and cleanup
+        run: python3 eng/operations/probe-preview-storage.py
+
+      - name: Retain minimized qualification evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          version: 11.7.0
-
-      - name: Setup Node
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version: 22
-          cache: pnpm
-          cache-dependency-path: apps/web/pnpm-lock.yaml
-
-      - name: Bootstrap
-        shell: pwsh
-        run: ./eng/bootstrap.ps1
-
-      - name: Install Chromium
-        working-directory: apps/web
-        run: pnpm exec playwright install chromium
-
-      - name: Verify
-        shell: pwsh
-        run: ./eng/verify.ps1
+          name: bunkfy-preview-storage-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/*.json
+          if-no-files-found: error
+          retention-days: 7
