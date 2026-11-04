@@ -234,6 +234,8 @@ jobs:
             evidence/runtime-error.json
             evidence/full-runtime.json
             evidence/onboarding.json
+            evidence/onboarding-instrumentation.json
+            evidence/enrollment-diagnostic.json
             evidence/business-create.json
             evidence/business-restore.json
             evidence/protocol-create.json

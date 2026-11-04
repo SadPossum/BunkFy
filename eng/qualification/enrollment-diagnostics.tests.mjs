@@ -3,7 +3,7 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
-import { instrumentOnboardingSource, recordEnrollmentDiagnostic } from "./enrollment-diagnostics.mjs";
+import { instrumentOnboardingSource, recordEnrollmentDiagnostic, cleanupFailureObservation } from "./enrollment-diagnostics.mjs";
 
 const PRIVATE = "SYNTHETIC_PRIVATE_EMAIL_TOKEN_RESPONSE_ERROR";
 function page({ unavailable = false } = {}) {
@@ -63,4 +63,34 @@ test("unavailable UI and API never export private exceptions", async () => {
 test("unreviewed source and arbitrary evidence filenames are rejected", async () => {
   assert.throws(() => instrumentOnboardingSource("changed source", "/unreviewed"), /changed/);
   await assert.rejects(recordEnrollmentDiagnostic({ outputPath: "/tmp/arbitrary.json" }), /fixed evidence/);
+});
+
+test("cleanup observations retain only known keys, API statuses and stages", () => {
+  assert.deepEqual(cleanupFailureObservation("properties", {
+    code: "Api.UnexpectedStatus.409", stage: "cleanup-property-retire", message: PRIVATE,
+  }), { key: "properties", code: "Api.UnexpectedStatus.409", stage: "cleanup-property-retire" });
+  const unknown = cleanupFailureObservation(PRIVATE, { code: PRIVATE, stage: PRIVATE, message: PRIVATE });
+  assert.equal(JSON.stringify(unknown).includes(PRIVATE), false);
+  assert.deepEqual(unknown, { key: "other", code: "other", stage: "other" });
+});
+
+test("successful convergence observations keep the same private-field exclusion", async () => {
+  const directory = mkdtempSync(join(tmpdir(), "bunkfy-enrollment-diagnostic-test-"));
+  try {
+    const outputPath = join(directory, "enrollment-diagnostic.json");
+    const result = await recordEnrollmentDiagnostic({ page: page(),
+      api: async () => ({ status: 200, body: { status: 5, token: PRIVATE } }),
+      workspaceId: PRIVATE, sourceId: PRIVATE, accessToken: PRIVATE, outputPath, phase: "converged" });
+    assert.equal(result.result, "observed-convergence");
+    assert.equal(result.failureStage, null);
+    assert.equal(readFileSync(outputPath, "utf8").includes(PRIVATE), false);
+  } finally { rmSync(directory, { recursive: true }); }
+});
+
+test("actual workflow retains both minimized diagnostics through its explicit file list", () => {
+  const workflow = readFileSync(new URL("../../.github/workflows/validate.yml", import.meta.url), "utf8");
+  for (const path of ["evidence/onboarding.json", "evidence/onboarding-instrumentation.json", "evidence/enrollment-diagnostic.json"]) {
+    assert.ok(workflow.includes(path), `Missing explicit artifact: ${path}`);
+  }
+  assert.equal(workflow.includes("evidence/*.json"), false);
 });

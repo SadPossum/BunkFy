@@ -29,14 +29,28 @@ async function visible(page, role, name) {
   catch { return null; }
 }
 
-export async function recordEnrollmentDiagnostic({ page, api, workspaceId, sourceId, accessToken, outputPath }) {
+export function cleanupFailureObservation(key, error) {
+  const keys = new Set(["nonOwnerMemberships", "properties"]);
+  const stages = new Set(["cleanup-members", "cleanup-staff-list", "cleanup-staff-profile",
+    "cleanup-staff-departure", "cleanup-property-read", "cleanup-property-retire"]);
+  const codes = new Set(["Cleanup.StaffProfileMismatch", "Cleanup.DuplicateStaff",
+    "Cleanup.InvalidDepartureReceipt", "Cleanup.UnsupportedStaffStatus", "Cleanup.MembershipTimeout",
+    "Cleanup.UnsupportedPropertyStatus", "Cleanup.InvalidPropertyRetirement",
+    ...HTTP_STATUSES.map((status) => `Api.UnexpectedStatus.${status}`)]);
+  return { key: keys.has(key) ? key : "other",
+    code: codes.has(error?.code) ? error.code : "other",
+    stage: stages.has(error?.stage) ? error.stage : "other" };
+}
+
+export async function recordEnrollmentDiagnostic({ page, api, workspaceId, sourceId, accessToken, outputPath, phase = "failure" }) {
+  if (!["failure", "converged"].includes(phase)) throw new Error("Unknown diagnostic observation phase.");
   if (basename(outputPath ?? "") !== "enrollment-diagnostic.json") {
     throw new Error("Diagnostic output must use its fixed evidence filename.");
   }
   const snapshot = {
     schemaVersion: 1,
-    result: "observed-failure",
-    failureStage: "enrollment-browser-convergence",
+    result: phase === "failure" ? "observed-failure" : "observed-convergence",
+    failureStage: phase === "failure" ? "enrollment-browser-convergence" : null,
     scope: "Read-only failure observations; no response bodies, identities, credentials, URLs or browser artifacts.",
     browser: {},
   };
@@ -99,14 +113,39 @@ export function instrumentOnboardingSource(source, operationsDirectory, helperUr
         outputPath: process.env.BUNKFY_ENROLLMENT_DIAGNOSTIC_PATH });
     } catch { /* Diagnostic failure never replaces the original failed acceptance. */ }
     throw error;
-  }`],
+  }
+  try {
+    await recordEnrollmentDiagnostic({ page: enrollmentPage, api,
+      workspaceId: targetWorkspaceId, sourceId: enrollmentSource.sourceId,
+      accessToken: enrollmentApplicant.accessToken, phase: "converged",
+      outputPath: process.env.BUNKFY_ENROLLMENT_DIAGNOSTIC_PATH });
+  } catch { /* Read-only observation cannot change the original acceptance. */ }`],
+    [`async function attemptCleanup(key, action) {
+  try {
+    cleanup[key] = await action();
+  } catch {
+    cleanup[key] = "failed";
+    addCleanupFailure(key);
+  }
+}`, `async function attemptCleanup(key, action) {
+  try {
+    cleanup[key] = await action();
+  } catch (error) {
+    if (["nonOwnerMemberships", "properties"].includes(key)) {
+      browserChecks.cleanupFailureObservations ??= [];
+      browserChecks.cleanupFailureObservations.push(cleanupFailureObservation(key, error));
+    }
+    cleanup[key] = "failed";
+    addCleanupFailure(key);
+  }
+}`],
   ];
   for (const [before, after] of replacements) {
     if (result.split(before).length !== 2) throw new Error("Expected exactly one reviewed onboarding hook binding.");
     result = result.replace(before, after);
   }
   return {
-    source: `import { recordEnrollmentDiagnostic } from ${JSON.stringify(helperUrl)};\n` + result,
+    source: `import { recordEnrollmentDiagnostic, cleanupFailureObservation } from ${JSON.stringify(helperUrl)};\n` + result,
     originalSha256,
   };
 }
@@ -128,7 +167,9 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   process.stdout.write(JSON.stringify({
     originalSha256: instrumented.originalSha256,
     instrumentedSha256: createHash("sha256").update(instrumented.source).digest("hex"),
-    diagnosticHooks: 1,
+    diagnosticHooks: 2,
+    enrollmentObservationHooks: 1,
+    cleanupObservationHooks: 1,
     originalAcceptanceAndCleanupPreserved: true,
     trackedCandidateFilesChanged: false,
   }) + "\n");
