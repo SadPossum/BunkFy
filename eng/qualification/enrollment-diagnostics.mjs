@@ -3,7 +3,7 @@ import { readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { basename, dirname, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-const ORIGINAL_SHA256 = "43fa172e0838f891c0762ef06389e0b4bfd625ecbbb168321391de213a99fe46";
+const ORIGINAL_SHA256 = "e023628bf7be0490ab10934e688f7ee450e8dd2ee35c14e298b5637eddaaf266";
 const HTTP_STATUSES = [200, 400, 401, 403, 404, 409, 429, 500, 503];
 const FAILURE_CODES = new Set([
   "Workspaces.AccessProvisioningFailed",
@@ -83,7 +83,7 @@ export function cleanupFailureObservation(key, error) {
     "cleanup-staff-departure", "cleanup-property-read", "cleanup-property-retire"]);
   const codes = new Set(["Cleanup.StaffProfileMismatch", "Cleanup.DuplicateStaff",
     "Cleanup.InvalidDepartureReceipt", "Cleanup.UnsupportedStaffStatus", "Cleanup.MembershipTimeout",
-    "Cleanup.UnsupportedPropertyStatus", "Cleanup.InvalidPropertyRetirement",
+    "Cleanup.UnsupportedPropertyStatus", "Cleanup.InvalidPropertyRetirement", "Cleanup.RateLimitTimeout",
     ...HTTP_STATUSES.map((status) => `Api.UnexpectedStatus.${status}`)]);
   return { key: keys.has(key) ? key : "other",
     code: codes.has(error?.code) ? error.code : "other",

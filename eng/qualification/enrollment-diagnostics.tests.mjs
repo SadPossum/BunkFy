@@ -69,6 +69,15 @@ test("unreviewed source and arbitrary evidence filenames are rejected", async ()
   await assert.rejects(recordEnrollmentDiagnostic({ outputPath: "/tmp/arbitrary.json" }), /fixed evidence/);
 });
 
+test("bounded cleanup rate-limit failure keeps only its reviewed code and stage", () => {
+  const observed = cleanupFailureObservation("properties", {
+    code: "Cleanup.RateLimitTimeout", stage: "cleanup-property-read",
+    message: PRIVATE, headers: PRIVATE, body: PRIVATE,
+  });
+  assert.deepEqual(observed, { key: "properties", code: "Cleanup.RateLimitTimeout", stage: "cleanup-property-read" });
+  assert.equal(JSON.stringify(observed).includes(PRIVATE), false);
+});
+
 test("cleanup observations retain only known keys, API statuses and stages", () => {
   assert.deepEqual(cleanupFailureObservation("properties", {
     code: "Api.UnexpectedStatus.409", stage: "cleanup-property-retire", message: PRIVATE,
