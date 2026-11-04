@@ -2,9 +2,11 @@ import assert from "node:assert/strict";
 import { mkdtemp, readFile, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { setImmediate as settle } from "node:timers/promises";
 import test from "node:test";
 import {
   ProofFailure,
+  createApiClient,
   fingerprint,
   isVerifiedServiceState,
   newSyntheticIdentity,
@@ -115,4 +117,192 @@ test("evidence is atomic, private, and refuses accidental replacement", async ()
   await assert.rejects(() => writeEvidence(path, { result: "replaced" }, false), ProofFailure);
   await writeEvidence(path, { result: "replaced" }, true);
   assert.deepEqual(JSON.parse(await readFile(path, "utf8")), { result: "replaced" });
+});
+
+function apiFixture(responses, cleanupOptions = {
+  cleanupRateLimitTimeoutMilliseconds: 10_000,
+  cleanupPollIntervalMilliseconds: 500,
+}, requestTimeoutMilliseconds = 1_000) {
+  const calls = [];
+  let disposed = 0;
+  let bodyReads = 0;
+  const context = {
+    async fetch(url, options) {
+      calls.push({ url, options, at: Date.now() });
+      const response = responses.shift();
+      assert.ok(response, "An unexpected request was issued.");
+      if (response instanceof Error) throw response;
+      return {
+        status: () => response.status,
+        headers: () => response.headers ?? {},
+        async body() { bodyReads += 1; return Buffer.from(JSON.stringify(response.body ?? {})); },
+        async dispose() { disposed += 1; },
+      };
+    },
+  };
+  return {
+    api: createApiClient(context, new URL("https://preview.example.test/"), requestTimeoutMilliseconds, cleanupOptions),
+    calls,
+    get disposed() { return disposed; },
+    get bodyReads() { return bodyReads; },
+  };
+}
+
+test("cleanup reads wait for Retry-After and retain the exact request", async (t) => {
+  t.mock.timers.enable({ apis: ["Date", "setTimeout"], now: 0 });
+  const fixture = apiFixture([
+    { status: 429, headers: { "retry-after": "7" } },
+    { status: 200, body: { items: [] } },
+  ]);
+  const pending = fixture.api("/api/organizations/fixture/members", {
+    stage: "cleanup-members", tenantId: "fixture", accessToken: "synthetic-token",
+  });
+  await settle();
+  t.mock.timers.tick(6_999);
+  await settle();
+  assert.equal(fixture.calls.length, 1);
+  t.mock.timers.tick(1);
+  assert.deepEqual((await pending).body, { items: [] });
+  assert.equal(fixture.calls[1].at, 7_000);
+  assert.deepEqual(fixture.calls[0].options, fixture.calls[1].options);
+  assert.equal(fixture.calls[0].url, fixture.calls[1].url);
+  assert.equal(fixture.disposed, 1);
+  assert.equal(fixture.bodyReads, 1, "Throttled response bodies must not be retained.");
+});
+
+test("cleanup reads honor HTTP-date Retry-After", async (t) => {
+  const now = Date.parse("2026-11-04T00:00:00Z");
+  t.mock.timers.enable({ apis: ["Date", "setTimeout"], now });
+  const fixture = apiFixture([
+    { status: 429, headers: { "retry-after": "Wed, 04 Nov 2026 00:00:07 GMT" } },
+    { status: 200 },
+  ]);
+  const pending = fixture.api("/api/properties/fixture", { stage: "cleanup-property-read" });
+  await settle();
+  t.mock.timers.tick(6_999);
+  await settle();
+  assert.equal(fixture.calls.length, 1);
+  t.mock.timers.tick(1);
+  assert.equal((await pending).status, 200);
+  assert.equal(fixture.calls[1].at - now, 7_000);
+});
+
+test("a retry request cannot outlive the remaining cleanup budget", async (t) => {
+  t.mock.timers.enable({ apis: ["Date", "setTimeout"], now: 0 });
+  const fixture = apiFixture([
+    { status: 429, headers: { "retry-after": "9" } }, { status: 200 },
+  ], {
+    cleanupRateLimitTimeoutMilliseconds: 10_000, cleanupPollIntervalMilliseconds: 500,
+  }, 5_000);
+  const pending = fixture.api("/api/properties/fixture", { stage: "cleanup-property-read" });
+  await settle();
+  t.mock.timers.tick(9_000);
+  await pending;
+  assert.equal(fixture.calls[0].options.timeout, 5_000);
+  assert.equal(fixture.calls[1].options.timeout, 1_000);
+});
+
+test("missing or malformed cleanup Retry-After uses the configured polling interval", async (t) => {
+  t.mock.timers.enable({ apis: ["Date", "setTimeout"], now: 0 });
+  for (const headers of [{}, { "retry-after": "not-a-date" }]) {
+    const fixture = apiFixture([{ status: 429, headers }, { status: 200 }]);
+    const pending = fixture.api("/api/properties/fixture", { stage: "cleanup-property-read" });
+    await settle();
+    t.mock.timers.tick(499);
+    await settle();
+    assert.equal(fixture.calls.length, 1);
+    t.mock.timers.tick(1);
+    assert.equal((await pending).status, 200);
+  }
+});
+
+test("the cleanup retry budget is shared between membership and property reads", async (t) => {
+  t.mock.timers.enable({ apis: ["Date", "setTimeout"], now: 0 });
+  const fixture = apiFixture([
+    { status: 429, headers: { "retry-after": "6" } }, { status: 200 },
+    { status: 429, headers: { "retry-after": "6" } },
+  ]);
+  const first = fixture.api("/api/organizations/fixture/members", { stage: "cleanup-members" });
+  await settle();
+  t.mock.timers.tick(6_000);
+  await first;
+  await assert.rejects(
+    fixture.api("/api/properties/fixture", { stage: "cleanup-property-read" }),
+    (error) => error.code === "Cleanup.RateLimitTimeout" && error.stage === "cleanup-property-read",
+  );
+  assert.equal(fixture.calls.length, 3);
+  assert.equal(fixture.disposed, 2);
+});
+
+test("Retry-After at the deadline or beyond the numeric range never causes an early retry", async (t) => {
+  t.mock.timers.enable({ apis: ["Date", "setTimeout"], now: 0 });
+  for (const retryAfter of ["10", "11", "9".repeat(400)]) {
+    const fixture = apiFixture([{ status: 429, headers: { "retry-after": retryAfter } }]);
+    await assert.rejects(
+      fixture.api("/api/properties/fixture", { stage: "cleanup-property-read" }),
+      (error) => error.code === "Cleanup.RateLimitTimeout",
+    );
+    assert.equal(fixture.calls.length, 1);
+    assert.equal(fixture.disposed, 1);
+  }
+});
+
+test("a delayed event loop cannot send another cleanup read after the deadline", async (t) => {
+  t.mock.timers.enable({ apis: ["Date", "setTimeout"], now: 0 });
+  const fixture = apiFixture([{ status: 429, headers: { "retry-after": "7" } }]);
+  const rejected = assert.rejects(
+    fixture.api("/api/properties/fixture", { stage: "cleanup-property-read" }),
+    (error) => error.code === "Cleanup.RateLimitTimeout",
+  );
+  await settle();
+  t.mock.timers.tick(10_001);
+  await rejected;
+  assert.equal(fixture.calls.length, 1);
+});
+
+test("cleanup mutations and normal product requests are never automatically replayed", async () => {
+  for (const options of [
+    { method: "POST", stage: "cleanup-staff-departure", data: { operationId: "stable-fixture-id" } },
+    { method: "GET", stage: "verify-members" },
+  ]) {
+    const fixture = apiFixture([{ status: 429 }]);
+    await assert.rejects(fixture.api("/api/fixture", options),
+      (error) => error.code === "Api.UnexpectedStatus.429");
+    assert.equal(fixture.calls.length, 1);
+  }
+});
+
+test("explicit 429 observers and clients without cleanup retry opt-in retain existing behavior", async () => {
+  const observer = apiFixture([{ status: 429, body: { retry: true } }]);
+  const response = await observer.api("/api/fixture", {
+    stage: "cleanup-members", expectedStatus: [200, 429],
+  });
+  assert.equal(response.status, 429);
+  assert.equal(observer.calls.length, 1);
+  assert.equal(observer.disposed, 0);
+  const original = apiFixture([{ status: 429 }], {});
+  await assert.rejects(original.api("/api/fixture", { stage: "cleanup-members" }),
+    (error) => error.code === "Api.UnexpectedStatus.429");
+  assert.equal(original.calls.length, 1);
+});
+
+test("cleanup authorization, server and transport failures remain terminal", async () => {
+  for (const response of [{ status: 403 }, { status: 500 }, new Error("synthetic transport failure")]) {
+    const fixture = apiFixture([response]);
+    await assert.rejects(fixture.api("/api/fixture", { stage: "cleanup-members" }));
+    assert.equal(fixture.calls.length, 1);
+  }
+});
+
+test("cleanup retry configuration rejects unbounded or invalid budgets", () => {
+  for (const options of [
+    { cleanupRateLimitTimeoutMilliseconds: -1 },
+    { cleanupRateLimitTimeoutMilliseconds: 600_001 },
+    { cleanupRateLimitTimeoutMilliseconds: Infinity },
+    { cleanupPollIntervalMilliseconds: 0 },
+    { cleanupPollIntervalMilliseconds: 5_001 },
+  ]) {
+    assert.throws(() => apiFixture([], options), (error) =>
+      error.code === "Configuration.InvalidCleanupRetryBudget");
+  }
 });

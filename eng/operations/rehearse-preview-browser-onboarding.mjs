@@ -115,6 +115,10 @@ try {
     apiContext,
     configuration.publicOrigin,
     configuration.requestTimeoutMilliseconds,
+    {
+      cleanupRateLimitTimeoutMilliseconds: configuration.convergenceTimeoutMilliseconds,
+      cleanupPollIntervalMilliseconds: configuration.pollIntervalMilliseconds,
+    },
   );
   observedReleaseId = await assertReleaseIdentity(
     api,

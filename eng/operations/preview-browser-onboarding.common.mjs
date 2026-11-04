@@ -148,7 +148,17 @@ export async function readBoundedBody(response, maximumBytes, code, stage) {
   return body;
 }
 
-export function createApiClient(context, origin, requestTimeoutMilliseconds) {
+export function createApiClient(context, origin, requestTimeoutMilliseconds, {
+  cleanupRateLimitTimeoutMilliseconds = 0,
+  cleanupPollIntervalMilliseconds = 1_000,
+} = {}) {
+  if (!Number.isSafeInteger(cleanupRateLimitTimeoutMilliseconds) ||
+      cleanupRateLimitTimeoutMilliseconds < 0 || cleanupRateLimitTimeoutMilliseconds > 600_000 ||
+      !Number.isSafeInteger(cleanupPollIntervalMilliseconds) ||
+      cleanupPollIntervalMilliseconds <= 0 || cleanupPollIntervalMilliseconds > 5_000) {
+    fail("Configuration.InvalidCleanupRetryBudget", "configuration");
+  }
+  let cleanupDeadline = null;
   return async function invoke(path, {
     method = "GET",
     tenantId = "global",
@@ -163,17 +173,53 @@ export function createApiClient(context, origin, requestTimeoutMilliseconds) {
       "X-Tenant-Id": tenantId,
     };
     if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
-    const response = await context.fetch(new URL(path, origin).toString(), {
+    const url = new URL(path, origin).toString();
+    const requestOptions = {
       method,
       headers,
       data,
       failOnStatusCode: false,
       maxRedirects: 0,
       timeout: requestTimeoutMilliseconds,
-    });
+    };
     const acceptedStatuses = Array.isArray(expectedStatus)
       ? expectedStatus
       : [expectedStatus];
+    const retryCleanupRead = cleanupRateLimitTimeoutMilliseconds > 0 &&
+      method === "GET" && stage.startsWith("cleanup-") && !acceptedStatuses.includes(429);
+    if (retryCleanupRead && cleanupDeadline === null) {
+      cleanupDeadline = Date.now() + cleanupRateLimitTimeoutMilliseconds;
+    }
+    let response;
+    let retrying = false;
+    while (true) {
+      const remainingMilliseconds = cleanupDeadline - Date.now();
+      if (retrying && remainingMilliseconds <= 0) {
+        fail("Cleanup.RateLimitTimeout", stage);
+      }
+      response = await context.fetch(url, retrying
+        ? { ...requestOptions, timeout: Math.min(requestTimeoutMilliseconds, remainingMilliseconds) }
+        : requestOptions);
+      if (response.status() !== 429 || !retryCleanupRead) break;
+
+      const responseHeaders = response.headers();
+      const raw = responseHeaders["retry-after"]?.trim();
+      const waitMilliseconds = raw && /^[0-9]+$/.test(raw) &&
+          !Number.isSafeInteger(Number(raw) * 1_000)
+        ? Number.POSITIVE_INFINITY
+        : resolvePollDelayMilliseconds(
+          { status: 429, headers: responseHeaders },
+          cleanupPollIntervalMilliseconds,
+          Number.MAX_SAFE_INTEGER,
+        );
+      // Release throttled responses before waiting; never retain their bodies.
+      await response.dispose();
+      if (waitMilliseconds >= cleanupDeadline - Date.now()) {
+        fail("Cleanup.RateLimitTimeout", stage);
+      }
+      await delay(waitMilliseconds);
+      retrying = true;
+    }
     if (!acceptedStatuses.includes(response.status())) {
       fail(`Api.UnexpectedStatus.${response.status()}`, stage);
     }
