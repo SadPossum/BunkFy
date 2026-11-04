@@ -123,7 +123,7 @@ jobs:
           if subprocess.check_output(['git', 'status', '--porcelain'], text=True).strip():
               raise RuntimeError('Application source and component checkout must be clean.')
           text = pathlib.Path('deploy/preview/compose.yaml').read_text()
-          images = re.findall(r'^    image: ([a-z0-9][a-z0-9./:_-]*@sha256:[0-9a-f]{64})$', text, re.MULTILINE)
+          images = re.findall(r'^    image: ([a-z0-9][A-Za-z0-9./:_-]*@sha256:[0-9a-f]{64})$', text, re.MULTILINE)
           if len(images) != 5 or len(set(images)) != 5:
               raise RuntimeError('Expected exactly five immutable Preview dependency images.')
           for image in images:
