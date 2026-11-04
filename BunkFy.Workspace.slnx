@@ -5,6 +5,7 @@
   <Folder Name="/.github/workflows/">
     <File Path=".github/workflows/codeql.yml" />
     <File Path=".github/workflows/image-evidence.yml" />
+    <File Path=".github/workflows/preview-storage-evidence.yml" />
     <File Path=".github/workflows/release-evidence.yml" />
     <File Path=".github/workflows/security.yml" />
     <File Path=".github/workflows/validate.yml" />
@@ -995,11 +996,14 @@
     <File Path="eng/test-deployed-workspace-invitation.ps1" />
     <File Path="eng/test-docker-test-workflow-policy.ps1" />
     <File Path="eng/test-image-candidate-package.ps1" />
+    <File Path="eng/test-native-binary-command.ps1" />
     <File Path="eng/test-preview-adapter-host-rehearsal.ps1" />
     <File Path="eng/test-preview-browser-onboarding-rehearsal.ps1" />
+    <File Path="eng/test-preview-infrastructure-guard.ps1" />
     <File Path="eng/test-preview-mail-capture.ps1" />
     <File Path="eng/test-preview-property-processing-fixture.ps1" />
     <File Path="eng/test-preview-sellable-room-fixture.ps1" />
+    <File Path="eng/test-preview-storage-guard.ps1" />
     <File Path="eng/test-preview-totp.ps1" />
     <File Path="eng/test-preview-workspace-access-estate.ps1" />
     <File Path="eng/test-production-admission.ps1" />
@@ -1019,13 +1023,16 @@
     <File Path="eng/operations/deployed-authenticated-smoke.common.ps1" />
     <File Path="eng/operations/deployed-public-edge.common.ps1" />
     <File Path="eng/operations/local-sensitive-state.common.ps1" />
+    <File Path="eng/operations/native-binary-command.common.ps1" />
     <File Path="eng/operations/offboard-staff-access.ps1" />
     <File Path="eng/operations/preview-browser-onboarding.common.mjs" />
     <File Path="eng/operations/preview-browser-workspace-access-administration.mjs" />
+    <File Path="eng/operations/preview-infrastructure.common.ps1" />
     <File Path="eng/operations/preview-mail-capture.common.ps1" />
     <File Path="eng/operations/preview-property-processing-fixture.common.ps1" />
     <File Path="eng/operations/preview-sellable-room-fixture.common.ps1" />
     <File Path="eng/operations/preview-state.common.ps1" />
+    <File Path="eng/operations/preview-storage.common.ps1" />
     <File Path="eng/operations/preview-totp.common.ps1" />
     <File Path="eng/operations/preview-workspace-access-estate.common.ps1" />
     <File Path="eng/operations/promote-image-candidate.ps1" />
@@ -1057,6 +1064,9 @@
     <File Path="eng/operations/verify-deployed-workspace-enrollment.ps1" />
     <File Path="eng/operations/verify-deployed-workspace-invitation.ps1" />
     <File Path="eng/operations/verify-preview-isolation.ps1" />
+  </Folder>
+  <Folder Name="/eng/operations/fixtures/">
+    <File Path="eng/operations/fixtures/native-binary-command-probe.ps1" />
   </Folder>
   <Folder Name="/eng/tests/">
     <File Path="eng/tests/preview-browser-onboarding.common.test.mjs" />
