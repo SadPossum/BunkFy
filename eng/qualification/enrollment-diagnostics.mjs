@@ -15,6 +15,54 @@ const maybeBoolean = (value) => typeof value === "boolean" ? value : null;
 const boundedInteger = (value, maximum) =>
   Number.isSafeInteger(value) && value >= 0 && value <= maximum ? value : null;
 
+// Passive Playwright events only. Never retain URLs, headers, bodies or errors.
+export function observeEnrollmentRequests(page, { workspaceId, homeWorkspaceId }) {
+  const requests = new WeakMap();
+  const buckets = new Map();
+  const route = (request) => {
+    let path;
+    try { path = new URL(request.url()).pathname; } catch { return null; }
+    const known = new Map([
+      ["/api/organizations", "workspace-catalogue"],
+      ["/api/properties", "visible-properties"],
+      ["/api/organization-enrollment/preview", "enrollment-preview"],
+      [`/api/workspace-staff-enrollment/${workspaceId}/applications/current`, "enrollment-application"],
+      ["/api/auth/browser/refresh", "browser-refresh"],
+      ["/api/staff/me", "current-staff"],
+      ["/api/access/permissions/evaluate", "permission-evaluation"],
+    ]);
+    return known.get(path) ?? null;
+  };
+  const increment = (bucket, field) => { bucket[field] = Math.min(10_000, bucket[field] + 1); };
+  page.on("request", request => {
+    const category = route(request);
+    if (!category) return;
+    const header = request.headers()["x-tenant-id"];
+    const tenant = header === workspaceId ? "target" : header === homeWorkspaceId ? "home"
+      : header === "global" ? "global" : header ? "other" : "missing";
+    const method = ["GET", "POST"].includes(request.method()) ? request.method() : "other";
+    const key = `${category}:${tenant}:${method}`;
+    if (!buckets.has(key)) buckets.set(key, { category, tenant, method,
+      started: 0, finished: 0, failed: 0, inFlight: 0, lastHttpStatus: null });
+    const bucket = buckets.get(key);
+    increment(bucket, "started"); increment(bucket, "inFlight");
+    requests.set(request, bucket);
+  });
+  page.on("response", response => {
+    const bucket = requests.get(response.request());
+    if (bucket) bucket.lastHttpStatus = boundedInteger(response.status(), 599);
+  });
+  for (const [event, field] of [["requestfinished", "finished"], ["requestfailed", "failed"]]) {
+    page.on(event, request => {
+      const bucket = requests.get(request);
+      if (!bucket) return;
+      increment(bucket, field); bucket.inFlight = Math.max(0, bucket.inFlight - 1);
+      requests.delete(request);
+    });
+  }
+  return { snapshot: () => [...buckets.values()].map(bucket => ({ ...bucket })) };
+}
+
 async function apiObservation(api, path, options, select) {
   try {
     const response = await api(path, { ...options, expectedStatus: HTTP_STATUSES });
@@ -42,7 +90,7 @@ export function cleanupFailureObservation(key, error) {
     stage: stages.has(error?.stage) ? error.stage : "other" };
 }
 
-export async function recordEnrollmentDiagnostic({ page, api, workspaceId, sourceId, accessToken, outputPath, phase = "failure" }) {
+export async function recordEnrollmentDiagnostic({ page, api, workspaceId, sourceId, accessToken, outputPath, phase = "failure", enrollmentRequests = null }) {
   if (!["failure", "converged"].includes(phase)) throw new Error("Unknown diagnostic observation phase.");
   if (basename(outputPath ?? "") !== "enrollment-diagnostic.json") {
     throw new Error("Diagnostic output must use its fixed evidence filename.");
@@ -55,25 +103,37 @@ export async function recordEnrollmentDiagnostic({ page, api, workspaceId, sourc
     browser: {},
   };
   try {
-    const state = await page.evaluate(() => ({
-      visibility: document.visibilityState,
-      focused: document.hasFocus(),
-      rootPath: window.location.pathname === "/",
-      joinPath: window.location.pathname === "/join",
-      fragmentCleared: window.location.hash === "",
-    }));
+    const state = await page.evaluate(async () => {
+      let heldSessionLocks = null;
+      let pendingSessionLocks = null;
+      try {
+        const locks = await navigator.locks?.query();
+        if (locks) {
+          heldSessionLocks = locks.held.filter(lock => lock.name === "bunkfy.browser-session.cookies").length;
+          pendingSessionLocks = locks.pending.filter(lock => lock.name === "bunkfy.browser-session.cookies").length;
+        }
+      } catch { /* Browser support is an observation, never acceptance. */ }
+      return { visibility: document.visibilityState, focused: document.hasFocus(),
+        rootPath: window.location.pathname === "/", joinPath: window.location.pathname === "/join",
+        fragmentCleared: window.location.hash === "", online: navigator.onLine,
+        heldSessionLocks, pendingSessionLocks };
+    });
     snapshot.browser = {
       visibility: ["visible", "hidden", "prerender"].includes(state.visibility) ? state.visibility : "other",
       focused: maybeBoolean(state.focused),
       rootPath: maybeBoolean(state.rootPath),
       joinPath: maybeBoolean(state.joinPath),
       fragmentCleared: maybeBoolean(state.fragmentCleared),
+      online: maybeBoolean(state.online),
+      heldSessionLocks: boundedInteger(state.heldSessionLocks, 100),
+      pendingSessionLocks: boundedInteger(state.pendingSessionLocks, 100),
     };
   } catch { snapshot.browser.collected = false; }
   snapshot.browser.mainNavigationVisible = await visible(page, "navigation", "Main navigation");
   snapshot.browser.requestSentVisible = await visible(page, "heading", "Request sent");
   snapshot.browser.openingWorkspaceVisible = await visible(page, "heading", "Opening workspace");
   snapshot.browser.openWorkspaceButtonVisible = await visible(page, "button", "Open workspace");
+  if (enrollmentRequests) snapshot.requests = enrollmentRequests.snapshot();
   snapshot.application = await apiObservation(api,
     `/api/workspace-staff-enrollment/${workspaceId}/applications/current?sourceKind=2&sourceId=${sourceId}`,
     { accessToken, stage: "diagnostic-current-enrollment" },
@@ -88,7 +148,7 @@ export async function recordEnrollmentDiagnostic({ page, api, workspaceId, sourc
     (body) => ({ hasStaffMember: typeof body?.staffMemberId === "string" && body.staffMemberId.length > 0 }));
   snapshot.properties = await apiObservation(api, "/api/properties?page=1&pageSize=1",
     { tenantId: workspaceId, accessToken, stage: "diagnostic-visible-properties" },
-    (body) => ({ hasItems: Array.isArray(body?.items) && body.items.length > 0 }));
+    (body) => ({ hasProperties: Array.isArray(body?.properties) && body.properties.length > 0 }));
   writeFileSync(outputPath, JSON.stringify(snapshot, null, 2) + "\n", { mode: 0o600, flag: "wx" });
   return snapshot;
 }
@@ -103,13 +163,16 @@ export function instrumentOnboardingSource(source, operationsDirectory, helperUr
     ["\"./preview-browser-onboarding.common.mjs\"", JSON.stringify(pathToFileURL(resolve(operationsDirectory, "preview-browser-onboarding.common.mjs")).href)],
     ["\"./preview-browser-workspace-access-administration.mjs\"", JSON.stringify(pathToFileURL(resolve(operationsDirectory, "preview-browser-workspace-access-administration.mjs")).href)],
     ["const scriptDirectory = dirname(fileURLToPath(import.meta.url));", `const scriptDirectory = ${JSON.stringify(operationsDirectory)};`],
+    ["  const enrollmentPage = await enrollmentContext.newPage();", `  const enrollmentPage = await enrollmentContext.newPage();
+  const enrollmentRequests = observeEnrollmentRequests(enrollmentPage,
+    { workspaceId: targetWorkspaceId, homeWorkspaceId: applicantHomeWorkspaceId });`],
     ["  await waitForDashboard(enrollmentPage, targetWorkspace.name);", `  try {
     await waitForDashboard(enrollmentPage, targetWorkspace.name);
   } catch (error) {
     try {
       await recordEnrollmentDiagnostic({ page: enrollmentPage, api,
         workspaceId: targetWorkspaceId, sourceId: enrollmentSource.sourceId,
-        accessToken: enrollmentApplicant.accessToken,
+        accessToken: enrollmentApplicant.accessToken, enrollmentRequests,
         outputPath: process.env.BUNKFY_ENROLLMENT_DIAGNOSTIC_PATH });
     } catch { /* Diagnostic failure never replaces the original failed acceptance. */ }
     throw error;
@@ -117,7 +180,7 @@ export function instrumentOnboardingSource(source, operationsDirectory, helperUr
   try {
     await recordEnrollmentDiagnostic({ page: enrollmentPage, api,
       workspaceId: targetWorkspaceId, sourceId: enrollmentSource.sourceId,
-      accessToken: enrollmentApplicant.accessToken, phase: "converged",
+      accessToken: enrollmentApplicant.accessToken, phase: "converged", enrollmentRequests,
       outputPath: process.env.BUNKFY_ENROLLMENT_DIAGNOSTIC_PATH });
   } catch { /* Read-only observation cannot change the original acceptance. */ }`],
     [`async function attemptCleanup(key, action) {
@@ -145,7 +208,7 @@ export function instrumentOnboardingSource(source, operationsDirectory, helperUr
     result = result.replace(before, after);
   }
   return {
-    source: `import { recordEnrollmentDiagnostic, cleanupFailureObservation } from ${JSON.stringify(helperUrl)};\n` + result,
+    source: `import { recordEnrollmentDiagnostic, cleanupFailureObservation, observeEnrollmentRequests } from ${JSON.stringify(helperUrl)};\n` + result,
     originalSha256,
   };
 }
@@ -167,9 +230,10 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   process.stdout.write(JSON.stringify({
     originalSha256: instrumented.originalSha256,
     instrumentedSha256: createHash("sha256").update(instrumented.source).digest("hex"),
-    diagnosticHooks: 2,
+    diagnosticHooks: 3,
     enrollmentObservationHooks: 1,
     cleanupObservationHooks: 1,
+    requestObservationHooks: 1,
     originalAcceptanceAndCleanupPreserved: true,
     trackedCandidateFilesChanged: false,
   }) + "\n");

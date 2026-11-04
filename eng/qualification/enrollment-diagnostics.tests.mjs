@@ -3,7 +3,8 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
-import { instrumentOnboardingSource, recordEnrollmentDiagnostic, cleanupFailureObservation } from "./enrollment-diagnostics.mjs";
+import { EventEmitter } from "node:events";
+import { instrumentOnboardingSource, recordEnrollmentDiagnostic, cleanupFailureObservation, observeEnrollmentRequests } from "./enrollment-diagnostics.mjs";
 
 const PRIVATE = "SYNTHETIC_PRIVATE_EMAIL_TOKEN_RESPONSE_ERROR";
 function page({ unavailable = false } = {}) {
@@ -11,7 +12,7 @@ function page({ unavailable = false } = {}) {
     async evaluate() {
       if (unavailable) throw new Error(PRIVATE);
       return { visibility: "visible", focused: true, rootPath: false, joinPath: true,
-        fragmentCleared: true, token: PRIVATE, body: PRIVATE };
+        fragmentCleared: true, online: true, heldSessionLocks: 1, pendingSessionLocks: 2, token: PRIVATE, body: PRIVATE };
     },
     getByRole() { return { async isVisible() {
       if (unavailable) throw new Error(PRIVATE);
@@ -27,7 +28,7 @@ test("failure probe makes three reads and exports only fixed statuses and boolea
     const api = async (path, options) => {
       calls.push({ path, options });
       return { status: 200, body: { status: 5, staffMemberId: PRIVATE, claimId: PRIVATE,
-        failureCode: PRIVATE, items: [{ email: PRIVATE }], verifiedAccountEmail: PRIVATE,
+        failureCode: PRIVATE, properties: [{ email: PRIVATE }], verifiedAccountEmail: PRIVATE,
         password: PRIVATE, accessToken: PRIVATE } };
     };
     const outputPath = join(directory, "enrollment-diagnostic.json");
@@ -38,7 +39,10 @@ test("failure probe makes three reads and exports only fixed statuses and boolea
     assert.equal(result.application.status, 5);
     assert.equal(result.application.failureCode, "other");
     assert.equal(result.application.hasStaffMember, true);
-    assert.equal(result.properties.hasItems, true);
+    assert.equal(result.properties.hasProperties, true);
+    assert.equal(result.browser.online, true);
+    assert.equal(result.browser.heldSessionLocks, 1);
+    assert.equal(result.browser.pendingSessionLocks, 2);
     assert.equal(readFileSync(outputPath, "utf8").includes(PRIVATE), false);
     await assert.rejects(recordEnrollmentDiagnostic({ page: page(), api,
       workspaceId: PRIVATE, sourceId: PRIVATE, accessToken: PRIVATE, outputPath }), /EEXIST/);
@@ -93,4 +97,42 @@ test("actual workflow retains both minimized diagnostics through its explicit fi
     assert.ok(workflow.includes(path), `Missing explicit artifact: ${path}`);
   }
   assert.equal(workflow.includes("evidence/*.json"), false);
+});
+
+test("passive request observations bound counters and discard URL/header/body/error secrets", () => {
+  const events = new EventEmitter();
+  const observer = observeEnrollmentRequests(events, { workspaceId: "target", homeWorkspaceId: "home" });
+  const request = { url: () => `https://${PRIVATE}.invalid/api/properties?secret=${PRIVATE}`,
+    headers: () => ({ "x-tenant-id": "target", authorization: PRIVATE }), method: () => "GET" };
+  events.emit("request", request);
+  events.emit("response", { request: () => request, status: () => 429, body: () => PRIVATE });
+  assert.deepEqual(observer.snapshot(), [{ category: "visible-properties", tenant: "target", method: "GET",
+    started: 1, finished: 0, failed: 0, inFlight: 1, lastHttpStatus: 429 }]);
+  events.emit("requestfailed", request);
+  const unknown = { ...request, url: () => `https://example.invalid/${PRIVATE}` };
+  events.emit("request", unknown);
+  const privateScope = { ...request, headers: () => ({ "x-tenant-id": PRIVATE }), method: () => PRIVATE };
+  events.emit("request", privateScope); events.emit("requestfinished", privateScope);
+  for (let index = 0; index < 10_005; index++) {
+    events.emit("request", request); events.emit("requestfinished", request);
+  }
+  const snapshot = observer.snapshot();
+  assert.equal(snapshot[0].started, 10_000);
+  assert.equal(snapshot[0].failed, 1);
+  assert.equal(snapshot[0].inFlight, 0);
+  assert.equal(snapshot[1].tenant, "other");
+  assert.equal(snapshot[1].method, "other");
+  assert.equal(JSON.stringify(snapshot).includes(PRIVATE), false);
+});
+
+test("property observation uses the actual properties collection rather than a generic items field", async () => {
+  const directory = mkdtempSync(join(tmpdir(), "bunkfy-enrollment-diagnostic-test-"));
+  try {
+    const result = await recordEnrollmentDiagnostic({ page: page(),
+      api: async () => ({ status: 200, body: { items: [{ token: PRIVATE }], properties: [] } }),
+      workspaceId: PRIVATE, sourceId: PRIVATE, accessToken: PRIVATE,
+      outputPath: join(directory, "enrollment-diagnostic.json") });
+    assert.equal(result.properties.hasProperties, false);
+    assert.equal(JSON.stringify(result).includes(PRIVATE), false);
+  } finally { rmSync(directory, { recursive: true }); }
 });
