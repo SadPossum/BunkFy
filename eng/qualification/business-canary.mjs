@@ -69,7 +69,7 @@ async function signIn(state, mfa) {
     () => page.getByRole('button', { name: 'Sign in', exact: true }).click(), [mfa ? 202 : 200]);
   if (mfa) {
     assert(typeof login.body.challengeToken === 'string');
-    const validCodes = [-1, 0, 1].map(offset => totp(state.totpSecret, offset));
+    const validCodes = [-2, -1, 0, 1, 2].map(offset => totp(state.totpSecret, offset));
     const wrong = ['000000', '999999', '123456', '654321'].find(value => !validCodes.includes(value));
     const api = createApiClient(context.request, origin, 15000);
     await api('/api/auth/browser/mfa/challenges/complete', { method: 'POST',

@@ -145,7 +145,7 @@ jobs:
         shell: bash
         run: |
           python3 harness/eng/qualification/install-browser-fixture.py candidate
-          node candidate/apps/web/node_modules/playwright/cli.js install chromium
+          node candidate/apps/web/node_modules/playwright/cli.js install --with-deps chromium
           python3 -m pip install --disable-pip-version-check --no-deps --require-hashes \
             --target "$RUNNER_TEMP/candidate-nats-client" \
             -r harness/eng/qualification/nats-probe-requirements.txt
