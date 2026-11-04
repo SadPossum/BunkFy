@@ -22,6 +22,7 @@ $operations = Join-Path $candidate 'eng/operations'
 . (Join-Path $operations 'preview-storage.common.ps1')
 . (Join-Path $qualification 'runtime-hook.common.ps1')
 $composePath = Join-Path $candidate 'deploy/preview/compose.yaml'
+$composeWorkingDirectory = Split-Path -Parent $composePath
 $mailpitOverlay = Join-Path $candidate 'deploy/preview/compose.mailpit-operator.yaml'
 $stage = 'preflight'
 $privateCreated = $false
@@ -84,7 +85,7 @@ function Get-OwnedContainer {
     $container = @(ConvertFrom-Json (Invoke-QualificationDocker -Arguments @('inspect', $ids[0])))[0]
     if ($container.Config.Labels.'com.docker.compose.project' -cne $Project -or
         $container.Config.Labels.'com.docker.compose.service' -cne $Service -or
-        $container.Config.Labels.'com.docker.compose.project.working_dir' -cne $candidate) {
+        $container.Config.Labels.'com.docker.compose.project.working_dir' -cne $composeWorkingDirectory) {
         throw 'Container is outside this exact candidate project.'
     }
     return $container
@@ -177,7 +178,7 @@ function Remove-OwnedRecoveryResources {
     foreach ($type in @('container','network','volume')) {
         foreach ($resource in @(Get-RecoveryResourceNames $type)) {
             if ($type -ceq 'container') {
-                if ($resource.Item.Config.Labels.'com.docker.compose.project.working_dir' -cne $candidate) {
+                if ($resource.Item.Config.Labels.'com.docker.compose.project.working_dir' -cne $composeWorkingDirectory) {
                     throw 'Refusing recovery cleanup outside the exact candidate working directory.'
                 }
                 [void](Invoke-QualificationDocker -Arguments @('container','rm','--force',$resource.Id))
@@ -199,7 +200,7 @@ function Remove-OwnedRecoveryResources {
 function Close-QualificationMailpit {
     param([string] $EnvironmentPath, [string] $Project)
     Remove-Item Env:BUNKFY_MAILPIT_OPERATOR_PORT -ErrorAction SilentlyContinue
-    [void](Get-QualificationCompose $EnvironmentPath -Tail @('up','--detach','--no-deps','--no-build','--pull','never','--force-recreate','mailpit'))
+    [void](Get-QualificationCompose $EnvironmentPath -Tail @('up','--detach','--wait','--wait-timeout','180','--no-deps','--no-build','--pull','never','--force-recreate','mailpit'))
     $mailpit = Get-OwnedContainer $EnvironmentPath $Project mailpit
     if ((Invoke-QualificationDocker -Arguments @('port',$mailpit.Id)) -cne '') { throw 'Mailpit operator binding remained open.' }
     $ids = (Invoke-QualificationDocker -Arguments @('network','ls','--quiet','--filter',
@@ -221,7 +222,7 @@ function Invoke-CodexExactCandidateCanaries {
     $script:stage = 'real-onboarding-and-worker-restart'
     $env:BUNKFY_MAILPIT_OPERATOR_PORT = '0'
     try {
-        [void](Get-QualificationCompose $EnvironmentPath -OperatorWindow -Tail @('up','--detach','--no-deps','--no-build','--pull','never','--force-recreate','mailpit'))
+        [void](Get-QualificationCompose $EnvironmentPath -OperatorWindow -Tail @('up','--detach','--wait','--wait-timeout','180','--no-deps','--no-build','--pull','never','--force-recreate','mailpit'))
         $mailpit = Get-OwnedContainer $EnvironmentPath $Project mailpit
         $ports = Invoke-QualificationDocker -Arguments @('port',$mailpit.Id,'8025/tcp')
         if ($ports -cnotmatch '^127\.0\.0\.1:([0-9]{1,5})$') { throw 'Mailpit operator window must use exactly one loopback binding.' }
