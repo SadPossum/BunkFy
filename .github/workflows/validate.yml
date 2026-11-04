@@ -1,52 +1,191 @@
-name: validate
+name: Exact candidate runtime rehearsal
 
 on:
-  pull_request:
-  push:
-    branches:
-      - main
-      - dev
   workflow_dispatch:
+    inputs:
+      candidate_source_commit:
+        description: Exact qualified application source commit for the image candidate
+        required: true
+        type: string
+      image_run_id:
+        description: Successful Product Image Evidence run containing the retained candidate
+        required: true
+        type: string
 
 permissions:
   contents: read
 
+concurrency:
+  group: exact-candidate-runtime-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
-  validate:
-    runs-on: windows-latest
+  rehearse:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      actions: read
+      attestations: read
+    env:
+      CANDIDATE_SOURCE_COMMIT: ${{ inputs.candidate_source_commit }}
+      IMAGE_EVIDENCE_RUN_ID: ${{ inputs.image_run_id }}
     steps:
-      - name: Checkout root
+      - name: Require qualified source and immutable image artifact metadata
+        id: evidence
+        shell: python
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          import json, os, pathlib, re, subprocess
+          os.umask(0o077)
+          source = os.environ['CANDIDATE_SOURCE_COMMIT']
+          run_id = os.environ['IMAGE_EVIDENCE_RUN_ID']
+          if not re.fullmatch(r'[0-9a-f]{40}', source) or source == '0' * 40:
+              raise RuntimeError('Expected a non-placeholder application source SHA.')
+          if not re.fullmatch(r'[1-9][0-9]{0,19}', run_id):
+              raise RuntimeError('Expected a positive image evidence run ID.')
+          def api(path):
+              result = subprocess.run(['gh', 'api', 'repos/SadPossum/BunkFy/' + path],
+                                      capture_output=True, check=True, timeout=60)
+              return json.loads(result.stdout)
+          checks = api('commits/' + source + '/check-runs?per_page=100')
+          required = {'validate', 'Analyze csharp', 'Analyze javascript-typescript',
+                      'Product source, dependency and configuration scan'}
+          if checks['total_count'] > 100:
+              raise RuntimeError('Source checks require a separate pagination review.')
+          for name in required:
+              matches = [value for value in checks['check_runs'] if value['name'] == name]
+              if len(matches) != 1 or matches[0]['status'] != 'completed' or matches[0]['conclusion'] != 'success':
+                  raise RuntimeError('Required current source qualification is missing or failed: ' + name)
+          run = api('actions/runs/' + run_id)
+          if (run['head_sha'] != source or run['workflow_id'] != 322308864
+                  or run['event'] != 'workflow_dispatch' or run['status'] != 'completed'
+                  or run['conclusion'] != 'success'
+                  or run['head_repository']['full_name'] != 'SadPossum/BunkFy'
+                  or run['path'].split('@', 1)[0] != '.github/workflows/image-evidence.yml'):
+              raise RuntimeError('Image run does not qualify the expected application source.')
+          inventory = api('actions/runs/' + run_id + '/artifacts?per_page=100')
+          if inventory['total_count'] > 100:
+              raise RuntimeError('Artifact inventory requires a separate pagination review.')
+          matches = [value for value in inventory['artifacts']
+                     if value['name'] == 'product-image-candidate-' + source]
+          if len(matches) != 1 or matches[0]['expired']:
+              raise RuntimeError('Expected exactly one retained, unexpired candidate artifact.')
+          artifact = matches[0]
+          if not re.fullmatch(r'sha256:[0-9a-f]{64}', artifact.get('digest', '')):
+              raise RuntimeError('Artifact server digest is missing or malformed.')
+          evidence = pathlib.Path('evidence')
+          evidence.mkdir(mode=0o700)
+          private = pathlib.Path(os.environ['RUNNER_TEMP']) / 'candidate-rehearsal-private'
+          private.mkdir(mode=0o700)
+          receipt = {'schemaVersion': 1, 'repository': 'SadPossum/BunkFy',
+                     'requiredSourceJobs': sorted(required),
+                     'sourceReportingChecks': [{'name': item['name'], 'conclusion': item['conclusion']}
+                                               for item in checks['check_runs']],
+                     'applicationSourceCommit': source, 'imageRunId': int(run_id),
+                     'imageRunAttempt': run['run_attempt'], 'artifactId': artifact['id'],
+                     'artifactName': artifact['name'], 'serverArtifactDigest': artifact['digest'],
+                     'harnessCommit': os.environ['GITHUB_SHA'],
+                     'purpose': 'Engineering Preview composition on a disposable hosted runner.'}
+          (evidence / 'artifact-receipt.json').write_text(json.dumps(receipt, indent=2) + '\n')
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              output.write('artifact_id=' + str(artifact['id']) + '\n')
+
+      - name: Checkout exact application source and recorded components
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          fetch-depth: 0
+          ref: ${{ inputs.candidate_source_commit }}
+          path: candidate
+          fetch-depth: 1
           submodules: recursive
           persist-credentials: false
 
-      - name: Setup .NET
-        uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
+      - name: Download the exact candidate with digest mismatch treated as an error
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
-          dotnet-version: 10.0.403
+          artifact-ids: ${{ steps.evidence.outputs.artifact_id }}
+          run-id: ${{ inputs.image_run_id }}
+          repository: SadPossum/BunkFy
+          github-token: ${{ github.token }}
+          path: candidate/.tmp/image-candidate
+          digest-mismatch: error
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
-        with:
-          version: 11.7.0
+      - name: Prepare the five pinned Preview dependencies without rebuilding the application
+        working-directory: candidate
+        shell: python
+        run: |
+          import json, os, pathlib, re, subprocess
+          expected = os.environ['CANDIDATE_SOURCE_COMMIT']
+          actual = subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip()
+          if actual != expected:
+              raise RuntimeError('Application checkout changed from the qualified source.')
+          if subprocess.check_output(['git', 'status', '--porcelain'], text=True).strip():
+              raise RuntimeError('Application source and component checkout must be clean.')
+          text = pathlib.Path('deploy/preview/compose.yaml').read_text()
+          images = re.findall(r'^    image: ([a-z0-9][a-z0-9./:_-]*@sha256:[0-9a-f]{64})$', text, re.MULTILINE)
+          if len(images) != 5 or len(set(images)) != 5:
+              raise RuntimeError('Expected exactly five immutable Preview dependency images.')
+          for image in images:
+              subprocess.run(['docker', 'pull', '--platform', 'linux/amd64', image], check=True, timeout=300)
+          output = pathlib.Path(os.environ['GITHUB_WORKSPACE']) / 'evidence/dependency-images.json'
+          output.write_text(json.dumps({'profile': 'Preview', 'images': images,
+                            'purpose': 'Existing engineering fixture dependencies, not Production admission.'}, indent=2) + '\n')
 
-      - name: Setup Node
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version: 22
-          cache: pnpm
-          cache-dependency-path: apps/web/pnpm-lock.yaml
-
-      - name: Bootstrap
+      - name: Verify attestations and rehearse exact image bytes with resource cleanup
+        working-directory: candidate
         shell: pwsh
-        run: ./eng/bootstrap.ps1
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $outputPath = Join-Path $env:GITHUB_WORKSPACE 'evidence/runtime.json'
+          $privateLog = Join-Path $env:RUNNER_TEMP 'candidate-rehearsal-private/runtime.log'
+          try {
+            ./eng/operations/rehearse-candidate-preview-runtime.ps1 `
+              -BundleDirectory .tmp/image-candidate `
+              -ExpectedSourceCommit $env:CANDIDATE_SOURCE_COMMIT `
+              -OutputPath $outputPath *> $privateLog
+            $value = Get-Content -LiteralPath $outputPath -Raw | ConvertFrom-Json
+            if ($value.result -ne 'passed' -or
+                $value.sourceCommit -cne $env:CANDIDATE_SOURCE_COMMIT -or
+                -not $value.candidate.attestationsVerified -or
+                $value.runtime.profile -ne 'Preview') {
+              throw 'Runtime evidence does not bind the expected attested Preview candidate.'
+            }
+            foreach ($flag in @('stackRemoved', 'composeResourcesRemoved',
+                                 'generatedEnvironmentRemoved', 'importedCandidateTagsRemoved')) {
+              if ($value.cleanup.$flag -ne $true) {
+                throw 'Runtime cleanup evidence is incomplete.'
+              }
+            }
+            Write-Host 'Exact candidate runtime, public edge, management isolation and cleanup passed.'
+          }
+          catch {
+            $first = ($_.Exception.Message -split '\r?\n')[0]
+            $first = $first -replace '[a-fA-F0-9]{64}', '<redacted>'
+            $first = $first -replace '[A-Za-z0-9+/]{43}=', '<redacted>'
+            $first = $first -replace '(?i)(password|secret|token|pepper|signingkey)\s*[:=]\s*[^\s;]+', '$1=<redacted>'
+            [ordered]@{ result = 'failed'; phase = 'runtime';
+              sourceCommit = $env:CANDIDATE_SOURCE_COMMIT;
+              exceptionType = $_.Exception.GetType().FullName; firstLine = $first } |
+              ConvertTo-Json | Set-Content -LiteralPath (Join-Path $env:GITHUB_WORKSPACE 'evidence/runtime-error.json')
+            Write-Error 'Candidate runtime rehearsal failed; see the minimized runtime error evidence.'
+            exit 1
+          }
+          finally {
+            Remove-Item -LiteralPath $privateLog -Force -ErrorAction SilentlyContinue
+          }
 
-      - name: Install Chromium
-        working-directory: apps/web
-        run: pnpm exec playwright install chromium
-
-      - name: Verify
-        shell: pwsh
-        run: ./eng/verify.ps1
+      - name: Retain minimized runtime and artifact identity evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: bunkfy-candidate-runtime-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            evidence/artifact-receipt.json
+            evidence/dependency-images.json
+            evidence/runtime.json
+            evidence/runtime-error.json
+          if-no-files-found: error
+          retention-days: 7
