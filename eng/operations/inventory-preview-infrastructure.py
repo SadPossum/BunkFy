@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Scan pinned public infrastructure images without a Docker daemon or app build."""
+"""Scan candidate immutable public infrastructure images without a Docker daemon or app build."""
 
 import datetime
 import json
@@ -10,10 +10,10 @@ import subprocess
 
 
 IMAGES = {
-    'postgres': 'postgres:17.5-alpine@sha256:6567bca8d7bc8c82c5922425a0baee57be8402df92bae5eacad5f01ae9544daa',
-    'redis': 'redis:8.0-alpine@sha256:5f61955be8ab2ccee9372b84ae4d4da2e2b156f87281e3f218544055e7ee04d4',
-    'nats': 'nats:2.11-alpine@sha256:e4bf19f15fd3218814a4e3c9e0064e1334bd8aa20d5984b9f1a0afd084f8cc00',
-    'mailpit': 'axllent/mailpit:v1.30.7@sha256:d5ecbb067db3705fa953d79e1b7f81ef84038df67aba6c52825d8c02a1ea748a',
+    'postgres': 'postgres:17.11-alpine3.23@sha256:05aa77262db9277fde6374bb2f901c9604b8a9373029e1a7993440c6aae48736',
+    'redis': 'redis:8.2.11-alpine@sha256:489a769e0a54dc245896132a15c72d2bc7296719954da99398f43a3877e5f8eb',
+    'nats': 'nats:2.14.9-alpine@sha256:127c5ccbc538a93f53ebb19461dc193130df386c2d6dab8199661a28a30d85bd',
+    'mailpit': 'axllent/mailpit:v1.33.0@sha256:9b3a463be15354c0f0eba91697d80e3e0d8a5623ef0e627cacc836bc17fd5231',
 }
 
 
@@ -68,14 +68,14 @@ def main():
         records.append(record)
         print(json.dumps({key: record.get(key) for key in ('service', 'result', 'high', 'critical', 'packages')}), flush=True)
     summary = {'schemaVersion': 1, 'capturedAt': datetime.datetime.now(datetime.timezone.utc).isoformat(),
-               'sourceCommit': actual, 'composeSourceCommit': '8811912b13b9cffb7cccb68dfcd2ac9132895564',
+               'sourceCommit': actual, 'baselineComposeSourceCommit': '8811912b13b9cffb7cccb68dfcd2ac9132895564',
                'platform': 'linux/amd64', 'images': records,
-               'scope': 'Current pinned public-image vulnerability inventory only. No containers, application builds, '
+               'scope': 'Candidate immutable public-image vulnerability inventory only; not adopted into the application. No containers, application builds, '
                         'production data or credentials. Secrets/behavior/recovery/production admission are outside this scan.',
                'result': 'passed' if all(x['result'] == 'no-high-or-critical-findings' for x in records) else 'requires-review'}
     (destination / 'summary.json').write_text(json.dumps(summary, indent=2) + '\n')
     if summary['result'] != 'passed':
-        raise SystemExit('Pinned infrastructure has unresolved findings or scan failures; retained raw reports need review.')
+        raise SystemExit('Candidate infrastructure has unresolved findings or scan failures; retained raw reports need review.')
 
 
 if __name__ == '__main__':

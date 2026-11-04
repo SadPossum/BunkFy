@@ -1,4 +1,4 @@
-name: Preview infrastructure advisory inventory
+name: Preview infrastructure candidate advisory inventory
 
 on:
   workflow_dispatch:
