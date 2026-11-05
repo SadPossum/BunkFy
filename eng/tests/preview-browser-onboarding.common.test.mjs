@@ -306,3 +306,109 @@ test("cleanup retry configuration rejects unbounded or invalid budgets", () => {
       error.code === "Configuration.InvalidCleanupRetryBudget");
   }
 });
+
+const cleanupOperationId = "a3974c4b-7180-4e71-9d0b-e74779b6c059";
+const admittedLater = (seconds = "7", body = { title: "Http.RateLimitExceeded", status: 429 }) =>
+  ({ status: 429, headers: { "retry-after": seconds }, body });
+const cleanupWrite = (extra = {}) => ({
+  method: "POST", stage: "cleanup-staff-departure", retryRateLimitedCleanupWrite: true,
+  tenantId: "synthetic-owned-tenant", accessToken: "synthetic-private-token",
+  data: { operationId: cleanupOperationId, expectedVersion: 3, reason: "Synthetic cleanup." }, ...extra,
+});
+
+test("explicit cleanup operation waits for definite admission rejection and preserves the exact write", async (t) => {
+  t.mock.timers.enable({ apis: ["Date", "setTimeout"], now: 0 });
+  const fixture = apiFixture([admittedLater(), { status: 200, body: { status: 3 } }]);
+  const pending = fixture.api("/api/staff/members/fixture/depart", cleanupWrite());
+  void pending.catch(() => {});
+  await settle();
+  assert.equal(fixture.calls.length, 1);
+  t.mock.timers.tick(6_999); await settle();
+  assert.equal(fixture.calls.length, 1);
+  t.mock.timers.tick(1); await settle();
+  assert.equal((await pending).status, 200);
+  assert.equal(fixture.calls.length, 2);
+  assert.deepEqual(fixture.calls[0].options, fixture.calls[1].options);
+  assert.equal(fixture.calls[1].options.data.operationId, cleanupOperationId);
+  assert.equal(fixture.disposed, 1);
+});
+
+test("unclassified or mismatched write throttles remain terminal", async () => {
+  for (const body of [{}, { title: "Different.Rejection", status: 429 },
+    { title: "Http.RateLimitExceeded", status: 503 },
+    { title: "Http.RateLimitExceeded", status: "429" }]) {
+    const fixture = apiFixture([admittedLater("1", body)]);
+    await assert.rejects(fixture.api("/api/staff/members/fixture/depart", cleanupWrite()),
+      error => error.code === "Api.UnexpectedStatus.429");
+    assert.equal(fixture.calls.length, 1);
+  }
+});
+
+test("write retry requires explicit cleanup POST intent and a stable nonempty operation UUID", async () => {
+  for (const extra of [{ method: "GET" }, { method: "DELETE" }, { stage: "ordinary-product-write" },
+    { retryRateLimitedCleanupWrite: "true" }, { data: {} }, { data: { operationId: "unstable" } },
+    { data: { operationId: "00000000-0000-0000-0000-000000000000" } }]) {
+    const fixture = apiFixture([]);
+    await assert.rejects(fixture.api("/api/staff/members/fixture/depart", cleanupWrite(extra)),
+      error => error.code === "Configuration.InvalidCleanupWriteRetry");
+    assert.equal(fixture.calls.length, 0);
+  }
+});
+
+test("cleanup reads and opted writes share the original deadline", async (t) => {
+  t.mock.timers.enable({ apis: ["Date", "setTimeout"], now: 0 });
+  const fixture = apiFixture([{ status: 429, headers: { "retry-after": "6" } },
+    { status: 200 }, admittedLater("6")]);
+  const first = fixture.api("/api/staff/members", { stage: "cleanup-staff-list" });
+  await settle(); t.mock.timers.tick(6_000); await settle(); await first;
+  await assert.rejects(fixture.api("/api/staff/members/fixture/depart", cleanupWrite()),
+    error => error.code === "Cleanup.RateLimitTimeout");
+  assert.equal(fixture.calls.length, 3);
+  assert.equal(fixture.disposed, 2);
+  assert.equal(fixture.calls[2].options.timeout, 1_000);
+});
+
+test("caller mutation while throttled cannot change the private retained operation payload", async (t) => {
+  t.mock.timers.enable({ apis: ["Date", "setTimeout"], now: 0 });
+  const fixture = apiFixture([admittedLater("1"), { status: 200 }]);
+  const input = cleanupWrite();
+  const pending = fixture.api("/api/staff/members/fixture/depart", input);
+  void pending.catch(() => {}); await settle();
+  input.data.operationId = "ba746c90-9949-4d84-8d3c-a31353636698";
+  input.data.reason = "Changed caller input.";
+  t.mock.timers.tick(1_000); await settle(); await pending;
+  assert.equal(fixture.calls[1].options.data.operationId, cleanupOperationId);
+  assert.equal(fixture.calls[1].options.data.reason, "Synthetic cleanup.");
+});
+
+test("opted cleanup writes never replay authorization, conflict, server or transport failures", async () => {
+  for (const response of [{ status: 401 }, { status: 403 }, { status: 409 },
+    { status: 500 }, { status: 503 }, new Error("Synthetic transport failure.")]) {
+    const fixture = apiFixture([response]);
+    await assert.rejects(fixture.api("/api/staff/members/fixture/depart", cleanupWrite()));
+    assert.equal(fixture.calls.length, 1);
+  }
+});
+
+test("explicit status observers and clients without cleanup budget never replay writes", async () => {
+  const observer = apiFixture([admittedLater()]);
+  const response = await observer.api("/api/staff/members/fixture/depart", cleanupWrite({ expectedStatus: [200, 429] }));
+  assert.equal(response.status, 429); assert.equal(observer.calls.length, 1);
+  const noBudget = apiFixture([admittedLater()], {});
+  await assert.rejects(noBudget.api("/api/staff/members/fixture/depart", cleanupWrite()),
+    error => error.code === "Api.UnexpectedStatus.429");
+  assert.equal(noBudget.calls.length, 1);
+});
+
+test("oversized rejection bodies and delays beyond the cleanup budget cannot trigger another write", async () => {
+  const oversized = apiFixture([admittedLater("1", {
+    title: "Http.RateLimitExceeded", status: 429, detail: "private".repeat(50_000),
+  })]);
+  await assert.rejects(oversized.api("/api/staff/members/fixture/depart", cleanupWrite()),
+    error => error.code === "Api.ResponseTooLarge");
+  assert.equal(oversized.calls.length, 1);
+  const tooLate = apiFixture([admittedLater("120")]);
+  await assert.rejects(tooLate.api("/api/staff/members/fixture/depart", cleanupWrite()),
+    error => error.code === "Cleanup.RateLimitTimeout");
+  assert.equal(tooLate.calls.length, 1); assert.equal(tooLate.disposed, 1);
+});

@@ -167,7 +167,15 @@ export function createApiClient(context, origin, requestTimeoutMilliseconds, {
     expectedStatus = 200,
     responseType = "json",
     stage = "api-request",
+    retryRateLimitedCleanupWrite = false,
   } = {}) {
+    if (typeof retryRateLimitedCleanupWrite !== "boolean" ||
+        (retryRateLimitedCleanupWrite && (method !== "POST" || !stage.startsWith("cleanup-") ||
+          typeof data?.operationId !== "string" ||
+          !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(data.operationId) ||
+          /^0{8}-0{4}-0{4}-0{4}-0{12}$/.test(data.operationId)))) {
+      fail("Configuration.InvalidCleanupWriteRetry", stage);
+    }
     const headers = {
       Accept: "application/json",
       "X-Tenant-Id": tenantId,
@@ -177,7 +185,7 @@ export function createApiClient(context, origin, requestTimeoutMilliseconds, {
     const requestOptions = {
       method,
       headers,
-      data,
+      data: retryRateLimitedCleanupWrite ? structuredClone(data) : data,
       failOnStatusCode: false,
       maxRedirects: 0,
       timeout: requestTimeoutMilliseconds,
@@ -187,20 +195,29 @@ export function createApiClient(context, origin, requestTimeoutMilliseconds, {
       : [expectedStatus];
     const retryCleanupRead = cleanupRateLimitTimeoutMilliseconds > 0 &&
       method === "GET" && stage.startsWith("cleanup-") && !acceptedStatuses.includes(429);
-    if (retryCleanupRead && cleanupDeadline === null) {
+    const retryCleanupWrite = cleanupRateLimitTimeoutMilliseconds > 0 &&
+      retryRateLimitedCleanupWrite && !acceptedStatuses.includes(429);
+    const retryCleanupRequest = retryCleanupRead || retryCleanupWrite;
+    if (retryCleanupRequest && cleanupDeadline === null) {
       cleanupDeadline = Date.now() + cleanupRateLimitTimeoutMilliseconds;
     }
     let response;
     let retrying = false;
     while (true) {
       const remainingMilliseconds = cleanupDeadline - Date.now();
-      if (retrying && remainingMilliseconds <= 0) {
+      if ((retrying || retryCleanupWrite) && remainingMilliseconds <= 0) {
         fail("Cleanup.RateLimitTimeout", stage);
       }
-      response = await context.fetch(url, retrying
+      response = await context.fetch(url, retrying || retryCleanupWrite
         ? { ...requestOptions, timeout: Math.min(requestTimeoutMilliseconds, remainingMilliseconds) }
         : requestOptions);
-      if (response.status() !== 429 || !retryCleanupRead) break;
+      if (response.status() !== 429 || !retryCleanupRequest) break;
+      if (retryCleanupWrite) {
+        // The reviewed admission middleware returns this problem before invoking
+        // the endpoint. Unclassified refusals and uncertain writes stay terminal.
+        const problem = await readBoundedJson(response, MAXIMUM_API_BYTES, "Api.ResponseTooLarge", stage);
+        if (problem?.title !== "Http.RateLimitExceeded" || problem?.status !== 429) break;
+      }
 
       const responseHeaders = response.headers();
       const raw = responseHeaders["retry-after"]?.trim();
