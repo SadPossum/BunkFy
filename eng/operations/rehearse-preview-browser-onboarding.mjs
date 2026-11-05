@@ -27,6 +27,12 @@ import {
   ensureWorkspaceAccessProfileArchived,
   runPreviewWorkspaceAccessAdministration,
 } from "./preview-browser-workspace-access-administration.mjs";
+import {
+  JOIN_CONTEXT_PREFIX,
+  assertJoinCookie,
+  assertJoinOperationRequest,
+  joinContextFromReceipt,
+} from "./preview-browser-join-custody.mjs";
 
 const scriptDirectory = dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = resolve(scriptDirectory, "../..");
@@ -79,6 +85,9 @@ const browserChecks = {
   viewport: "1440x960",
 };
 const identityEvidence = [];
+// Rehearsal memory only. Evidence, browser storage and later request bodies
+// must never contain the source credential.
+const joinContexts = new WeakMap();
 let proofStage = "configuration";
 let proofError = null;
 let failedStage = null;
@@ -965,9 +974,12 @@ async function validateIssuedJoinDialog(page, source) {
 async function completeInvitationBrowserJourney(page, source, identity, targetWorkspace) {
   proofStage = "invitation-link-capture";
   await openJoinLink(page, source, "invitation-link-capture");
+  await page.reload({ waitUntil: "domcontentloaded", timeout: configuration.requestTimeoutMilliseconds });
   await page.getByRole("heading", { name: "Join your team", exact: true }).waitFor({
     timeout: configuration.requestTimeoutMilliseconds,
   });
+  await assertSecretCleared(page, source.token, "invitation-anonymous-reload");
+  addCheck("invitation-cookie-survives-anonymous-reload");
   proofStage = "invitation-registration-fields";
   await page.getByLabel("Email", { exact: true }).fill(identity.email);
   await page.locator('input[name="password"]').fill(identity.password);
@@ -1017,7 +1029,7 @@ async function completeInvitationBrowserJourney(page, source, identity, targetWo
   await page.getByLabel("Verification code", { exact: true }).fill(capture.code);
   const acceptancePromise = waitForBrowserResponseOnly(
     page,
-    "/api/organization-invitations/accept",
+    browserJoinPath(page, "join"),
     "POST",
     200,
     "invitation-browser-acceptance",
@@ -1092,7 +1104,7 @@ async function replayInvitationInBrowser(page, source, identity, original) {
   });
   const replay = await waitForBrowserJsonResponse(
     page,
-    "/api/organization-invitations/accept",
+    browserJoinPath(page, "join"),
     "POST",
     200,
     () => page.getByRole("button", { name: "Join workspace", exact: true }).click(),
@@ -1176,7 +1188,7 @@ async function submitEnrollmentInBrowser(page, source, identity, targetWorkspace
   await page.getByLabel("Department (optional)", { exact: true }).fill("Operations verification");
   const applicationPromise = waitForBrowserResponseOnly(
     page,
-    "/api/workspace-staff-enrollment/applications",
+    browserJoinPath(page, "applications"),
     "POST",
     200,
     "enrollment-browser-application",
@@ -1184,7 +1196,7 @@ async function submitEnrollmentInBrowser(page, source, identity, targetWorkspace
   );
   const claimPromise = waitForBrowserResponseOnly(
     page,
-    "/api/organization-enrollment/claim",
+    browserJoinPath(page, "join"),
     "POST",
     200,
     "enrollment-browser-claim",
@@ -1213,6 +1225,12 @@ async function submitEnrollmentInBrowser(page, source, identity, targetWorkspace
   await page.getByRole("heading", { name: "Request sent", exact: true }).waitFor({
     timeout: configuration.requestTimeoutMilliseconds,
   });
+  await page.reload({ waitUntil: "domcontentloaded", timeout: configuration.requestTimeoutMilliseconds });
+  await page.getByRole("heading", { name: "Request sent", exact: true }).waitFor({
+    timeout: configuration.convergenceTimeoutMilliseconds,
+  });
+  await assertSecretCleared(page, source.token, "enrollment-pending-reload");
+  addCheck("enrollment-cookie-and-subject-marker-survive-pending-reload");
   return {
     applicationId: application.applicationId,
     claimId: claim.claim.claimId,
@@ -1303,20 +1321,68 @@ async function replayEnrollmentInBrowser(page, source, identity, original) {
 }
 
 async function openJoinLink(page, source, stage) {
-  const response = await page.goto(source.url, {
-    waitUntil: "domcontentloaded",
+  const matches = (response, suffix) => {
+    const url = new URL(response.url());
+    const id = url.pathname.slice(JOIN_CONTEXT_PREFIX.length).split("/")[0];
+    return url.origin === configuration.publicOrigin.origin && isUuid(id) &&
+      url.pathname === `${JOIN_CONTEXT_PREFIX}${id}${suffix}` &&
+      response.request().method() === "POST";
+  };
+  const preparation = page.waitForResponse((response) => matches(response, ""), {
     timeout: configuration.requestTimeoutMilliseconds,
   });
+  const custody = page.waitForResponse((response) => matches(response, "/preview"), {
+    timeout: configuration.requestTimeoutMilliseconds,
+  });
+  const [response, receiptResponse, previewResponse] = await Promise.all([
+    page.goto(source.url, {
+      waitUntil: "domcontentloaded",
+      timeout: configuration.requestTimeoutMilliseconds,
+    }),
+    preparation,
+    custody,
+  ]);
   if (!response || response.status() !== 200 ||
       response.headers()["x-bunkfy-release-id"] !== configuration.expectedReleaseId) {
     fail("Browser.JoinNavigationReleaseMismatch", stage);
   }
+  await throwForUnexpectedBrowserStatus(receiptResponse, 200, stage);
+  await throwForUnexpectedBrowserStatus(previewResponse, 200, stage);
+  const receipt = await readBoundedJson(receiptResponse, 4096, "Browser.ResponseTooLarge", stage);
+  const context = joinContextFromReceipt(
+    receipt, new URL(receiptResponse.url()).pathname, source.kind, stage,
+  );
+  assertJoinOperationRequest(
+    previewResponse.request(), configuration.publicOrigin, context, "preview", source.token, stage,
+  );
+  assertJoinCookie(
+    await page.context().cookies(new URL(JOIN_CONTEXT_PREFIX + context.contextId, configuration.publicOrigin).toString()),
+    (await receiptResponse.headersArray()).filter((header) => header.name.toLowerCase() === "set-cookie").map((header) => header.value),
+    configuration.publicOrigin, context, source.token, stage,
+  );
+  joinContexts.set(page, { ...context, token: source.token });
   await page.waitForFunction(() => window.location.hash === "", null, {
     timeout: configuration.requestTimeoutMilliseconds,
   });
   if (new URL(page.url()).pathname !== "/join") {
     fail("Browser.JoinPathChangedBeforeCapture", stage);
   }
+  await assertSecretCleared(page, source.token, stage);
+  const stored = await page.evaluate(() => {
+    const value = window.sessionStorage.getItem("bunkfy.join.context.v2");
+    return value ? JSON.parse(value) : null;
+  });
+  if (stored?.contextId !== context.contextId || stored?.kind !== source.kind ||
+      Object.keys(stored).some((key) => key !== "contextId" && key !== "kind")) {
+    fail("Browser.JoinContextMetadataInvalid", stage);
+  }
+  addCheck(`${stage}-protected-cookie-no-web-storage-credential`);
+}
+
+function browserJoinPath(page, operation) {
+  const context = joinContexts.get(page);
+  if (!context) fail("Browser.JoinContextNotPrepared", "join-operation");
+  return `${JOIN_CONTEXT_PREFIX}${context.contextId}/${operation}`;
 }
 
 async function waitForDashboard(page, expectedWorkspaceName = null) {
@@ -1431,6 +1497,13 @@ async function waitForBrowserResponseOnly(
   if (action) await action();
   const response = await responsePromise;
   await throwForUnexpectedBrowserStatus(response, expectedStatus, stage);
+  if (path.startsWith(JOIN_CONTEXT_PREFIX)) {
+    const context = joinContexts.get(page);
+    if (!context) fail("Browser.JoinContextNotPrepared", stage);
+    assertJoinOperationRequest(
+      response.request(), configuration.publicOrigin, context, path.split("/").at(-1), context.token, stage,
+    );
+  }
   return response;
 }
 
