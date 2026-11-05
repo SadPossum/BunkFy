@@ -33,7 +33,7 @@ export function bookingReceiptObservation(request, receipt) {
 }
 
 export function safeBusinessFailure(stage, error) {
-  const known = new Set(['AssertionError', 'TimeoutError', 'Error']);
+  const known = new Set(['AssertionError', 'TimeoutError', 'Error', 'ProjectionConvergenceTimeout']);
   const type = error instanceof UnexpectedUiResponseError ? error.name
     : known.has(error?.name) ? error.name : 'Error';
   const evidence = { stage, type };
@@ -43,4 +43,34 @@ export function safeBusinessFailure(stage, error) {
     evidence.problemCode = error.problemCode;
   }
   return evidence;
+}
+
+export async function recoverInventoryProjectionCreate(submit, {
+  budgetMs = 90000,
+  now = () => performance.now(),
+  pause = ms => new Promise(resolve => setTimeout(resolve, ms))
+} = {}) {
+  if (!Number.isInteger(budgetMs) || budgetMs < 1 || budgetMs > 90000) {
+    throw new RangeError('Projection recovery must fit the original create-response budget.');
+  }
+  const deadline = now() + budgetMs;
+  let attempts = 0;
+  while (now() < deadline) {
+    const remainingMs = deadline - now();
+    if (remainingMs <= 0) break;
+    attempts += 1;
+    try {
+      const result = await submit({ retry: attempts > 1, remainingMs });
+      return { result, attempts, retries: attempts - 1 };
+    } catch (error) {
+      const failure = safeBusinessFailure('booking-projection-recovery', error);
+      if (failure.httpStatus !== 409 || failure.problemCode !== 'Reservations.InventoryUnitNotFound') throw error;
+      const remaining = deadline - now();
+      if (remaining <= 0) break;
+      await pause(Math.min(1000, remaining));
+    }
+  }
+  const error = new Error('The Reservations inventory projection did not converge within the original create-response budget.');
+  error.name = 'ProjectionConvergenceTimeout';
+  throw error;
 }

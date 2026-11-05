@@ -5,7 +5,7 @@ import { createHmac, randomUUID } from 'node:crypto';
 import { readFileSync, writeFileSync, statSync, lstatSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { assertExpectedUiStatus, bookingReceiptObservation, safeBusinessFailure } from './business-canary.contracts.mjs';
+import { assertExpectedUiStatus, bookingReceiptObservation, recoverInventoryProjectionCreate, safeBusinessFailure } from './business-canary.contracts.mjs';
 
 const root = process.env.CANDIDATE_ROOT;
 const origin = new URL(process.env.CANDIDATE_PROBE_PUBLIC_ORIGIN);
@@ -52,12 +52,13 @@ async function nextTotp(state) {
   while (Math.floor(Date.now() / 30000) <= state.lastTotpStep) await pause(500);
   return totp(state.totpSecret);
 }
-async function responseFor(path, method, action, expected = [200, 201, 202]) {
+async function responseFor(path, method, action, expected = [200, 201, 202], { timeoutMs = 90000, observeRequest } = {}) {
   const pending = page.waitForResponse(r => new URL(r.url()).pathname.replace(/\/$/, '') === path
-    && r.request().method() === method, { timeout: 90000 });
+    && r.request().method() === method, { timeout: Math.min(90000, timeoutMs) });
   void pending.catch(() => {});
   await action();
   const response = await pending;
+  observeRequest?.(response.request().postDataJSON());
   let problem;
   if (!expected.includes(response.status())) {
     try {
@@ -184,8 +185,21 @@ try {
     await dialog.getByLabel('Legal name (optional)', { exact: true }).fill('Synthetic recovery guest');
     const path = '/api/reservations/properties/' + state.owner.propertyId;
     stage = 'actual-booking-create-http-response';
-    const created = await responseFor(path, 'POST',
-      () => dialog.getByRole('button', { name: 'Create reservation', exact: true }).click());
+    let originalRequest;
+    const recovered = await recoverInventoryProjectionCreate(async ({ retry, remainingMs }) => {
+      stage = retry ? 'actual-booking-create-projection-recovery' : 'actual-booking-create-http-response';
+      return responseFor(path, 'POST',
+        () => dialog.getByRole('button', { name: retry ? 'Retry same reservation' : 'Create reservation', exact: true })
+          .click({ timeout: remainingMs }), undefined, { timeoutMs: remainingMs, observeRequest: request => {
+            assert(typeof request?.operationId === 'string' && request.operationId.length > 0);
+            if (originalRequest === undefined) originalRequest = request;
+            else assert.deepEqual(request, originalRequest);
+          } });
+    });
+    const created = recovered.result;
+    report.projectionRecovery = { attempts: recovered.attempts, retries: recovered.retries,
+      allRequestsIdentical: true, originalBudgetMs: 90000 };
+    checked('actual-booking-create-and-any-projection-recovery-retain-one-identical-ui-request');
     stage = 'actual-booking-receipt-operation-identity';
     report.bookingReceipt = bookingReceiptObservation(created.request, created.body);
     state.reservationId = created.body.reservationId; state.request = created.request;
