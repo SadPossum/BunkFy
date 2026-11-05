@@ -22,6 +22,7 @@ $applicantToken = 'fixture-applicant-token-do-not-retain'
 $invitationToken = 'fixture-invitation-token-do-not-retain'
 $subjectId = '99999999-9999-4999-8999-999999999999'
 $releaseId = 'release-fixture-001'
+$admissionReference = 'admission:11111111111111111111111111111111'
 
 function Start-BunkFyWorkspaceInvitationFixtureServer {
     param([Parameter(Mandatory = $true)][string] $Mode)
@@ -44,7 +45,8 @@ function Start-BunkFyWorkspaceInvitationFixtureServer {
             $ApplicantToken,
             $InvitationToken,
             $SubjectId,
-            $ReleaseId)
+            $ReleaseId,
+            $AdmissionReference)
 
         Set-StrictMode -Version Latest
         $ErrorActionPreference = 'Stop'
@@ -176,6 +178,7 @@ function Start-BunkFyWorkspaceInvitationFixtureServer {
                             service = 'BunkFy.Host.Api'
                             status = 'ok'
                             releaseId = $ReleaseId
+                            admissionEvidenceReference = $AdmissionReference
                             timestampUtc = [DateTimeOffset]::UtcNow.ToString('O')
                         }
                     }
@@ -422,7 +425,8 @@ function Start-BunkFyWorkspaceInvitationFixtureServer {
         $applicantToken,
         $invitationToken,
         $subjectId,
-        $releaseId)
+        $releaseId,
+        $admissionReference)
 
     $deadline = [DateTimeOffset]::UtcNow.AddSeconds(10)
     while (-not (Test-Path -LiteralPath $readyPath -PathType Leaf)) {
@@ -502,11 +506,12 @@ try {
 
     $evidenceText = Get-Content -LiteralPath $validOutput -Raw
     $evidence = $evidenceText | ConvertFrom-Json -Depth 8
-    if ($evidence.schemaVersion -ne 1 -or
+    if ($evidence.schemaVersion -ne 2 -or
         $evidence.evidenceKind -cne 'bunkfy-deployed-workspace-invitation-probe' -or
         $evidence.result -cne 'passed' -or
         $evidence.transport -cne 'loopback-http-fixture' -or
         $evidence.releaseId -cne $releaseId -or
+        $evidence.admissionEvidenceReference -cne $admissionReference -or
         @($evidence.checks).Count -ne 8 -or
         @($evidence.limitations).Count -ne 3) {
         throw 'Valid workspace invitation fixture emitted unexpected evidence.'

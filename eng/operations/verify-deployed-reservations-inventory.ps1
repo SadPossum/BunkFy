@@ -25,6 +25,7 @@ $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'deployed-public-edge.common.ps1')
 . (Join-Path $PSScriptRoot 'deployed-authenticated-smoke.common.ps1')
 
+$observedAdmissionEvidenceReference = $null
 $origin = Assert-BunkFyPublicEdgeOrigin `
     -Origin $PublicOrigin `
     -AllowLoopbackHttp:$AllowLoopbackHttp
@@ -89,6 +90,7 @@ $client.Timeout = [Threading.Timeout]::InfiniteTimeSpan
 $client.DefaultRequestHeaders.UserAgent.ParseAdd('BunkFy-Deployed-Reservations-Inventory-Probe/1')
 
 $checks = [Collections.Generic.List[object]]::new()
+$deniedWorkspaceId = [Guid]::NewGuid()
 $operationId = [Guid]::NewGuid()
 $checkInOperationId = [Guid]::NewGuid()
 $checkOutOperationId = [Guid]::NewGuid()
@@ -129,7 +131,7 @@ function Read-SmokeJson {
 }
 
 function Get-SmokeWorkspaceMembership {
-    $matches = [Collections.Generic.List[object]]::new()
+    $matchingItems = [Collections.Generic.List[object]]::new()
     $page = 1
     do {
         $response = Read-SmokeJson `
@@ -146,7 +148,7 @@ function Get-SmokeWorkspaceMembership {
             -Operation 'List operator workspaces'
         foreach ($item in @($response.items)) {
             if ([Guid]$item.organization.organizationId -eq $WorkspaceId) {
-                [void]$matches.Add($item.membership)
+                [void]$matchingItems.Add($item.membership)
             }
         }
         $page++
@@ -155,13 +157,13 @@ function Get-SmokeWorkspaceMembership {
         }
     } while ([bool]$response.hasMore)
 
-    if ($matches.Count -ne 1 -or
-        [string]$matches[0].status -cne 'active' -or
-        [string]::IsNullOrWhiteSpace([string]$matches[0].subjectId)) {
+    if ($matchingItems.Count -ne 1 -or
+        [string]$matchingItems[0].status -cne 'active' -or
+        [string]::IsNullOrWhiteSpace([string]$matchingItems[0].subjectId)) {
         throw 'The operator must have one active membership in the target workspace.'
     }
 
-    return $matches[0]
+    return $matchingItems[0]
 }
 
 function Get-SmokeAvailabilityUnit {
@@ -178,13 +180,13 @@ function Get-SmokeAvailabilityUnit {
         throw 'Inventory availability returned a different property or stay range.'
     }
 
-    $matches = @($response.units | Where-Object {
+    $matchingItems = @($response.units | Where-Object {
             [Guid]$_.unit.inventoryUnitId -eq $InventoryUnitId
         })
-    if ($matches.Count -ne 1) {
+    if ($matchingItems.Count -ne 1) {
         throw 'The selected Inventory unit was not unique in availability.'
     }
-    return $matches[0]
+    return $matchingItems[0]
 }
 
 function Get-SmokeReservation {
@@ -344,7 +346,23 @@ try {
         -Client $client `
         -Origin $origin `
         -ExpectedReleaseId $ExpectedReleaseId `
-        -TimeoutSeconds $RequestTimeoutSeconds
+        -TimeoutSeconds $RequestTimeoutSeconds `
+        -ObservedAdmissionEvidenceReference ([ref]$observedAdmissionEvidenceReference)
+
+    $crossWorkspaceAvailability = Invoke-BunkFyAuthenticatedJsonRequest `
+        -Client $client `
+        -Origin $origin `
+        -Path "/api/inventory/properties/$($PropertyId.ToString('D'))/availability?arrival=$arrivalText&departure=$departureText" `
+        -Method GET `
+        -TenantId $deniedWorkspaceId.ToString('D') `
+        -AccessToken $operatorToken `
+        -TimeoutSeconds $RequestTimeoutSeconds `
+        -Body $null
+    Assert-BunkFyAuthenticatedStatus `
+        -Response $crossWorkspaceAvailability `
+        -ExpectedStatus 403 `
+        -Operation 'Cross-workspace Inventory availability read'
+    $checks.Add([ordered]@{ name = 'cross-workspace-inventory-read-denied'; status = 'passed' })
 
     [void](Get-SmokeWorkspaceMembership)
     $property = Read-SmokeJson `
@@ -470,7 +488,8 @@ try {
         -Client $client `
         -Origin $origin `
         -ExpectedReleaseId $ExpectedReleaseId `
-        -TimeoutSeconds $RequestTimeoutSeconds
+        -TimeoutSeconds $RequestTimeoutSeconds `
+        -ObservedAdmissionEvidenceReference ([ref]$observedAdmissionEvidenceReference)
     if ($observedReleaseId -cne $releaseIdBefore) {
         throw 'The public API release identity changed during Reservation lifecycle verification.'
     }
@@ -487,13 +506,29 @@ finally {
 }
 
 $evidence = [ordered]@{
-    schemaVersion = 1
+    schemaVersion = 3
     evidenceKind = 'bunkfy-deployed-reservations-inventory-probe'
     generatedAtUtc = [DateTimeOffset]::UtcNow.ToString('O')
     origin = $origin.GetLeftPart([UriPartial]::Authority)
     releaseId = $observedReleaseId
-    transport = if ($origin.Scheme -eq 'https') { 'trusted-https' } else { 'loopback-http-fixture' }
+    admissionEvidenceReference = $observedAdmissionEvidenceReference
+    transport = if ($origin.Scheme -eq 'https') { 'trusted-https' } else { 'loopback-http-preview' }
     result = 'passed'
+    workflow = [ordered]@{
+        bookingSource = 'direct'
+        allocationLifecycle = 'available-confirmed-released'
+        occupancyLifecycle = 'confirmed-checked-in-checked-out'
+        createReplay = 'stable-current'
+        checkInReplay = 'stable-current'
+        checkOutReplay = 'stable-current'
+        durableGuestRecordCreated = $false
+    }
+    cleanup = [ordered]@{
+        reservationDisposition = 'synthetic-checked-out-retained'
+        selectedInventoryUnit = 'available'
+        activeAllocationCount = 0
+        topologyMutated = $false
+    }
     checks = @($checks)
     limitations = @(
         'browser-workflow-not-exercised',

@@ -1,6 +1,8 @@
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+. (Join-Path $PSScriptRoot 'preview-infrastructure.common.ps1')
+
 $script:BunkFyPreviewStateContractName = 'bunkfy-preview-state'
 $script:BunkFyPreviewLegacyStateContractVersion = 1
 $script:BunkFyPreviewStateContractVersion = 2
@@ -54,7 +56,7 @@ function Get-BunkFyPreviewStateContract {
             Version = $script:BunkFyPreviewLegacyStateContractVersion
         }
     }
-    if ($schemaVersion -notin @(3, 4, 5)) {
+    if ($schemaVersion -notin @(3, 4, 5, 6, 7)) {
         throw "Backup manifest schema '$schemaVersion' is not supported."
     }
 
@@ -75,7 +77,7 @@ function Get-BunkFyPreviewStateContract {
         throw 'Backup manifest state contract is invalid.'
     }
 
-    $expectedVersion = if ($schemaVersion -eq 5) {
+    $expectedVersion = if ($schemaVersion -in @(5, 6, 7)) {
         $script:BunkFyPreviewStateContractVersion
     }
     else {

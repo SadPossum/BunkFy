@@ -21,6 +21,7 @@ $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot '..\common.ps1')
 . (Join-Path $PSScriptRoot 'deployed-public-edge.common.ps1')
 
+$observedAdmissionEvidenceReference = $null
 $public = Assert-BunkFyPublicEdgeOrigin `
     -Origin $PublicOrigin `
     -AllowLoopbackHttp:$AllowLoopbackHttp
@@ -247,7 +248,8 @@ try {
         -Client $client `
         -Origin $public `
         -ExpectedReleaseId $ExpectedReleaseId `
-        -TimeoutSeconds $RequestTimeoutSeconds
+        -TimeoutSeconds $RequestTimeoutSeconds `
+        -ObservedAdmissionEvidenceReference ([ref]$observedAdmissionEvidenceReference)
     $publicHealth = Invoke-BunkFyAdminBoundaryRequest -Uri ([Uri]::new($public, '/healthz'))
     Assert-BunkFyHttpResponse -Response $publicHealth -Operation 'Public edge health check'
     if ($publicHealth.StatusCode -ne 204 -or $publicHealth.Body.Length -ne 0) {
@@ -358,7 +360,8 @@ try {
         -Client $client `
         -Origin $public `
         -ExpectedReleaseId $ExpectedReleaseId `
-        -TimeoutSeconds $RequestTimeoutSeconds
+        -TimeoutSeconds $RequestTimeoutSeconds `
+        -ObservedAdmissionEvidenceReference ([ref]$observedAdmissionEvidenceReference)
     if ($observedReleaseId -cne $releaseIdBefore) {
         throw 'The public API release identity changed during Admin boundary verification.'
     }
@@ -374,11 +377,12 @@ finally {
 }
 
 $evidence = [ordered]@{
-    schemaVersion = 1
+    schemaVersion = 2
     evidenceKind = 'bunkfy-deployed-admin-boundary-probe'
     generatedAtUtc = [DateTimeOffset]::UtcNow.ToString('O')
     evidenceSetId = $EvidenceSetId.ToString('D')
     releaseId = $observedReleaseId
+    admissionEvidenceReference = $observedAdmissionEvidenceReference
     expectedAdminReachability = $ExpectedAdminReachability.ToLowerInvariant()
     publicOrigin = $public.GetLeftPart([UriPartial]::Authority)
     adminOrigin = $admin.GetLeftPart([UriPartial]::Authority)

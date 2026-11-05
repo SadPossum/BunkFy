@@ -17,6 +17,7 @@ $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot '..\common.ps1')
 . (Join-Path $PSScriptRoot 'local-sensitive-state.common.ps1')
 . (Join-Path $PSScriptRoot 'preview-state.common.ps1')
+. (Join-Path $PSScriptRoot 'preview-storage.common.ps1')
 
 $root = Get-BunkFyRepositoryRoot
 $composePath = Join-BunkFyPath 'deploy\preview\compose.yaml'
@@ -63,8 +64,8 @@ catch {
 $schemaVersion = 0
 if ($null -eq $manifest.PSObject.Properties['schemaVersion'] -or
     -not [int]::TryParse([string]$manifest.schemaVersion, [ref]$schemaVersion) -or
-    $schemaVersion -notin @(4, 5)) {
-    throw 'Preview recovery rehearsal requires a schema-4 or schema-5 backup.'
+    $schemaVersion -notin @(4, 5, 6, 7)) {
+    throw 'Preview recovery rehearsal requires a supported provider-bound backup.'
 }
 $manifestDigest = Assert-BunkFyBackupManifestIntegrity `
     -ManifestPath $manifestPath `
@@ -72,6 +73,14 @@ $manifestDigest = Assert-BunkFyBackupManifestIntegrity `
     -ExpectedSha256 $ExpectedManifestSha256
 $stateContract = Get-BunkFyPreviewStateContract -Manifest $manifest
 Assert-BunkFyPreviewStateContractCompatible -Contract $stateContract
+$storageCompose = Get-BunkFyPreviewComposeDefinition -Root $root -ComposePath $composePath -EnvironmentPath $EnvironmentPath
+Assert-BunkFyPreviewBackupStorageProvider -Manifest $manifest -ComposeDefinition $storageCompose
+$infrastructureImageIds = if ($schemaVersion -eq 7) {
+    Get-BunkFyPreviewInfrastructureImageIds -ComposeDefinition $storageCompose
+} else { @{} }
+Assert-BunkFyPreviewBackupInfrastructure -Manifest $manifest -ComposeDefinition $storageCompose `
+    -TargetImageIds $infrastructureImageIds
+$archiveUtilityImage = Get-BunkFyPreviewArchiveUtilityImage -ComposeDefinition $storageCompose
 $backupStateArchives = Get-BunkFyPreviewStateArchives -Version $stateContract.Version
 
 $backupId = [Guid]::Empty
@@ -177,11 +186,11 @@ foreach ($entry in $overrideValues.GetEnumerator()) {
 
 $temporaryRoot = Join-Path ([IO.Path]::GetTempPath()) (
     "bunkfy-recovery-$($rehearsalId.ToString('N'))")
-[void](New-Item -ItemType Directory -Path $temporaryRoot)
+New-BunkFyLocalSensitiveDirectory -Path $temporaryRoot -Description 'Recovery private workspace'
 $archiveKeyTreePath = Join-Path $temporaryRoot 'archive-key-ring'
 $restoredKeyTreePath = Join-Path $temporaryRoot 'restored-key-ring'
-[void](New-Item -ItemType Directory -Path $archiveKeyTreePath)
-[void](New-Item -ItemType Directory -Path $restoredKeyTreePath)
+New-BunkFyLocalSensitiveDirectory -Path $archiveKeyTreePath -Description 'Recovery archived key snapshot'
+New-BunkFyLocalSensitiveDirectory -Path $restoredKeyTreePath -Description 'Recovery restored key snapshot'
 $publicEvidencePath = Join-Path $temporaryRoot 'public-edge.json'
 $adminEvidencePath = Join-Path $temporaryRoot 'admin-boundary.json'
 $compose = @(
@@ -247,23 +256,39 @@ try {
             -Description 'Data Protection backup archive')
     $archiveDirectory = Split-Path -Parent $dataProtectionArchive
     $archiveName = Split-Path -Leaf $dataProtectionArchive
-    Invoke-BunkFyCommand -FilePath 'docker' -Arguments @(
+    $archiveSnapshotCommand = 'tar -xzf "/backup/$1" -C /target'
+    $restoredSnapshotCommand = 'cp -a /source/. /target/'
+    $archiveSnapshotArguments = @('--', $archiveName)
+    $restoredSnapshotArguments = @('--')
+    if (-not (Test-BunkFyWindowsPlatform)) {
+        $snapshotIdentity = Get-BunkFyLocalUnixIdentity
+        # Fix ownership inside the helper while the host parent remains 0700.
+        # The application owns its volume keys; never make them world-readable
+        # merely so the local operator can compare them.
+        $privateModes = 'find /target -type d -exec chmod 700 {} +; find /target -type f -exec chmod 600 {} +'
+        $archiveSnapshotCommand += '; chown -R "$2:$3" /target; ' + $privateModes
+        $restoredSnapshotCommand += '; chown -R "$1:$2" /target; ' + $privateModes
+        $archiveSnapshotArguments += @($snapshotIdentity.UserId, $snapshotIdentity.GroupId)
+        $restoredSnapshotArguments += @($snapshotIdentity.UserId, $snapshotIdentity.GroupId)
+    }
+    Invoke-BunkFyCommand -FilePath 'docker' -Arguments (@(
         'run', '--rm',
         '--mount', "type=bind,src=$archiveDirectory,dst=/backup,readonly",
         '--mount', "type=bind,src=$archiveKeyTreePath,dst=/target",
-        $script:BunkFyPreviewArchiveUtilityImage,
+        $archiveUtilityImage,
         'sh', '-euc',
-        'tar -xzf "/backup/$1" -C /target && chmod -R a+rX /target',
-        '--', $archiveName
-    ) -WorkingDirectory $root
-    Invoke-BunkFyCommand -FilePath 'docker' -Arguments @(
+        $archiveSnapshotCommand
+    ) + $archiveSnapshotArguments) -WorkingDirectory $root
+    Invoke-BunkFyCommand -FilePath 'docker' -Arguments (@(
         'run', '--rm',
         '--mount', "type=volume,src=$dataProtectionVolume,dst=/source,readonly",
         '--mount', "type=bind,src=$restoredKeyTreePath,dst=/target",
-        $script:BunkFyPreviewArchiveUtilityImage,
+        $archiveUtilityImage,
         'sh', '-euc',
-        'cp -a /source/. /target/ && chmod -R a+rX /target'
-    ) -WorkingDirectory $root
+        $restoredSnapshotCommand
+    ) + $restoredSnapshotArguments) -WorkingDirectory $root
+    Protect-BunkFyLocalSensitiveTree -Path $archiveKeyTreePath -Description 'Recovery archived key snapshot'
+    Protect-BunkFyLocalSensitiveTree -Path $restoredKeyTreePath -Description 'Recovery restored key snapshot'
 
     $archiveKeyTree = Get-BunkFyStateTreeFingerprint -Path $archiveKeyTreePath
     $restoredKeyTree = Get-BunkFyStateTreeFingerprint -Path $restoredKeyTreePath
@@ -359,20 +384,23 @@ finally {
                 [EnvironmentVariableTarget]::Process)
         }
         else {
-            [Environment]::SetEnvironmentVariable(
-                $entry.Key,
-                $null,
-                [EnvironmentVariableTarget]::Process)
+            # PowerShell/.NET can preserve an empty value here. Empty process
+            # variables override the env file and change Compose defaults.
+            Remove-Item "Env:$($entry.Key)" -ErrorAction SilentlyContinue
         }
     }
     Remove-Item -LiteralPath $temporaryRoot -Recurse -Force -ErrorAction SilentlyContinue
+    if (Test-Path -LiteralPath $temporaryRoot) {
+        $cleanupFailed = $true
+        Write-Warning 'Failed to remove the private recovery key workspace.'
+    }
 }
 
 if (-not $rehearsalPassed) {
     throw 'Preview recovery rehearsal did not complete.'
 }
 if ($cleanupFailed) {
-    throw 'Preview recovery rehearsal passed, but isolated-target cleanup failed.'
+    throw 'Preview recovery checks passed, but owned target or private key workspace cleanup failed.'
 }
 
 $parent = Split-Path -Parent $OutputPath

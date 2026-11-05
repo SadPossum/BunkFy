@@ -12,6 +12,8 @@ $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'preview-state.common.ps1')
 
 $root = Get-BunkFyRepositoryRoot
+# Permission repair does not interpret backup formats or require an env file.
+$repairUtilityImage = (Get-BunkFyPreviewInfrastructurePolicy).profiles.maintained.archiveUtilityImage
 $environmentRequested = $PSBoundParameters.ContainsKey('EnvironmentPath')
 $backupRequested = $PSBoundParameters.ContainsKey('BackupPath') -and
     $BackupPath.Count -gt 0
@@ -73,9 +75,9 @@ foreach ($path in $resolvedBackups) {
         }
         $identity = Get-BunkFyLocalUnixIdentity
         Invoke-BunkFyCommand -FilePath 'docker' -Arguments @(
-            'run', '--rm', '--network', 'none',
+            'run', '--rm', '--network', 'none', '--platform', 'linux/amd64',
             '--volume', "${path}:/state",
-            $script:BunkFyPreviewArchiveUtilityImage,
+            $repairUtilityImage,
             'sh', '-eu', '-c',
             'test -z "$(find /state -type l -print -quit)"; chown -R "$1:$2" /state; find /state -type d -exec chmod 700 {} +; find /state -type f -exec chmod 600 {} +',
             'protect-preview-state', $identity.UserId, $identity.GroupId

@@ -18,6 +18,8 @@ $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot '..\common.ps1')
 . (Join-Path $PSScriptRoot 'local-sensitive-state.common.ps1')
 . (Join-Path $PSScriptRoot 'preview-state.common.ps1')
+. (Join-Path $PSScriptRoot 'preview-storage.common.ps1')
+. (Join-Path $PSScriptRoot 'native-binary-command.common.ps1')
 
 $root = Get-BunkFyRepositoryRoot
 $composePath = Join-BunkFyPath 'deploy\preview\compose.yaml'
@@ -252,6 +254,13 @@ $composeDefinition = Get-BunkFyPreviewComposeDefinition `
     -Root $root `
     -ComposePath $composePath `
     -EnvironmentPath $EnvironmentPath
+Assert-BunkFyPreviewBackupStorageProvider -Manifest $manifest -ComposeDefinition $composeDefinition
+$infrastructureImageIds = if ($manifestSchemaVersion -eq 7) {
+    Get-BunkFyPreviewInfrastructureImageIds -ComposeDefinition $composeDefinition
+} else { @{} }
+Assert-BunkFyPreviewBackupInfrastructure -Manifest $manifest -ComposeDefinition $composeDefinition `
+    -TargetImageIds $infrastructureImageIds
+$archiveUtilityImage = Get-BunkFyPreviewArchiveUtilityImage -ComposeDefinition $composeDefinition
 $projectName = [string]$composeDefinition.name
 if ([string]::IsNullOrWhiteSpace($projectName)) {
     throw 'Preview Compose configuration has no resolved project name.'
@@ -291,7 +300,7 @@ function Assert-BunkFyVolumeArchiveReadable {
     $archiveName = Split-Path -Leaf $Path
     & docker run --rm `
         --mount "type=bind,src=$archiveDirectory,dst=/backup,readonly" `
-        $script:BunkFyPreviewArchiveUtilityImage `
+        $archiveUtilityImage `
         'tar' '-tzf' "/backup/$archiveName" 1>$null
     if ($LASTEXITCODE -ne 0) {
         throw "Backup archive '$archiveName' failed structural validation."
@@ -306,15 +315,7 @@ foreach ($entry in $backupStateArchives.GetEnumerator()) {
     else {
         Join-Path $BackupPath ([string]$entry.Value)
     }
-    Assert-BunkFyVolumeArchiveReadable -Path $path
     $stateArchivePaths[$entry.Key] = $path
-}
-& docker run --rm `
-    --mount "type=bind,src=$BackupPath,dst=/backup,readonly" `
-    $postgresImageReference `
-    'pg_restore' '--list' '/backup/postgres.dump' 1>$null
-if ($LASTEXITCODE -ne 0) {
-    throw 'Backup PostgreSQL dump failed structural validation.'
 }
 
 $compose = @(
@@ -355,6 +356,19 @@ if (-not $PSCmdlet.ShouldProcess(
     return
 }
 
+# Even read-only archive probes create helper containers. Keep them after
+# ShouldProcess and before creating anything in the restore target.
+foreach ($path in $stateArchivePaths.Values) {
+    Assert-BunkFyVolumeArchiveReadable -Path $path
+}
+& docker run --rm `
+    --mount "type=bind,src=$BackupPath,dst=/backup,readonly" `
+    $postgresImageReference `
+    'pg_restore' '--list' '/backup/postgres.dump' 1>$null
+if ($LASTEXITCODE -ne 0) {
+    throw 'Backup PostgreSQL dump failed structural validation.'
+}
+
 function Restore-BunkFyVolume {
     param(
         [Parameter(Mandatory = $true)][string] $Volume,
@@ -368,12 +382,11 @@ function Restore-BunkFyVolume {
         'run', '--rm',
         '--mount', "type=volume,src=$Volume,dst=/target",
         '--mount', "type=bind,src=$archiveDirectory,dst=/backup,readonly",
-        $script:BunkFyPreviewArchiveUtilityImage,
+        $archiveUtilityImage,
         'tar', '-xzf', "/backup/$archiveName", '-C', '/target'
     ) -WorkingDirectory $root
 }
 
-$temporaryDump = '/tmp/bunkfy-preview-restore.dump'
 $restoreComplete = $false
 $targetCreationAttempted = $false
 try {
@@ -401,20 +414,12 @@ try {
     Invoke-BunkFyCommand -FilePath 'docker' -Arguments (
         $compose + @('up', '--detach', '--no-build', '--wait', 'postgres')) `
         -WorkingDirectory $root
-    Invoke-BunkFyCommand -FilePath 'docker' -Arguments (
-        $compose + @(
-            'cp', (Join-Path $BackupPath 'postgres.dump'),
-            "postgres:$temporaryDump"
-        )) -WorkingDirectory $root
-    Invoke-BunkFyCommand -FilePath 'docker' -Arguments (
+    Invoke-BunkFyNativeBinaryCommand -FilePath 'docker' -Arguments (
         $compose + @(
             'exec', '-T', 'postgres',
             'pg_restore', '--clean', '--if-exists', '--no-owner', '--exit-on-error',
-            '-U', 'bunkfy', '-d', 'bunkfy', $temporaryDump
-        )) -WorkingDirectory $root
-    Invoke-BunkFyCommand -FilePath 'docker' -Arguments (
-        $compose + @('exec', '-T', 'postgres', 'rm', '-f', $temporaryDump)) `
-        -WorkingDirectory $root
+            '-U', 'bunkfy', '-d', 'bunkfy'
+        )) -WorkingDirectory $root -InputPath (Join-Path $BackupPath 'postgres.dump')
 
     if ($LeaveStopped) {
         Invoke-BunkFyCommand -FilePath 'docker' -Arguments (
@@ -428,7 +433,6 @@ try {
     $restoreComplete = $true
 }
 finally {
-    & docker @compose exec -T postgres rm -f $temporaryDump 2>$null
     if (-not $restoreComplete -and
         $targetCreationAttempted -and
         $RemoveFailedTarget) {

@@ -115,6 +115,10 @@ try {
     apiContext,
     configuration.publicOrigin,
     configuration.requestTimeoutMilliseconds,
+    {
+      cleanupRateLimitTimeoutMilliseconds: configuration.convergenceTimeoutMilliseconds,
+      cleanupPollIntervalMilliseconds: configuration.pollIntervalMilliseconds,
+    },
   );
   observedReleaseId = await assertReleaseIdentity(
     api,
@@ -1677,6 +1681,7 @@ async function removeNonOwnerMembers(identity, workspaceId) {
     if (staff.status === 1 || staff.status === 2) {
       const departure = await api(`/api/staff/members/${staff.staffMemberId}/depart`, {
         method: "POST",
+        retryRateLimitedCleanupWrite: true,
         tenantId: workspaceId,
         accessToken: identity.accessToken,
         data: {
@@ -1718,6 +1723,7 @@ async function retireProperties(identity, workspaceId, propertyIds) {
     }
     const receipt = await api(`/api/properties/${propertyId}/retire`, {
       method: "POST",
+      retryRateLimitedCleanupWrite: true,
       tenantId: workspaceId,
       accessToken: identity.accessToken,
       data: {
@@ -1752,6 +1758,7 @@ async function archiveWorkspace(identity, workspaceId) {
   if (organization.status === "active") {
     const suspended = await api(`/api/organizations/${workspaceId}/suspend`, {
       method: "POST",
+      retryRateLimitedCleanupWrite: true,
       tenantId: workspaceId,
       accessToken: identity.accessToken,
       data: {
@@ -1767,6 +1774,7 @@ async function archiveWorkspace(identity, workspaceId) {
   }
   const archived = await api(`/api/organizations/${workspaceId}/archive`, {
     method: "POST",
+    retryRateLimitedCleanupWrite: true,
     tenantId: workspaceId,
     accessToken: identity.accessToken,
     data: {

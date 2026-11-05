@@ -17,7 +17,8 @@ $invokeApi = {
         [Parameter(Mandatory = $true)][string] $Path,
         [Parameter(Mandatory = $true)][string] $Method,
         [AllowNull()][object] $Body,
-        [Parameter(Mandatory = $true)][string] $Operation
+        [Parameter(Mandatory = $true)][string] $Operation,
+        [switch] $AllowNotFound
     )
 
     $calls.Add("$Method $Path")
@@ -34,7 +35,10 @@ $invokeApi = {
     if ($Method -ceq 'GET' -and $Path -match '/api/inventory/.+/rooms\?') {
         $script:inventoryReads++
         if ($script:inventoryReads -eq 1) {
-            return [pscustomobject]@{ rooms = @(); page = 1; pageSize = 100; hasMore = $false }
+            if (-not $AllowNotFound) {
+                throw 'Fixture Inventory convergence read did not allow a missing projection.'
+            }
+            return $null
         }
         $salesMode = if ($script:configured) { 'roomLevel' } else { 'unconfigured' }
         return [pscustomobject]@{
@@ -126,7 +130,7 @@ if ([Guid]$retired.TopologyChangeId -ne $topologyChangeId -or
 
 $partialState = $null
 $invalidProjection = {
-    param($Path, $Method, $Body, $Operation)
+    param($Path, $Method, $Body, $Operation, [switch] $AllowNotFound)
     if ($Method -ceq 'GET' -and $Path -ceq "/api/properties/$($propertyId.ToString('D'))") {
         return [pscustomobject]@{ propertyId = $propertyId; status = 1; version = 1 }
     }
@@ -180,6 +184,73 @@ if (-not $invalidRejected -or
     $null -eq $partialState -or
     [Guid]$partialState.RoomId -ne $roomId) {
     throw 'Preview sellable-room fixture did not expose partial cleanup state before rejecting invalid topology.'
+}
+
+$script:partialCleanupInventoryReads = 0
+$script:partialCleanupRetirementReads = 0
+$partialCleanupFixture = [pscustomobject]@{
+    PropertyId = $propertyId
+    RoomId = $roomId
+    InventoryUnitId = [Guid]::Empty
+    TopologyChangeId = [Guid]::Empty
+    Status = 'room-created'
+}
+$partialCleanupApi = {
+    param($Path, $Method, $Body, $Operation, [switch] $AllowNotFound)
+    if ($Method -ceq 'GET' -and $Path -match '/api/inventory/.+/rooms\?') {
+        $script:partialCleanupInventoryReads++
+        if ($script:partialCleanupInventoryReads -eq 1) {
+            if (-not $AllowNotFound) {
+                throw 'Partial cleanup did not allow a missing Inventory projection.'
+            }
+            return $null
+        }
+        return [pscustomobject]@{
+            rooms = @([pscustomobject]@{
+                    roomId = $roomId
+                    salesMode = 'unconfigured'
+                    version = 1
+                    units = @([pscustomobject]@{
+                            inventoryUnitId = $unitId
+                            propertyId = $propertyId
+                            roomId = $roomId
+                            bedId = $null
+                            kind = 'room'
+                            isSellable = $false
+                            isTopologyActive = $true
+                        })
+                })
+            hasMore = $false
+        }
+    }
+    if ($Method -ceq 'POST' -and $Path.EndsWith('/retirement', [StringComparison]::Ordinal)) {
+        return [pscustomobject]@{
+            topologyChangeId = $topologyChangeId
+            propertyId = $propertyId
+            roomId = $roomId
+            status = 'finalizationRequested'
+        }
+    }
+    if ($Method -ceq 'GET' -and $Path.Contains('/room-retirements/', [StringComparison]::Ordinal)) {
+        $script:partialCleanupRetirementReads++
+        return [pscustomobject]@{
+            topologyChangeId = $topologyChangeId
+            propertyId = $propertyId
+            roomId = $roomId
+            status = 'completed'
+        }
+    }
+    throw "Unexpected partial-cleanup call '$Method $Path' ($Operation)."
+}
+$partialCleanup = Remove-BunkFyPreviewSellableRoomFixture `
+    -InvokeApi $partialCleanupApi `
+    -Fixture $partialCleanupFixture `
+    -ConvergenceTimeoutSeconds 2 `
+    -PollIntervalMilliseconds 1
+if ([string]$partialCleanup.Status -cne 'retired' -or
+    $script:partialCleanupInventoryReads -ne 2 -or
+    $script:partialCleanupRetirementReads -ne 1) {
+    throw 'Preview sellable-room fixture did not clean a pre-projection partial room safely.'
 }
 
 foreach ($requiredCall in @(

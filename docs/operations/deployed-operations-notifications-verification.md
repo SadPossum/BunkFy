@@ -1,7 +1,7 @@
 # Deployed Operations Notifications Verification
 
-Status: implemented, fixture verified, and VPS-preview verified
-Date: 2026-08-11
+Status: v3 implemented and fixture verified; hosted proof remains pending
+Date: 2026-08-13
 
 Use this mutation-bearing probe to verify BunkFy's product notification path
 through the public API, durable worker pipeline, Notifications history, and
@@ -73,9 +73,11 @@ rehearsal retires the properties, removes non-owner memberships, archives the
 workspace, and revokes all synthetic sessions.
 
 The standalone Operations Notifications child file is written beside the
-onboarding umbrella as `*.operations-notifications.json` and is suitable for
-the corresponding production-admission evidence input. The umbrella binds the
-child by SHA-256 without copying tokens or notification content.
+onboarding umbrella as `*.operations-notifications.json`. The umbrella requires
+the scrubbed child to omit workspace identity and binds it by SHA-256 without
+copying tokens or notification content. A trusted-HTTPS child may be supplied
+to the corresponding production-admission input; loopback Preview output is
+composition evidence only and is rejected by production admission.
 
 ## Checks
 
@@ -102,11 +104,19 @@ history records; newly created smoke records must be in that bounded window.
 
 ## Evidence And Failure
 
-Passing JSON evidence is written atomically under `.tmp/deployment-probes` by
-default. It contains deployment origin and release identity, workspace/property/
-unit/block ids, date range, notification ids and stream sequences, ten check
-results, and explicit limitations. It excludes bearer tokens, Auth subjects,
-mutation reason, notification bodies, raw response bodies, and headers.
+Passing schema-v3 JSON evidence is written atomically under
+`.tmp/deployment-probes` by default. It contains deployment origin and release
+identity; fixed source module, notification names, version, and destination
+tags; counts proving two ordered live notifications, two initially unread and
+durably read observer records, exactly-once history, and zero actor deliveries;
+terminal block and retained-history dispositions; ten check results; and fixed
+limitations.
+
+It excludes workspace, property, Inventory, block, notification, membership,
+subject, actor, operation, and Staff identifiers; date ranges; absolute stream
+sequences; bearer tokens; mutation reason; notification content and payloads;
+raw response bodies; and headers. Loopback output is identified as
+`loopback-http-preview`, never as fixture or trusted-HTTPS evidence.
 
 On failure after creation, the probe releases the block best-effort before
 returning the original error. A cleanup warning blocks promotion and requires
@@ -115,29 +125,50 @@ operator review; do not repair Inventory or Notifications tables directly.
 This probe does not exercise browser attention styling, browser navigation, or
 external delivery adapters. Those remain candidate-specific checks.
 
-## VPS Preview Evidence
+## Historical VPS Preview Evidence
 
 On 2026-08-11, the probe passed all ten checks through the VPS Preview's
 trusted HTTPS origin for release `preview-runtime-hardening-20260811`. The
-production-admission parser independently accepted the child record with
+then-current schema-v1 production-admission parser accepted the child record with
 SHA-256
 `d3ab85e1f67a4df3909fc5e2f27070d53168892500520bfeb4a8da24aa8dd683`.
 
 The enclosing rehearsal retired the notification room, removed both joined
 memberships, retired both synthetic properties, archived the workspace,
 revoked all three sessions, and purged and closed the Mailpit operator window.
-The evidence is retained only in the ignored VPS working state. It does not
-admit the final `f27ce996` candidate, prove browser attention behavior, exercise
-external delivery adapters, or replace the private notification-retention
-approval required for Production activation.
+The evidence is retained only in the ignored VPS working state. Schema v3
+also binds the observed admission evidence reference and
+supersedes its scoped evidence shape, so it cannot satisfy current production
+admission. It also does not admit the current candidate, prove browser attention
+behavior, exercise external delivery adapters, or replace the private
+notification-retention approval required for Production activation.
+
+## Historical V2 Preview Evidence
+
+On 2026-08-13, exact release
+`preview-operations-notifications-3ea29b6` passed all ten public workflow checks.
+The schema-v2 child SHA-256 is
+`a2b0a8ffa1c2664078516526112dd03b667d209a2128a05b8c94f2842d0f1acc`;
+the onboarding umbrella SHA-256 is
+`c3c445e2dc5fa21d7a65b9d03b67fe8e36c096957e6944fe5a5c43b6b94a671b`.
+
+All four retained files are mode `0600`. The child matches the closed admission
+shape and semantics and contains no scoped identifiers, date ranges, stream
+coordinates, personal content, or secret material. Parent cleanup retired the
+dedicated room and both properties, removed both non-owner memberships,
+archived the workspace, revoked all sessions, and purged Mailpit. The child is
+`loopback-http-preview`, so production admission correctly rejects it despite
+its exact release and passing semantics.
 
 ## Repository Fixture
 
 `eng/test-deployed-operations-notifications.ps1` runs the full sequence against
 a deterministic loopback fixture. It proves the valid path, release mismatch
-rejection, evidence redaction, identical-token rejection, and rejection when
-the actor receives its own notification. It does not contact a deployed
-environment. `eng/test-preview-sellable-room-fixture.ps1` separately
+rejection, exact schema and evidence redaction, mode `0600`, overwrite refusal,
+identical-token rejection, insecure non-loopback HTTP rejection, and rejection
+with terminal block release when the actor receives its own notification. It
+does not contact a deployed environment.
+`eng/test-preview-sellable-room-fixture.ps1` separately
 proves bounded room provisioning, delayed projection convergence, whole-room
 sales configuration, partial-state cleanup ownership, and coordinated room
 retirement for the self-contained Preview contributor.

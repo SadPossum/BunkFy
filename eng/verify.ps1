@@ -32,6 +32,17 @@ if (-not $SkipBuild) {
     Invoke-BunkFyCommand -FilePath $dotnet -Arguments @('build', (Join-BunkFyPath 'BunkFy.Workspace.slnx'), '--no-restore', '-m:1') -WorkingDirectory $root
 }
 
+$pnpm = $null
+$webRoot = $null
+if (-not $SkipFrontend) {
+    $pnpm = Resolve-BunkFyPnpm
+    $webRoot = Join-BunkFyPath 'apps\web'
+    Invoke-BunkFyCommand -FilePath $pnpm -Arguments @('install', '--frozen-lockfile') -WorkingDirectory $webRoot
+    if (-not $SkipBackend) {
+        & (Join-Path $PSScriptRoot 'update-web-contracts.ps1') -Check -NoBuild
+    }
+}
+
 if (-not $SkipBackend) {
     $backendVerifyArguments = @()
     if ($SkipRestore) {
@@ -49,12 +60,6 @@ if (-not $SkipBackend) {
 }
 
 if (-not $SkipFrontend) {
-    $pnpm = Resolve-BunkFyPnpm
-    $webRoot = Join-BunkFyPath 'apps\web'
-    Invoke-BunkFyCommand -FilePath $pnpm -Arguments @('install', '--frozen-lockfile') -WorkingDirectory $webRoot
-    if (-not $SkipBackend) {
-        & (Join-Path $PSScriptRoot 'update-web-contracts.ps1') -Check -NoBuild
-    }
     Invoke-BunkFyCommand -FilePath $pnpm -Arguments @('typecheck') -WorkingDirectory $webRoot
     Invoke-BunkFyCommand -FilePath $pnpm -Arguments @('lint') -WorkingDirectory $webRoot
     Invoke-BunkFyCommand -FilePath $pnpm -Arguments @('test') -WorkingDirectory $webRoot

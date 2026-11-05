@@ -6,7 +6,26 @@ choreography: modules continue to own their migrations, the migration host owns
 the fixed cross-module plan and lock, and GMA remains free of BunkFy release
 policy.
 
-## Run
+## Run An Attested Candidate
+
+The preferred release-candidate path consumes the retained Product Image
+Evidence bundle directly:
+
+```powershell
+.\eng\operations\rehearse-candidate-production-migrations.ps1 `
+  -BundleDirectory <downloaded-candidate-bundle> `
+  -ExpectedSourceCommit <exact-product-source-commit>
+```
+
+The wrapper verifies the closed bundle and GitHub attestations, refuses to
+replace a pre-existing candidate tag, loads the exact backend OCI archive, and
+requires the resulting repository digest to equal the attested manifest. It
+captures Docker's immutable image id and requires the migration evidence to
+record that same executed image. It then delegates migration behavior to
+`rehearse-production-migrations.ps1` and removes the imported candidate image
+after success or failure. It does not build, pull, or publish an image.
+
+## Run A Local Image
 
 The backend candidate and PostgreSQL image must already exist locally. The
 script never builds, pulls, or publishes an image. Both images must expose one
@@ -27,9 +46,9 @@ the retained evidence records the immutable bytes that actually ran.
 ```
 
 When omitted, `SourceCommitSha` defaults to the root checkout's current commit.
-Image-to-source provenance still comes from the product image evidence and the
-approved release channel; this local rehearsal records the identities but does
-not invent an attestation between them.
+This lower-level entry point deliberately does not invent image-to-source
+provenance; use the attested-candidate wrapper when candidate bytes are
+available.
 
 ## Proof
 
@@ -57,7 +76,7 @@ environment files, and removed with the rehearsal resources.
 
 ## Boundary
 
-Passing this rehearsal proves the checked migration executable's mechanics. It
+Passing either rehearsal proves the checked migration executable's mechanics.
 does not approve a production change, validate a syntactically valid external
 evidence reference, or replace target-specific backup/restore, artifact
 signature, maintenance-window, compatibility, and post-deploy evidence. Those

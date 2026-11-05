@@ -12,6 +12,7 @@ $externalIdHash = [Convert]::ToHexString(
     [Security.Cryptography.SHA256]::HashData($externalIdBytes)).ToLowerInvariant()
 $fixture = [pscustomobject]@{
     ReleaseId = 'release-fixture-001'
+    AdmissionEvidenceReference = 'admission:11111111111111111111111111111111'
     WorkspaceId = '11111111-1111-4111-8111-111111111111'
     PropertyId = '22222222-2222-4222-8222-222222222222'
     ConnectionId = '33333333-3333-4333-8333-333333333333'
@@ -399,6 +400,7 @@ function Start-BunkFyAdapterHostFixtureServer {
                             service = 'BunkFy.Host.Api'
                             status = 'ok'
                             releaseId = $Fixture.ReleaseId
+                            admissionEvidenceReference = $Fixture.AdmissionEvidenceReference
                             timestampUtc = [DateTimeOffset]::UtcNow.ToString('O')
                         }
                         if ($workflowComplete) {
@@ -567,10 +569,11 @@ try {
         Invoke-BunkFyAdapterHostFixtureProbe -Mode $mode -OutputPath $outputPath
         $evidence = Get-Content -LiteralPath $outputPath -Raw | ConvertFrom-Json -Depth 12
         $expectedExposure = if ($mode -ceq 'valid-disabled') { 'Disabled' } else { 'LoopbackOnly' }
-        if ($evidence.schemaVersion -ne 1 -or
+        if ($evidence.schemaVersion -ne 2 -or
             $evidence.evidenceKind -cne 'bunkfy-deployed-adapter-host-probe' -or
             $evidence.result -cne 'passed' -or
             $evidence.releaseId -cne $fixture.ReleaseId -or
+            $evidence.admissionEvidenceReference -cne $fixture.AdmissionEvidenceReference -or
             @($evidence.checks).Count -ne 8 -or
             [Guid]$evidence.run.runId -ne [Guid]$fixture.RunId -or
             [Guid]$evidence.receipt.receiptId -ne [Guid]$fixture.ReceiptId -or

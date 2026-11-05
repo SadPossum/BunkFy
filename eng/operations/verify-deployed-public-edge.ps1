@@ -95,9 +95,10 @@ try {
         -Client $client `
         -Uri ([Uri]::new($origin, '/api/smoke')) `
         -TimeoutSeconds $TimeoutSeconds
-    $observedReleaseId = Assert-BunkFySmokeResponse `
+    $observedDeployment = Assert-BunkFySmokeDeploymentIdentity `
         -Response $smokeResponse `
         -ExpectedReleaseId $ExpectedReleaseId
+    $observedReleaseId = $observedDeployment.ReleaseId
     if ($webReleaseId -cne $observedReleaseId) {
         throw 'The web and API release identities do not match.'
     }
@@ -148,11 +149,12 @@ finally {
 }
 
 $evidence = [ordered]@{
-    schemaVersion = 3
+    schemaVersion = 4
     evidenceKind = 'bunkfy-deployed-public-edge-probe'
     generatedAtUtc = [DateTimeOffset]::UtcNow.ToString('O')
     origin = $origin.GetLeftPart([UriPartial]::Authority)
     releaseId = $observedReleaseId
+    admissionEvidenceReference = $observedDeployment.AdmissionEvidenceReference
     transport = if ($origin.Scheme -eq 'https') { 'trusted-https' } else { 'loopback-http-fixture' }
     result = 'passed'
     checks = @($checks)

@@ -243,11 +243,11 @@ $requiredWorkflowTokens = @(
     $securityActionReference,
     'output-directory: artifacts/release-security',
     'exception-file: .gma/security-exceptions.json',
-    'actions/attest@f7c74d28b9d84cb8768d0b8ca14a4bac6ef463e6',
+    'actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6',
     'subject-checksums:',
     'sbom-path:',
-    'actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a',
-    'actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c',
+    'actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9',
+    'actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333',
     'attestations: write',
     'id-token: write',
     'contents: write',
@@ -267,6 +267,26 @@ foreach ($token in $requiredWorkflowTokens) {
     if ($workflow.IndexOf($token, [System.StringComparison]::Ordinal) -lt 0) {
         throw "Release workflow is missing required token '$token'."
     }
+}
+
+$identitySteps = [regex]::Matches($workflow,
+    '(?ms)^      - name: Resolve candidate identity\r?\n(?<step>.*?)(?=^      - |\z)')
+if ($identitySteps.Count -ne 1) {
+    throw 'Release workflow must contain one candidate identity step.'
+}
+$identityStep = $identitySteps[0].Groups['step'].Value
+foreach ($binding in @(
+        'RELEASE_REF_TYPE: ${{ github.ref_type }}',
+        'RELEASE_REF_NAME: ${{ github.ref_name }}',
+        'RELEASE_SOURCE_SHA: ${{ github.sha }}')) {
+    if (-not $identityStep.Contains($binding, [StringComparison]::Ordinal)) {
+        throw "Release identity step is missing metadata binding '$binding'."
+    }
+}
+$identityRun = [regex]::Match($identityStep, '(?ms)^        run: \|\r?\n(?<body>.*)\z')
+if (-not $identityRun.Success -or
+    $identityRun.Groups['body'].Value.Contains('${{', [StringComparison]::Ordinal)) {
+    throw 'Release identity metadata must enter through environment values, not executable expressions.'
 }
 
 foreach ($forbiddenToken in @(

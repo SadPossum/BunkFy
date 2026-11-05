@@ -34,24 +34,75 @@ Provide the exact retained files or directories for:
   [QR enrollment](deployed-workspace-enrollment-verification.md) results;
 - [Operations Notifications](deployed-operations-notifications-verification.md),
   [Reservations and Inventory lifecycle](deployed-reservations-inventory-verification.md),
+  [Guests stay history](deployed-guests-stay-history-verification.md),
+  [Staff employment](deployed-staff-employment-verification.md),
+  [Properties topology](deployed-properties-topology-verification.md),
+  [Ingestion connection lifecycle](deployed-ingestion-connection-lifecycle-verification.md),
+  [Ingestion conflict and proposal lifecycle](deployed-ingestion-conflict-proposal-lifecycle-verification.md),
+  [Data Rights Access Export](deployed-data-rights-access-export-verification.md),
   [AdapterHost](deployed-adapter-host-verification.md), and
   [Retention](deployed-retention-verification.md) results.
 
-Every deployed proof must report the candidate release and public origin. The
+Every mutable deployed proof must report the candidate release, public origin,
+and exact preallocated `admissionEvidenceReference`. The value must remain
+stable throughout each workflow and match across every probe and the rollback
+rehearsal; same-release evidence from another attempt is rejected. The
 migration rehearsal source commit and backend digest must match the promoted
 candidate. The rollback rehearsal must bind both supplied promotion records.
+Every deployed probe and rollback rehearsal must be no more than 24 hours old
+when assembled and whenever the closed bundle is verified. Promotion and
+migration evidence are immutable candidate proof and do not expire only because
+of age. This binding supersedes the earlier unbound schemas: public edge is v4;
+Operations Notifications, Reservations and Inventory, and Retention are v3;
+the rollback rehearsal and the other deployed probes are v2.
 The Preview onboarding rehearsal's opt-in
 `*.operations-notifications.json` child is a standalone Operations
-Notifications proof and may be supplied directly; use the child file, not the
-onboarding umbrella, for `OperationsNotificationsEvidencePath`.
+Notifications proof. Schema v3 omits workspace, property, Inventory, block,
+notification, date-range, and stream-sequence coordinates while retaining
+closed delivery and cleanup semantics. A trusted-HTTPS child may be supplied
+directly; use the child file, not the onboarding umbrella, for
+`OperationsNotificationsEvidencePath`.
 The matching opt-in `*.reservations-inventory.json` child is a standalone
-Reservations and Inventory lifecycle proof and may be supplied directly for
+Reservations and Inventory lifecycle proof. Schema v3 omits tenant and domain
+coordinates, dates, identities, labels, and payloads while retaining closed
+direct-booking, allocation, occupancy, replay, and terminal-cleanup semantics.
+A trusted-HTTPS child may be supplied directly for
 `ReservationsInventoryEvidencePath`.
+The matching opt-in `*.guests-stay-history.json` child is a standalone durable
+Guest, Reservation link, and Guests-owned stay-history proof and may be supplied
+directly for `GuestsStayHistoryEvidencePath`.
+The matching opt-in `*.staff-employment.json` child is a standalone unlinked
+Staff profile, assignment, and lifecycle proof and may be supplied directly for
+`StaffEmploymentEvidencePath`.
+The matching opt-in `*.properties-topology.json` child is a standalone
+Properties mutation, topology, and coordinated-retirement proof and may be
+supplied directly for `PropertiesTopologyEvidencePath`. It does not prove a
+country-policy choice or approval.
+The matching opt-in `*.ingestion-connection-lifecycle.json` child is a
+standalone Ingestion control-plane, one-time credential, independent adapter
+authentication, revocation, and terminal-disable proof and may be supplied
+directly for `IngestionConnectionLifecycleEvidencePath`. It requires an already
+approved processing policy and does not prove that policy decision or a real
+provider record.
+The matching opt-in `*.ingestion-conflict-proposal-lifecycle.json` child is a
+standalone Ingestion reservation-authority, proposal-supersession, decision,
+and terminal-cleanup proof and may be supplied directly for
+`IngestionConflictProposalLifecycleEvidencePath`. It does not prove provider
+acquisition, parser correctness, or a production country-policy decision.
+The matching opt-in `*.data-rights-access-export.json` child is a standalone
+Data Rights proof and may be supplied directly for
+`DataRightsAccessExportEvidencePath`. It proves deployed protected export
+behavior but not browser privacy-request UX, independent object-store/key
+custody, or immediate artifact deletion.
+Loopback Preview output remains rehearsal evidence and is rejected by the
+production parser unless its test-only fixture allowance is explicitly used;
+it cannot satisfy the hosted admission input.
 Its Preview engineering/example country-policy binding proves runtime contract
 composition only. It cannot satisfy a production country approval, legal,
 transfer, or retention-policy evidence requirement.
 
-Also provide five non-secret references from the private release system:
+Also provide one minimized, closed private-control index from the private
+release system. It must bind these exact five controls:
 
 - completed browser workspace-onboarding and registration rehearsal;
 - hosted backup and recovery rehearsal;
@@ -67,9 +118,35 @@ Tenant identity should be retained only as approved one-way fingerprints. The
 Preview estate result explicitly marked `preview-deployment-only` cannot
 satisfy this hosted control.
 
-Use bounded references such as `record:OPS-123`; never pass a URL containing a
-token, credentials, personal data, or raw logs. The repository validates the
-reference shape, not the private record's content or authenticity.
+The source directory contains exactly `private-control-index.json` and
+`checksums.sha256`. The index is schema v1 with:
+
+- evidence kind `bunkfy-private-production-control-index`, one non-empty
+  `indexId`, and matching `private-controls:<guid-N>` reference;
+- repository `SadPossum/BunkFy`, profile `production`, and result
+  `recorded-awaiting-private-approval`;
+- the exact admission reference, candidate release, root source commit, and
+  backend/web digest references;
+- exactly one entry per required control with a distinct bounded record
+  reference, distinct nonzero lowercase `recordSha256`, and UTC
+  `observedAtUtc`; and
+- exact limitations `private-record-content-and-authenticity-not-verified`,
+  `private-records-not-retained-in-public-admission-bundle`, and
+  `source-clock-attestation-not-verified`.
+
+The checksum file is the canonical UTF-8 line
+`<json-sha256>  private-control-index.json` followed by one LF. The index and
+the browser, deployment-control, and Workspace Access records must be no more
+than 24 hours old. Hosted recovery and runtime-operations records must be no
+more than 30 days old. No record may postdate the index or admission beyond the
+five-minute clock allowance.
+
+Use opaque references such as `record:OPS-123`; never include provider names,
+URLs containing tokens, credentials, account or tenant ids, personal data,
+topology, recovery values, operator identities, or raw logs. The public
+repository verifies identity, freshness, and checksums. It does not inspect or
+authenticate the private records, so the private release system remains
+responsible for signatures, reviewers, and final approval.
 
 ## Assemble
 
@@ -92,13 +169,15 @@ $admission = @{
   WorkspaceEnrollmentEvidencePath = '/evidence/probes/workspace-enrollment.json'
   OperationsNotificationsEvidencePath = '/evidence/probes/notifications.json'
   ReservationsInventoryEvidencePath = '/evidence/probes/reservations-inventory.json'
+  GuestsStayHistoryEvidencePath = '/evidence/probes/guests-stay-history.json'
+  StaffEmploymentEvidencePath = '/evidence/probes/staff-employment.json'
+  PropertiesTopologyEvidencePath = '/evidence/probes/properties-topology.json'
+  IngestionConnectionLifecycleEvidencePath = '/evidence/probes/ingestion-connection-lifecycle.json'
+  IngestionConflictProposalLifecycleEvidencePath = '/evidence/probes/ingestion-conflict-proposal-lifecycle.json'
+  DataRightsAccessExportEvidencePath = '/evidence/probes/data-rights-access-export.json'
   AdapterHostEvidencePath = '/evidence/probes/adapter-host.json'
   RetentionEvidencePath = '/evidence/probes/retention.json'
-  BrowserRehearsalReference = 'record:BROWSER-123'
-  HostedRecoveryReference = 'record:RECOVERY-123'
-  DeploymentControlReference = 'record:DEPLOY-123'
-  RuntimeOperationsReference = 'record:RUNTIME-123'
-  WorkspaceAccessEstateReference = 'record:ACCESS-123'
+  PrivateControlIndexDirectory = '/evidence/private/control-index'
   OutputDirectory = '/evidence/admission/release-20260806-02'
 }
 
@@ -106,16 +185,29 @@ $admission = @{
 ```
 
 The command validates every input before creating output. It writes
-`production-admission.json` plus `checksums.sha256` through a staging directory,
+`production-admission.json`, an exact copy of the minimized
+`private-control-index.json`, and `checksums.sha256` through a staging directory,
 self-verifies the closed set, and then moves it into place atomically. Existing
-output is never replaced. The assembler rejects an empty admission identity and
-retains the caller-supplied identity exactly; it never substitutes a new one
-after the candidate has been probed.
+output is never replaced, and the private-control source and output directories
+must not overlap. The assembler rejects an empty admission identity and retains
+the caller-supplied identity exactly; it never substitutes a new one after the
+candidate has been probed. It also rejects any mutable or private-control input
+whose candidate or admission identity differs from the caller-supplied values.
 
 The admission record contains release and image identities, evidence kinds,
-timestamps, check counts, SHA-256 bindings, and the five private references. It
-does not copy workspace, property, Inventory, Reservation, Staff, guest,
-notification, adapter, or Retention coordinates from source evidence.
+timestamps, source references, check counts, SHA-256 bindings, bounded validity,
+the retained private-index checksum, and one minimized summary per private
+control. Admission schema v3 fixes mutable deployed evidence and index age at
+24 hours, the per-control limits above, and the approval window at four hours.
+Its expiry is the earliest of the approval-window end, oldest mutable proof's
+24-hour limit, index expiry, and earliest private-control expiry; the record
+cannot enlarge those limits. Schema v1 and v2 admission bundles are
+intentionally rejected and must be reassembled from current source evidence.
+Index and private record references must be distinct and cannot reuse the
+admission, promotion, rollback, or migration identities. The record does not
+copy workspace, property, Inventory, Reservation, Staff, guest, Data Rights
+case/artifact, notification, adapter, Retention, provider, topology, or operator
+coordinates from source evidence.
 
 ## Verify And Approve
 
@@ -131,11 +223,20 @@ Verify the retained bundle again before private approval:
 ```
 
 A passing record deliberately says `evidence-complete-awaiting-private-approval`.
-Its local checksum is not a signature, and the script does not inspect private
-records, registry policy after promotion, production traffic, or production
-tenant data. Store or sign the closed directory through the approved private
-release system, review those remaining controls, and make the release decision
-there.
+The verifier independently recalculates repository parity, source checksum and
+reference bindings, every summary from the retained private-control index, all
+mutable and private freshness windows, and final expiry. If the bundle expires
+before approval, abandon that attempt, allocate a new admission identity, and
+rerun the mutable deployed probes, rollback rehearsal, and any private controls
+whose freshness window no longer covers the new attempt. The exact promotion
+and migration evidence may be reused while their candidate identities still
+match.
+
+Its local checksum is not a signature, source clocks are not independently
+attested, and the script does not inspect private records, registry policy after
+promotion, production traffic, or production tenant data. Store or sign the
+closed directory through the approved private release system, review those
+remaining controls, and make the release decision there before `expiresAtUtc`.
 
 `-AllowFixtureEvidence` exists only for the deterministic loopback repository
 test. It cannot admit HTTP, unattested, or fixture evidence for a hosted origin.

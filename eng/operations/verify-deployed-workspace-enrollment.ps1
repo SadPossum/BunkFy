@@ -26,6 +26,7 @@ $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'deployed-public-edge.common.ps1')
 . (Join-Path $PSScriptRoot 'deployed-authenticated-smoke.common.ps1')
 
+$observedAdmissionEvidenceReference = $null
 $origin = Assert-BunkFyPublicEdgeOrigin `
     -Origin $PublicOrigin `
     -AllowLoopbackHttp:$AllowLoopbackHttp
@@ -434,10 +435,10 @@ function Test-SmokePermission {
         [Parameter(Mandatory = $true)][bool] $Allowed
     )
 
-    $matches = @($Evaluation.permissions | Where-Object {
+    $matchingItems = @($Evaluation.permissions | Where-Object {
             $_.permission -ceq $Permission -and $_.scope -ceq $Scope
         })
-    return $matches.Count -eq 1 -and [bool]$matches[0].allowed -eq $Allowed
+    return $matchingItems.Count -eq 1 -and [bool]$matchingItems[0].allowed -eq $Allowed
 }
 
 try {
@@ -445,7 +446,8 @@ try {
         -Client $client `
         -Origin $origin `
         -ExpectedReleaseId $ExpectedReleaseId `
-        -TimeoutSeconds $RequestTimeoutSeconds
+        -TimeoutSeconds $RequestTimeoutSeconds `
+        -ObservedAdmissionEvidenceReference ([ref]$observedAdmissionEvidenceReference)
     $methods = Read-SmokeJson `
         -Response (Invoke-SmokeApi `
             -Path '/api/auth/methods' `
@@ -695,7 +697,8 @@ try {
         -Client $client `
         -Origin $origin `
         -ExpectedReleaseId $ExpectedReleaseId `
-        -TimeoutSeconds $RequestTimeoutSeconds
+        -TimeoutSeconds $RequestTimeoutSeconds `
+        -ObservedAdmissionEvidenceReference ([ref]$observedAdmissionEvidenceReference)
     if ($observedReleaseId -cne $releaseIdBefore) {
         throw 'The public API release identity changed during enrollment verification.'
     }
@@ -718,11 +721,12 @@ finally {
 }
 
 $evidence = [ordered]@{
-    schemaVersion = 1
+    schemaVersion = 2
     evidenceKind = 'bunkfy-deployed-workspace-enrollment-probe'
     generatedAtUtc = [DateTimeOffset]::UtcNow.ToString('O')
     origin = $origin.GetLeftPart([UriPartial]::Authority)
     releaseId = $observedReleaseId
+    admissionEvidenceReference = $observedAdmissionEvidenceReference
     transport = if ($origin.Scheme -eq 'https') { 'trusted-https' } else { 'loopback-http-fixture' }
     result = 'passed'
     workspaceId = $WorkspaceId.ToString('D')

@@ -22,6 +22,7 @@ $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'deployed-public-edge.common.ps1')
 . (Join-Path $PSScriptRoot 'deployed-authenticated-smoke.common.ps1')
 
+$observedAdmissionEvidenceReference = $null
 $origin = Assert-BunkFyPublicEdgeOrigin `
     -Origin $PublicOrigin `
     -AllowLoopbackHttp:$AllowLoopbackHttp
@@ -206,24 +207,24 @@ function Get-ExpectedSchedule {
         [Parameter(Mandatory = $true)][object] $Expected
     )
 
-    $matches = @($Snapshot.Items | Where-Object {
+    $matchingItems = @($Snapshot.Items | Where-Object {
             [string]$_.ownerKey -ceq [string]$Expected.OwnerKey -and
             [string]$_.dataClassKey -ceq [string]$Expected.DataClassKey -and
             [int]$_.targetScopeKind -eq [int]$Expected.TargetScopeKind -and
             $null -eq $_.propertyId -and
             [int]$_.executionPolicyVersion -eq [int]$Expected.ExecutionPolicyVersion
         })
-    if ($matches.Count -ne 1) {
+    if ($matchingItems.Count -ne 1) {
         throw "Expected Retention schedule '$($Expected.OwnerKey).$($Expected.DataClassKey).v$($Expected.ExecutionPolicyVersion)' was not unique."
     }
-    return $matches[0]
+    return $matchingItems[0]
 }
 
 function Test-ExpectedCataloguePresent {
     param([Parameter(Mandatory = $true)][object] $Snapshot)
 
     foreach ($expected in $expectedSchedules) {
-        $matches = @($Snapshot.Items | Where-Object {
+        $matchingItems = @($Snapshot.Items | Where-Object {
                 [string]$_.ownerKey -ceq [string]$expected.OwnerKey -and
                 [string]$_.dataClassKey -ceq [string]$expected.DataClassKey -and
                 [int]$_.targetScopeKind -eq [int]$expected.TargetScopeKind -and
@@ -231,10 +232,10 @@ function Test-ExpectedCataloguePresent {
                 [int]$_.executionPolicyVersion -eq
                     [int]$expected.ExecutionPolicyVersion
             })
-        if ($matches.Count -gt 1) {
+        if ($matchingItems.Count -gt 1) {
             throw "Expected Retention schedule '$($expected.OwnerKey).$($expected.DataClassKey).v$($expected.ExecutionPolicyVersion)' was duplicated."
         }
-        if ($matches.Count -eq 0) {
+        if ($matchingItems.Count -eq 0) {
             return $false
         }
     }
@@ -333,7 +334,8 @@ try {
         -Client $client `
         -Origin $origin `
         -ExpectedReleaseId $ExpectedReleaseId `
-        -TimeoutSeconds $RequestTimeoutSeconds
+        -TimeoutSeconds $RequestTimeoutSeconds `
+        -ObservedAdmissionEvidenceReference ([ref]$observedAdmissionEvidenceReference)
     $cycleStartedAt = [DateTimeOffset]::UtcNow
     $deadline = $cycleStartedAt.AddSeconds($CycleTimeoutSeconds)
     if ($null -eq $completionLowerBound) {
@@ -482,7 +484,8 @@ try {
         -Client $client `
         -Origin $origin `
         -ExpectedReleaseId $ExpectedReleaseId `
-        -TimeoutSeconds $RequestTimeoutSeconds
+        -TimeoutSeconds $RequestTimeoutSeconds `
+        -ObservedAdmissionEvidenceReference ([ref]$observedAdmissionEvidenceReference)
     if ($observedReleaseId -cne $releaseIdBefore) {
         throw 'The public API release identity changed during Retention verification.'
     }
@@ -513,11 +516,12 @@ $expectedEvidence = foreach ($expected in $expectedSchedules) {
     }
 }
 $evidence = [ordered]@{
-    schemaVersion = 2
+    schemaVersion = 3
     evidenceKind = 'bunkfy-deployed-retention-probe'
     generatedAtUtc = [DateTimeOffset]::UtcNow.ToString('O')
     publicOrigin = $origin.GetLeftPart([UriPartial]::Authority)
     releaseId = $observedReleaseId
+    admissionEvidenceReference = $observedAdmissionEvidenceReference
     transport = if ($origin.Scheme -eq 'https') { 'trusted-https' } else { 'loopback-http-fixture' }
     result = 'passed'
     workspaceId = $WorkspaceId.ToString('D')

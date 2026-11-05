@@ -40,12 +40,17 @@ outside the existing same-origin API route.
 
 ## Prepare
 
-Requirements: Docker with Compose v2, PowerShell 7, and recursively initialized
-submodules.
+Requirements: Linux amd64 Docker with Compose v2, PowerShell 7, and recursively
+initialized submodules. The retained application images and maintained storage
+fixture are qualified for that platform.
 
 ```powershell
 .\eng\new-preview-env.ps1
 ```
+
+Use `-OutputPath /protected/bunkfy-preview/.env` when generating a fresh,
+private environment outside the checkout. The default remains
+`deploy/preview/.env`.
 
 Review `deploy/preview/.env`, set `BUNKFY_PUBLIC_URL` to the externally visible
 HTTPS origin, and set `BUNKFY_ALLOWED_HOSTS` to an explicit semicolon-separated
@@ -82,7 +87,34 @@ The command changes local permissions, not secret values.
 ignored GMA source-root maps before invoking Docker, so a clean recursive
 checkout packages the same source composition validated by CI. A deployment
 that has already loaded reviewed image bytes can use `-NoBuild` with `up`; that
-mode never bootstraps or rebuilds source.
+mode never bootstraps or rebuilds source. Add `-NoPull` when every resolved
+image has also been preloaded and registry access must fail closed.
+
+Fresh generated environments select `BUNKFY_INFRA_PROFILE=maintained`: the
+reviewed PostgreSQL 17.11, Redis 8.2.11, NATS 2.14.9 and Mailpit 1.33.0 images.
+PostgreSQL runs as UID/GID 70 with a read-only root filesystem, no capabilities
+and no new privileges. Its data volume remains writable. Database dumps stream
+directly to and from private host files, without using the container's bounded
+`/tmp` filesystem.
+Native command warnings and failures retain a private diagnostic file outside
+the backup; the operator sees its path without its database contents. Review
+any such warning before treating a backup as recovery evidence.
+
+An existing environment without this setting retains the original `legacy`
+infrastructure tuple. Do not add `maintained` to an existing environment and
+reuse its state volumes: startup and backup reject a different or unknown
+volume generation. Use a fresh `BUNKFY_VOLUME_PREFIX` for a disposable demo;
+migrating real state requires separate qualification. A new infrastructure
+tuple requires a reviewed generation change, including the volume labels and
+backup contract. Do not reuse generation 1 for different stateful image pins.
+
+Maintained backups use manifest schema 7. They bind the four infrastructure
+images, object-storage image and archive utility to their local immutable image
+IDs, and record the required PostgreSQL execution profile. Restore requires
+those exact images to be available locally and rejects a mismatch before
+creating target resources. Original schema-5/6 backups remain supported with
+their original infrastructure and storage provider. Their format is unchanged.
+Mailpit capture remains ephemeral and is not part of the backup.
 
 ## Start And Verify
 
@@ -98,7 +130,8 @@ contract. A protected environment file may live outside the checkout:
 ```powershell
 .\eng\preview.ps1 up `
   -EnvironmentPath /protected/bunkfy-preview/.env `
-  -NoBuild
+  -NoBuild `
+  -NoPull
 ```
 
 When installing an unchanged copy of Compose in a separate deployment
@@ -110,8 +143,10 @@ release without a private topology fork.
 Pass the same environment path to backup, restore, recovery-rehearsal, and
 isolation commands. Do not maintain a private Compose fork; otherwise a recovery
 or backup restart can apply different runtime settings from the original stack.
+Use `preview.ps1 down -RemoveVolumes` only for a disposable target whose named
+volumes must be destroyed with the stack.
 
-The browser app is available on loopback at `http://127.0.0.1:8080` by default. The API is reachable only through the same-origin Nginx route. PostgreSQL, Redis, NATS, MinIO, and Mailpit have no host ports in the default topology.
+The browser app is available on loopback at `http://127.0.0.1:8080` by default. The API is reachable only through the same-origin Nginx route. PostgreSQL, Redis, NATS, S3 storage, and Mailpit have no host ports in the default topology.
 
 The Compose host intentionally does not terminate TLS. A remote deployment must place an HTTPS reverse proxy or ingress in front of the loopback web port and preserve forwarded headers. Do not expose the API, Admin API, databases, broker, or object storage directly.
 
@@ -149,7 +184,7 @@ seccomp/AppArmor, resource-sizing, and orchestration evidence.
 
 ## Runtime Image Pins
 
-The tracked Compose contract pins PostgreSQL, Redis, NATS, MinIO, and Mailpit
+The tracked Compose contract pins PostgreSQL, Redis, NATS, Silo S3 storage, and Mailpit
 to reviewed multi-platform manifest digests. Preview backup, restore, and
 recovery commands also use one centrally declared digest-pinned Alpine utility
 image. The Production migration rehearsal defaults to the same pinned
@@ -162,6 +197,73 @@ digest together everywhere it is used, review upstream release and security
 notes, run `./eng/verify-operations.ps1`, and finish with one Preview recovery
 rehearsal before promoting the new dependency set. Never refresh only the
 digest behind an unchanged review record.
+
+### Maintained Preview Storage
+
+Fresh environments generated from `.env.example` explicitly select PGSTY Silo
+`RELEASE.2026-10-26T00-00-00Z`, pinned by digest and Linux amd64 platform.
+Existing environment files without `BUNKFY_STORAGE_*` retain their original
+MinIO image and host platform. Keep those files and images for existing data;
+regenerating an environment is not a storage migration.
+Its existing `minio` service/DNS name, `MINIO_*` environment, application adapter
+configuration and `minio-data` volume name remain stable. The retired upstream
+MinIO image is no longer publicly pullable on a fresh host.
+
+Before `up` or `open-operations`, the operator checks resolved Compose and
+inspects the storage volume without changing it. Silo requires either an empty
+target or a volume labelled with the exact Silo provider/image. The legacy
+profile accepts its original unlabelled volume or matching MinIO labels. Each
+profile rejects the other provider before services or migrations start. New
+volumes receive provider/image labels. Do not relabel data to bypass this check.
+
+The legacy profile keeps the original startup and backup/restore commands. Its
+retired image may work from a previously retained local copy; it is unavailable
+for a fresh public pull. This update does not claim a new cold legacy restore
+passed or qualify its archived binary for production. Use fresh Silo fixtures
+for new demo rehearsals and preserve legacy data for separate migration work.
+
+The `Preview infrastructure and storage evidence` workflow retains the raw Trivy report, SBOM,
+source-byte checks, 38 runtime observations, cleanup results and a consumer
+OpenVEX assessment. The single inherited `CVE-2026-39414` module-path match is
+classified `fixed` only for the reviewed image/configuration digest, Linux
+amd64 platform, source commit and Go module version. The exact source uses
+bounded CSV/JSON Lines readers; the published image passes positive controls
+and oversized plain CSV, gzip CSV and JSON Lines rejection cases. The raw high
+finding remains visible. Other findings, missing controls, changed subjects,
+stale scans and an expired review fail the qualification.
+
+The current assessment expires on 2026-12-04. Renew it with fresh source,
+scanner and runtime evidence; editing only its expiry is insufficient. This
+fixture qualification does not establish distributed storage, existing-data
+migration, whole-application recovery or Production admission.
+
+The same job scans the exact maintained PostgreSQL, Redis, NATS, Mailpit and
+archive-utility images with the shared pinned scanner/database. It retains all
+raw HIGH/CRITICAL and secret findings. PostgreSQL's gosu binary contains an old
+Go module inventory: 26 reviewed stdlib findings have no matching affected
+function in the qualified binary. The additional moby user/group-file DoS has
+affected functions present. Its conditional consumer assessment requires the
+enforced nonroot/read-only/capability-free profile and the exact bounded,
+root-owned, unwritable user/group files. This does not clear the PostgreSQL
+image for other execution contexts.
+
+CI reuses the authenticated helper-symbol analysis, checks all 27 current
+primary advisories for changes, and starts only the actual tracked PostgreSQL
+service in a disposable project to verify its process and filesystem context.
+Changed advisories require new analysis. New findings, incomplete inventory,
+different image configurations, weakened execution settings, incomplete cleanup
+or expired assessments fail the gate. The scanner does not consume an ignore
+list or a global PostgreSQL image exemption. The qualified Redis/NATS state and
+archive interoperability fixtures are retained separately; they are not rebuilt
+for every PR. The final whole-application recovery rehearsal remains required.
+
+Existing MinIO volumes and backups stay untouched. Legacy migration is not
+automated or qualified by this update. Preserve the source environment, volume
+archives, keys, original source/image identities and separately held manifest
+digests before planning migration. Use a disposable clone to prove object
+bytes, metadata, authorization, application references, protected keys and
+rollback behavior before considering an existing deployment. Do not point the
+new fixture at a legacy volume as a migration shortcut.
 
 ## Preview Email Capture
 
@@ -354,16 +456,82 @@ retires the room before the onboarding cleanup continues.
 
 Use the mutation-bearing
 [deployed Reservations and Inventory verifier](deployed-reservations-inventory-verification.md)
-to prove direct reservation creation, exact retry stability, asynchronous
-allocation, check-in, checkout, and inventory release against one candidate.
+to prove cross-workspace denial, direct reservation creation, exact retry
+stability, asynchronous allocation, check-in, checkout, and inventory release
+against one candidate.
 Use a future range and a dedicated available unit. A passing run retains one
 checked-out synthetic reservation but no active allocation or durable Guest
 Record.
 For a self-contained Preview run, add `-IncludeReservationsInventory` to the
 Preview onboarding rehearsal. It discovers and activates the one mounted
 engineering/example policy through the public Properties API, provisions and
-retires a temporary sellable room, and binds the scrubbed child proof into the
-onboarding evidence.
+retires a temporary sellable room, and binds the identifier-free schema-v2
+child proof into the onboarding evidence.
+
+Use the mutation-bearing
+[deployed Guests stay-history verifier](deployed-guests-stay-history-verification.md)
+to prove minimal canonical Guest management, optimistic and idempotent replay,
+the Reservation primary-participant link, monotonic Guests-owned stay-history
+projection, check-in, checkout, archive, and Inventory release against one
+candidate. For a self-contained Preview run, add `-IncludeGuestsStayHistory` to
+the onboarding rehearsal. It runs before invitation acceptance so the applicant
+is a genuine authenticated nonmember, provisions a dedicated room, retains the
+archived Guest and checked-out Reservation, retires the released room, and binds
+only scrubbed child evidence into the umbrella.
+
+Use the mutation-bearing
+[deployed Staff employment verifier](deployed-staff-employment-verification.md)
+to prove minimal unlinked profile management, optimistic and idempotent
+mutations, property assignment, suspension and resume, and terminal departure
+with assignment closure against one candidate. For a self-contained Preview
+run, add `-IncludeStaffEmployment` to the onboarding rehearsal. It runs before
+invitation acceptance so the applicant is a genuine authenticated nonmember,
+retains one departed synthetic Staff record with closed assignment history, and
+binds only scrubbed child evidence into the umbrella.
+
+Use the mutation-bearing
+[deployed Properties topology verifier](deployed-properties-topology-verification.md)
+to prove property, room, and bed mutation idempotency, optimistic concurrency,
+directory visibility, and Inventory-coordinated terminal retirement against one
+candidate. For a self-contained Preview run, add
+`-IncludePropertiesTopology` to the onboarding rehearsal. The child creates and
+fully retires its own third property before invitation acceptance, retains only
+the retired synthetic topology, and binds scrubbed evidence into the umbrella.
+It deliberately does not activate or select a country policy.
+
+Use the mutation-bearing
+[deployed Ingestion connection lifecycle verifier](deployed-ingestion-connection-lifecycle-verification.md)
+to prove capability-driven connection management, one-time credential issuance,
+independent adapter authentication, terminal empty-run handling, credential
+revocation, and safe connection disablement against one candidate. For a self-
+contained Preview run, add `-IncludeIngestionConnectionLifecycle` to the
+onboarding rehearsal. The parent activates the Preview engineering policy and
+the child leaves its synthetic connection disabled, credential revoked, and run
+terminal while binding only scrubbed evidence into the umbrella. The separate
+AdapterHost verifier still owns the real provider-record, receipt, and
+checkpoint path.
+
+Use the mutation-bearing
+[deployed Ingestion conflict and proposal lifecycle verifier](deployed-ingestion-conflict-proposal-lifecycle-verification.md)
+to prove automatic adapter authority, staff-conflict preservation, newer-source
+proposal supersession, replay-safe operator decisions, Reservations convergence,
+and terminal cleanup. For a self-contained Preview run, add
+`-IncludeIngestionConflictProposalLifecycle` to the onboarding rehearsal. The
+parent owns a dedicated sellable-room fixture; the child cancels its synthetic
+reservation, revokes its credential, disables its connection, and binds only
+scrubbed authority and terminal-count evidence into the umbrella.
+
+Use the mutation-bearing
+[deployed Data Rights Access Export verifier](deployed-data-rights-access-export-verification.md)
+to prove exact Guest discovery, approved immutable scope, Worker export
+generation, assurance-gated protected download, idempotent replay, and bounded
+artifact expiry against one candidate. For a self-contained Preview run, add
+`-IncludeDataRightsAccessExport` to the onboarding rehearsal. It performs a
+fresh owner login, temporarily enrolls TOTP for destructive assurance, uses an
+unjoined applicant as the nonmember, archives the synthetic Guest, disables the
+temporary factor, and binds only scrubbed child evidence into the umbrella. The
+encrypted artifact and case history remain under configured lifecycle and are
+not claimed as immediately deleted.
 
 For a provider-to-Ingestion proof through a target remote AdapterHost, use the
 [deployed AdapterHost verifier](deployed-adapter-host-verification.md). Start the
@@ -419,7 +587,7 @@ Create a consistent backup during a brief write outage:
 ```
 
 The script stops the application writers, takes a PostgreSQL custom dump,
-archives MinIO, NATS, Redis, Data Protection, the protected Data Rights ledger
+archives S3 storage, NATS, Redis, Data Protection, the protected Data Rights ledger
 and tenant-termination replay journal, and adapter input volumes, writes
 SHA-256 hashes, and restores the previous
 running service set. It refuses to create a backup if any declared state volume
@@ -429,6 +597,15 @@ first state byte is written. Docker volume archives are copied out of a
 disposable utility container as the invoking operator, and the completed tree
 uses `0700` directories and `0600` files on Unix or the equivalent protected
 Windows ACL.
+
+Silo backups use manifest schema 6 and retain the established state-contract
+version 2 and all eight logical state archives. The backup checks the actual
+volume labels and records the exact provider/image. Legacy MinIO backups keep
+schema 5 and their original fields, so older operators can still consume them.
+The restore command preserves schemas 2–5 on the original MinIO profile, and
+requires provider-bound schema 6 on Silo. Cross-provider restores need separate
+migration qualification. Older operators reject schema 6, preventing an
+accidental Silo-to-MinIO restore.
 
 Repair one or more older local backup trees before restore or rehearsal:
 

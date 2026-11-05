@@ -5,6 +5,7 @@
   <Folder Name="/.github/workflows/">
     <File Path=".github/workflows/codeql.yml" />
     <File Path=".github/workflows/image-evidence.yml" />
+    <File Path=".github/workflows/preview-storage-evidence.yml" />
     <File Path=".github/workflows/release-evidence.yml" />
     <File Path=".github/workflows/security.yml" />
     <File Path=".github/workflows/validate.yml" />
@@ -153,6 +154,7 @@
     <File Path="apps/backend/docs/planning/inventory-allocation-mutation-serialization-task.md" />
     <File Path="apps/backend/docs/planning/inventory-authoritative-state-integrity-task.md" />
     <File Path="apps/backend/docs/planning/inventory-data-rights-owner-capability-task.md" />
+    <File Path="apps/backend/docs/planning/inventory-manual-block-group-convergence-task.md" />
     <File Path="apps/backend/docs/planning/inventory-manual-block-idempotency-task.md" />
     <File Path="apps/backend/docs/planning/inventory-module-task.md" />
     <File Path="apps/backend/docs/planning/inventory-operational-surface-hardening-task.md" />
@@ -303,6 +305,7 @@
   </Folder>
   <Folder Name="/apps/backend/eng/">
     <File Path="apps/backend/eng/add-migration.ps1" />
+    <File Path="apps/backend/eng/build-provider-images.ps1" />
     <File Path="apps/backend/eng/build.ps1" />
     <File Path="apps/backend/eng/check-migrations.ps1" />
     <File Path="apps/backend/eng/check-repository-release.ps1" />
@@ -329,6 +332,9 @@
     <File Path="apps/backend/eng/test-ingestion-runtime.ps1" />
     <File Path="apps/backend/eng/update-solutions.ps1" />
     <File Path="apps/backend/eng/verify.ps1" />
+  </Folder>
+  <Folder Name="/apps/backend/eng/fixtures/minio/">
+    <File Path="apps/backend/eng/fixtures/minio/README.md" />
   </Folder>
   <Folder Name="/apps/backend/gma/extensions/src/">
     <Project Path="apps/backend/gma/extensions/src/Gma.Extensions.Auth.Notifications/Gma.Extensions.Auth.Notifications.csproj" />
@@ -875,13 +881,20 @@
     <File Path="docs/brand/house-q/design-qa.md" />
   </Folder>
   <Folder Name="/docs/operations/">
+    <File Path="docs/operations/candidate-preview-runtime-rehearsal.md" />
     <File Path="docs/operations/deployed-adapter-host-verification.md" />
     <File Path="docs/operations/deployed-admin-boundary-verification.md" />
+    <File Path="docs/operations/deployed-data-rights-access-export-verification.md" />
+    <File Path="docs/operations/deployed-guests-stay-history-verification.md" />
+    <File Path="docs/operations/deployed-ingestion-conflict-proposal-lifecycle-verification.md" />
+    <File Path="docs/operations/deployed-ingestion-connection-lifecycle-verification.md" />
     <File Path="docs/operations/deployed-operations-notifications-verification.md" />
+    <File Path="docs/operations/deployed-properties-topology-verification.md" />
     <File Path="docs/operations/deployed-public-edge-verification.md" />
     <File Path="docs/operations/deployed-release-rollback-rehearsal.md" />
     <File Path="docs/operations/deployed-reservations-inventory-verification.md" />
     <File Path="docs/operations/deployed-retention-verification.md" />
+    <File Path="docs/operations/deployed-staff-employment-verification.md" />
     <File Path="docs/operations/deployed-workspace-browser-rehearsal.md" />
     <File Path="docs/operations/deployed-workspace-enrollment-verification.md" />
     <File Path="docs/operations/deployed-workspace-invitation-verification.md" />
@@ -895,7 +908,27 @@
     <File Path="docs/operations/production-migration-rehearsal.md" />
   </Folder>
   <Folder Name="/docs/planning/">
+    <File Path="docs/planning/account-security-partial-data-recovery-task.md" />
+    <File Path="docs/planning/authentication-entry-source-and-callback-recovery-task.md" />
     <File Path="docs/planning/bunkfy-repository-stack-and-workflow-plan.md" />
+    <File Path="docs/planning/composite-operator-page-partial-data-recovery-task.md" />
+    <File Path="docs/planning/current-candidate-publication-refresh-task.md" />
+    <File Path="docs/planning/current-candidate-runtime-rehearsal-task.md" />
+    <File Path="docs/planning/data-rights-operator-source-authority-recovery-task.md" />
+    <File Path="docs/planning/deployed-data-rights-access-export-proof-task.md" />
+    <File Path="docs/planning/deployed-guests-stay-history-proof-task.md" />
+    <File Path="docs/planning/deployed-ingestion-conflict-proposal-lifecycle-proof-task.md" />
+    <File Path="docs/planning/deployed-ingestion-connection-lifecycle-proof-task.md" />
+    <File Path="docs/planning/deployed-operations-notifications-evidence-minimization-proof-task.md" />
+    <File Path="docs/planning/deployed-properties-topology-lifecycle-proof-task.md" />
+    <File Path="docs/planning/deployed-reservations-inventory-evidence-proof-task.md" />
+    <File Path="docs/planning/deployed-staff-employment-lifecycle-proof-task.md" />
+    <File Path="docs/planning/guests-operator-source-authority-recovery-task.md" />
+    <File Path="docs/planning/integrations-composite-source-recovery-task.md" />
+    <File Path="docs/planning/notifications-operator-source-authority-recovery-task.md" />
+    <File Path="docs/planning/post-domain-candidate-publication-refresh-task.md" />
+    <File Path="docs/planning/post-hardening-candidate-publication-refresh-task.md" />
+    <File Path="docs/planning/post-operator-hardening-candidate-publication-refresh-task.md" />
     <File Path="docs/planning/preview-adapter-host-rehearsal-task.md" />
     <File Path="docs/planning/preview-admin-boundary-proof-task.md" />
     <File Path="docs/planning/preview-browser-onboarding-rehearsal-task.md" />
@@ -911,10 +944,20 @@
     <File Path="docs/planning/preview-trusted-https-browser-onboarding-proof-task.md" />
     <File Path="docs/planning/preview-workspace-access-administration-proof-task.md" />
     <File Path="docs/planning/preview-workspace-access-seed-estate-proof-task.md" />
+    <File Path="docs/planning/production-admission-attempt-identity-task.md" />
+    <File Path="docs/planning/production-admission-freshness-task.md" />
     <File Path="docs/planning/production-image-promotion-boundary-task.md" />
     <File Path="docs/planning/production-migration-proof-refresh-task.md" />
+    <File Path="docs/planning/production-private-control-index-binding-task.md" />
     <File Path="docs/planning/production-workspace-access-estate-admission-task.md" />
+    <File Path="docs/planning/properties-operator-source-authority-recovery-task.md" />
+    <File Path="docs/planning/reservations-operator-source-authority-recovery-task.md" />
+    <File Path="docs/planning/retention-operator-source-authority-recovery-task.md" />
     <File Path="docs/planning/shared-network-http-admission-task.md" />
+    <File Path="docs/planning/staff-operator-source-authority-recovery-task.md" />
+    <File Path="docs/planning/web-shell-failure-recovery-task.md" />
+    <File Path="docs/planning/workspace-access-control-authority-recovery-task.md" />
+    <File Path="docs/planning/workspace-shell-catalogue-recovery-task.md" />
   </Folder>
   <Folder Name="/eng/">
     <File Path="eng/bootstrap.ps1" />
@@ -922,6 +965,7 @@
     <File Path="eng/check-repository-release.ps1" />
     <File Path="eng/check-repository-security.ps1" />
     <File Path="eng/common.ps1" />
+    <File Path="eng/docker-test-workflow-policy.common.ps1" />
     <File Path="eng/export-source-set.ps1" />
     <File Path="eng/guard-submodules-latest.ps1" />
     <File Path="eng/image-candidate.common.ps1" />
@@ -937,19 +981,31 @@
     <File Path="eng/sync-submodules.ps1" />
     <File Path="eng/test-deployed-adapter-host.ps1" />
     <File Path="eng/test-deployed-admin-boundary.ps1" />
+    <File Path="eng/test-deployed-data-rights-access-export.ps1" />
+    <File Path="eng/test-deployed-guests-stay-history.ps1" />
+    <File Path="eng/test-deployed-ingestion-conflict-proposal-lifecycle.ps1" />
+    <File Path="eng/test-deployed-ingestion-connection-lifecycle.ps1" />
     <File Path="eng/test-deployed-operations-notifications.ps1" />
+    <File Path="eng/test-deployed-properties-topology.ps1" />
     <File Path="eng/test-deployed-public-edge.ps1" />
     <File Path="eng/test-deployed-release-rollback.ps1" />
     <File Path="eng/test-deployed-reservations-inventory.ps1" />
     <File Path="eng/test-deployed-retention.ps1" />
+    <File Path="eng/test-deployed-staff-employment.ps1" />
     <File Path="eng/test-deployed-workspace-enrollment.ps1" />
     <File Path="eng/test-deployed-workspace-invitation.ps1" />
+    <File Path="eng/test-docker-image-identity.ps1" />
+    <File Path="eng/test-docker-test-workflow-policy.ps1" />
     <File Path="eng/test-image-candidate-package.ps1" />
+    <File Path="eng/test-native-binary-command.ps1" />
     <File Path="eng/test-preview-adapter-host-rehearsal.ps1" />
     <File Path="eng/test-preview-browser-onboarding-rehearsal.ps1" />
+    <File Path="eng/test-preview-infrastructure-guard.ps1" />
     <File Path="eng/test-preview-mail-capture.ps1" />
     <File Path="eng/test-preview-property-processing-fixture.ps1" />
     <File Path="eng/test-preview-sellable-room-fixture.ps1" />
+    <File Path="eng/test-preview-storage-guard.ps1" />
+    <File Path="eng/test-preview-totp.ps1" />
     <File Path="eng/test-preview-workspace-access-estate.ps1" />
     <File Path="eng/test-production-admission.ps1" />
     <File Path="eng/update-gma.ps1" />
@@ -967,18 +1023,25 @@
     <File Path="eng/operations/backup-preview.ps1" />
     <File Path="eng/operations/deployed-authenticated-smoke.common.ps1" />
     <File Path="eng/operations/deployed-public-edge.common.ps1" />
+    <File Path="eng/operations/docker-image-identity.common.ps1" />
     <File Path="eng/operations/local-sensitive-state.common.ps1" />
+    <File Path="eng/operations/native-binary-command.common.ps1" />
     <File Path="eng/operations/offboard-staff-access.ps1" />
     <File Path="eng/operations/preview-browser-onboarding.common.mjs" />
     <File Path="eng/operations/preview-browser-workspace-access-administration.mjs" />
+    <File Path="eng/operations/preview-infrastructure.common.ps1" />
     <File Path="eng/operations/preview-mail-capture.common.ps1" />
     <File Path="eng/operations/preview-property-processing-fixture.common.ps1" />
     <File Path="eng/operations/preview-sellable-room-fixture.common.ps1" />
     <File Path="eng/operations/preview-state.common.ps1" />
+    <File Path="eng/operations/preview-storage.common.ps1" />
+    <File Path="eng/operations/preview-totp.common.ps1" />
     <File Path="eng/operations/preview-workspace-access-estate.common.ps1" />
     <File Path="eng/operations/promote-image-candidate.ps1" />
     <File Path="eng/operations/protect-preview-local-state.ps1" />
     <File Path="eng/operations/provision-staff-access.ps1" />
+    <File Path="eng/operations/rehearse-candidate-preview-runtime.ps1" />
+    <File Path="eng/operations/rehearse-candidate-production-migrations.ps1" />
     <File Path="eng/operations/rehearse-deployed-release-rollback.ps1" />
     <File Path="eng/operations/rehearse-preview-adapter-host.ps1" />
     <File Path="eng/operations/rehearse-preview-browser-onboarding.mjs" />
@@ -990,13 +1053,22 @@
     <File Path="eng/operations/restore-preview.ps1" />
     <File Path="eng/operations/verify-deployed-adapter-host.ps1" />
     <File Path="eng/operations/verify-deployed-admin-boundary.ps1" />
+    <File Path="eng/operations/verify-deployed-data-rights-access-export.ps1" />
+    <File Path="eng/operations/verify-deployed-guests-stay-history.ps1" />
+    <File Path="eng/operations/verify-deployed-ingestion-conflict-proposal-lifecycle.ps1" />
+    <File Path="eng/operations/verify-deployed-ingestion-connection-lifecycle.ps1" />
     <File Path="eng/operations/verify-deployed-operations-notifications.ps1" />
+    <File Path="eng/operations/verify-deployed-properties-topology.ps1" />
     <File Path="eng/operations/verify-deployed-public-edge.ps1" />
     <File Path="eng/operations/verify-deployed-reservations-inventory.ps1" />
     <File Path="eng/operations/verify-deployed-retention.ps1" />
+    <File Path="eng/operations/verify-deployed-staff-employment.ps1" />
     <File Path="eng/operations/verify-deployed-workspace-enrollment.ps1" />
     <File Path="eng/operations/verify-deployed-workspace-invitation.ps1" />
     <File Path="eng/operations/verify-preview-isolation.ps1" />
+  </Folder>
+  <Folder Name="/eng/operations/fixtures/">
+    <File Path="eng/operations/fixtures/native-binary-command-probe.ps1" />
   </Folder>
   <Folder Name="/eng/tests/">
     <File Path="eng/tests/preview-browser-onboarding.common.test.mjs" />

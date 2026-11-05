@@ -10,6 +10,8 @@ $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot '..\common.ps1')
 . (Join-Path $PSScriptRoot 'local-sensitive-state.common.ps1')
 . (Join-Path $PSScriptRoot 'preview-state.common.ps1')
+. (Join-Path $PSScriptRoot 'preview-storage.common.ps1')
+. (Join-Path $PSScriptRoot 'native-binary-command.common.ps1')
 
 $root = Get-BunkFyRepositoryRoot
 $composePath = Join-BunkFyPath 'deploy\preview\compose.yaml'
@@ -46,6 +48,11 @@ if ([string]::IsNullOrWhiteSpace($projectName)) {
     throw 'Preview Compose configuration has no resolved project name.'
 }
 $volumeMap = Get-BunkFyPreviewVolumeMap -ComposeDefinition $composeDefinition
+Assert-BunkFyPreviewStorageVolume -ComposeDefinition $composeDefinition
+Assert-BunkFyPreviewInfrastructureVolumes -ComposeDefinition $composeDefinition
+$storageProfile = Get-BunkFyPreviewStorageProfile -ComposeDefinition $composeDefinition
+$infrastructureProfile = Get-BunkFyPreviewInfrastructureProfile -ComposeDefinition $composeDefinition
+$archiveUtilityImage = $infrastructureProfile.ArchiveUtilityImage
 $stateArchives = Get-BunkFyPreviewStateArchives `
     -Version $script:BunkFyPreviewStateContractVersion
 $backendImageReference = [string]$composeDefinition.services.api.image
@@ -93,7 +100,7 @@ function Backup-BunkFyVolume {
         Invoke-BunkFyCommand -FilePath 'docker' -Arguments @(
             'create', '--name', $containerName,
             '--mount', "type=volume,src=$Volume,dst=/source,readonly",
-            $script:BunkFyPreviewArchiveUtilityImage,
+            $archiveUtilityImage,
             'tar', '-czf', '/tmp/bunkfy-volume.tar.gz', '-C', '/source', '.'
         ) -WorkingDirectory $root
         $containerCreated = $true
@@ -129,7 +136,7 @@ function Backup-BunkFyVolume {
 
     & docker run --rm `
         --mount "type=bind,src=$OutputPath,dst=/backup,readonly" `
-        $script:BunkFyPreviewArchiveUtilityImage `
+        $archiveUtilityImage `
         'tar' '-tzf' "/backup/$Archive" 1>$null
     if ($LASTEXITCODE -ne 0) {
         throw "Backup archive '$Archive' failed structural validation."
@@ -195,11 +202,25 @@ if (-not $PSCmdlet.ShouldProcess(
 New-BunkFyLocalSensitiveDirectory `
     -Path $OutputPath `
     -Description 'Preview backup directory'
+$infrastructureRecord = $null
+if ($infrastructureProfile.Name -ceq 'maintained') {
+    # Pull only the reviewed helper, after ShouldProcess and before stopping writers.
+    & docker image inspect --format '{{.Id}}' $archiveUtilityImage 1>$null 2>$null
+    if ($LASTEXITCODE -ne 0) {
+        Invoke-BunkFyCommand -FilePath 'docker' -Arguments @(
+            'pull', '--platform', 'linux/amd64', $archiveUtilityImage
+        ) -WorkingDirectory $root
+    }
+    $infrastructureImageIds = Get-BunkFyPreviewInfrastructureImageIds -ComposeDefinition $composeDefinition
+    Assert-BunkFyPreviewInfrastructureContainers -ComposeDefinition $composeDefinition `
+        -ComposeArguments $compose -ImageIds $infrastructureImageIds
+    $infrastructureRecord = New-BunkFyPreviewInfrastructureRecord `
+        -ComposeDefinition $composeDefinition -ImageIds $infrastructureImageIds
+}
 $appServices = @('web', 'admin-api', 'api', 'worker') |
     Where-Object { $runningServices -contains $_ }
 $stateServices = @('nats', 'redis', 'minio') |
     Where-Object { $runningServices -contains $_ }
-$temporaryDump = '/tmp/bunkfy-preview.dump'
 $backupComplete = $false
 
 try {
@@ -207,23 +228,13 @@ try {
         Invoke-PreviewCompose -Arguments (@('stop') + $appServices)
     }
 
-    Invoke-PreviewCompose -Arguments @(
-        'exec', '-T', 'postgres',
-        'pg_dump', '-U', 'bunkfy', '-d', 'bunkfy',
-        '--format=custom', "--file=$temporaryDump"
-    )
-    & docker @compose exec -T postgres pg_restore --list $temporaryDump 1>$null
-    if ($LASTEXITCODE -ne 0) {
-        throw 'The preview PostgreSQL dump failed structural validation.'
-    }
-    Invoke-PreviewCompose -Arguments @(
-        'cp', "postgres:$temporaryDump", (Join-Path $OutputPath 'postgres.dump')
-    )
-    Protect-BunkFyLocalSensitivePath `
-        -Path (Join-Path $OutputPath 'postgres.dump') `
-        -PathType Leaf `
-        -Description 'Preview PostgreSQL backup'
-    Invoke-PreviewCompose -Arguments @('exec', '-T', 'postgres', 'rm', '-f', $temporaryDump)
+    $dumpPath = Join-Path $OutputPath 'postgres.dump'
+    Invoke-BunkFyNativeBinaryCommand -FilePath 'docker' -Arguments ($compose + @(
+            'exec', '-T', 'postgres', 'pg_dump', '-U', 'bunkfy', '-d', 'bunkfy', '--format=custom'
+        )) -WorkingDirectory $root -OutputPath $dumpPath
+    Invoke-BunkFyNativeBinaryCommand -FilePath 'docker' -Arguments ($compose + @(
+            'exec', '-T', 'postgres', 'pg_restore', '--list'
+        )) -WorkingDirectory $root -InputPath $dumpPath
 
     if ($stateServices.Count -gt 0) {
         Invoke-PreviewCompose -Arguments (@('stop') + $stateServices)
@@ -246,7 +257,12 @@ try {
         }
     $createdAtUtc = [DateTimeOffset]::UtcNow
     $manifest = [ordered]@{
-        schemaVersion = 5
+        schemaVersion = if ($infrastructureProfile.Name -ceq 'maintained') { 7 }
+            elseif ($storageProfile.Provider -ceq 'silo') { 6 } else { 5 }
+        objectStorage = [ordered]@{
+            provider = $storageProfile.Provider
+            image = $storageProfile.Image
+        }
         backupId = [Guid]::NewGuid().ToString('D')
         createdAtUtc = $createdAtUtc.ToString('O')
         projectName = $projectName
@@ -277,6 +293,11 @@ try {
         }
         images = $imageRecords
         artifacts = @($artifacts)
+    }
+    if ($null -ne $infrastructureRecord) { $manifest['infrastructure'] = $infrastructureRecord }
+    if ($storageProfile.Provider -ceq 'legacy-minio' -and $infrastructureProfile.Name -ceq 'legacy') {
+        # Preserve the schema-5 fields for the existing operator generation.
+        $manifest.Remove('objectStorage')
     }
     $manifestPath = Join-Path $OutputPath 'manifest.json'
     $temporaryManifestPath = "$manifestPath.$([Guid]::NewGuid().ToString('N')).tmp"
@@ -316,7 +337,6 @@ try {
     $backupComplete = $true
 }
 finally {
-    & docker @compose exec -T postgres rm -f $temporaryDump 2>$null
     $defaultServices = @($runningServices | Where-Object { $_ -ne 'admin-api' })
     if ($defaultServices.Count -gt 0) {
         Invoke-PreviewCompose -Arguments (

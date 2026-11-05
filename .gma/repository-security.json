@@ -3,7 +3,7 @@
   "repository": "SadPossum/BunkFy",
   "securityBaseline": {
     "repository": "SadPossum/GMA-Skeleton",
-    "commit": "ec0e1345ce36f2d2e25e6fad231bc031f690b255"
+    "commit": "02210e3379976fd342251ffd6d967bbb541b7384"
   },
   "dependencyEcosystems": [
     "github-actions",

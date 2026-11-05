@@ -22,6 +22,30 @@ Do not place registry credentials in command arguments, destination references,
 or evidence paths. The script has no username, password, token, insecure TLS,
 or certificate-bypass parameter.
 
+## Dry-Run Preflight
+
+Before publication, run the intended release id, destination references, and
+evidence path through the same command with `-WhatIf`:
+
+```powershell
+./eng/operations/promote-image-candidate.ps1 `
+  -BundleDirectory /path/to/product-image-candidate `
+  -ExpectedSourceCommit <40-character-root-commit> `
+  -ReleaseId release-20260806-01 `
+  -BackendDestination registry.example/bunkfy/backend:release-20260806-01 `
+  -WebDestination registry.example/bunkfy/web:release-20260806-01 `
+  -OutputDirectory /evidence/promotions/release-20260806-01 `
+  -WhatIf
+```
+
+The dry-run verifies the closed candidate, OCI manifests, GitHub attestations,
+destination shape, release-tag equality, disjoint paths, and Skopeo
+availability. It stops before registry inspection or publication and creates no
+registry or evidence output. It therefore does not prove registry login,
+write-once policy, existing-tag state, registry reachability, deployment, or
+approval. Run the real command only through the approved private release
+process after those controls are ready.
+
 ## Publish
 
 Both destination tags must exactly equal the release id and use distinct
@@ -64,7 +88,11 @@ Set the public API, Admin API, and Worker
 `BunkFy:Deployment:ReleaseId` to the record's `releaseId`. Set
 `PromotionEvidenceReference` to its generated promotion reference and
 `RollbackEvidenceReference` to the separately approved rollback or recovery
-record. The deployed public-edge probe must receive the same release id.
+record. Before startup, also preallocate the attempt-specific
+`AdmissionEvidenceReference` described by the
+[Production admission runbook](production-admission-evidence.md). The deployed
+public-edge and mutable workflow probes must observe that same release and
+admission identity.
 
 Before Production admission, use a previously promoted compatible release and
 the [deployed release rollback rehearsal](deployed-release-rollback-rehearsal.md)

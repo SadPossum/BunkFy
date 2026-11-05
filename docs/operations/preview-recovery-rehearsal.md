@@ -1,13 +1,51 @@
 # Preview Recovery Rehearsal
 
-Use this destructive-but-isolated rehearsal to prove that a supported schema-4
-or schema-5 preview backup can restore into a fresh Compose project without
+Use this destructive-but-isolated rehearsal to prove that a preview backup
+can restore into a fresh Compose project on its original storage provider without
 replacing the existing preview deployment. It exercises the repository restore
 automation, public edge, loopback Admin surface, startup readiness, and exact
 Data Protection file continuity.
 
 This is local recovery-mechanics evidence. It is not hosted database,
 object-store, secret-store, immutable-ledger, RPO, or RTO evidence.
+
+The original MinIO profile retains schema-4/5 rehearsal support. The Silo
+profile requires a provider-bound schema-6 backup; either direction of a
+cross-provider restore is rejected before target creation. Preserve existing
+environment files, images, backups and keys; migration needs separate
+qualification. A retired MinIO image is unavailable for a fresh pull, so legacy
+mode depends on separately retained image bytes. See
+[Maintained Preview Storage](preview-deployment.md#maintained-preview-storage).
+
+With the maintained infrastructure profile, recovery requires a schema-7
+backup and the exact recorded infrastructure image IDs and PostgreSQL execution
+settings. Load all six recorded infrastructure/helper images before rehearsal.
+Schemas 4/5/6 require the original legacy infrastructure tuple; selecting newer
+broker or cache images does not migrate an old backup's file formats. Both
+restore commands perform these checks before target creation. `-WhatIf` does
+not create archive-probe containers or a recovery deployment.
+
+The schema-7 infrastructure `imageId` values are the reviewed Linux amd64
+configuration digests. Docker's containerd image store can report a manifest
+or index digest as the local runtime ID. The operators retain that runtime ID
+for container bindings and independently measure the configuration bytes from
+a completed, read-only image export when the IDs differ. The configuration's
+content address and selected platform must still match the reviewed policy.
+Exports are streamed with bounded memory; they create no containers or image
+tags and are not retained as extra archives. Repeated measurements of the same
+immutable runtime identity are cached within the operator process.
+
+Loading the retained application OCI archives requires a Docker image store
+that supports OCI indexes, such as the containerd image store. Configure a new
+test host before loading candidates; changing the store of a running deployment
+is a separate host-maintenance operation.
+
+Temporary key snapshots use private local directories from creation and private
+file permissions after copying. On Unix the helper restores ownership to the
+current operator without making keys world-readable; Windows uses the protected
+local ACL. The runner removes the key workspace and restores the original
+process environment on failure as well as success. Cleanup failure prevents a
+passing rehearsal result.
 
 ## Prepare A Recovery Canary
 
@@ -72,7 +110,10 @@ retention policy, and independent restore access.
 
 The rehearsal requires:
 
-- a schema-4 or schema-5 manifest matching the separately supplied digest;
+- a manifest matching the separately supplied digest, using schema 4/5 with
+  original MinIO or schema 6 with the exact reviewed Silo provider/image on the
+  original infrastructure, or schema 7 with the recorded infrastructure tuple
+  and PostgreSQL execution profile;
 - verified artifact hashes and structurally readable archives and PostgreSQL
   dump before target creation;
 - an empty isolated target restored through the migration/readiness gate;
