@@ -3,7 +3,7 @@ import { readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { basename, dirname, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-const ORIGINAL_SHA256 = "e023628bf7be0490ab10934e688f7ee450e8dd2ee35c14e298b5637eddaaf266";
+const ORIGINAL_SHA256 = "fdce2f37931c865bba142a9958e24872dd526957a6cd0ab7fe3e0be883286157";
 const HTTP_STATUSES = [200, 400, 401, 403, 404, 409, 429, 500, 503];
 const FAILURE_CODES = new Set([
   "Workspaces.AccessProvisioningFailed",
