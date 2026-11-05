@@ -4,9 +4,24 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { EventEmitter } from "node:events";
+import { fileURLToPath } from "node:url";
 import { instrumentOnboardingSource, recordEnrollmentDiagnostic, cleanupFailureObservation, observeEnrollmentRequests } from "./enrollment-diagnostics.mjs";
 
 const PRIVATE = "SYNTHETIC_PRIVATE_EMAIL_TOKEN_RESPONSE_ERROR";
+
+test("the exact current cookie operator instruments without losing its three helper bindings", () => {
+  const operations = fileURLToPath(new URL("../operations/", import.meta.url));
+  const source = readFileSync(new URL("../operations/rehearse-preview-browser-onboarding.mjs", import.meta.url), "utf8");
+  const result = instrumentOnboardingSource(source, operations);
+  assert.match(result.originalSha256, /^[0-9a-f]{64}$/);
+  for (const name of ["preview-browser-onboarding.common.mjs", "preview-browser-workspace-access-administration.mjs", "preview-browser-join-custody.mjs"]) {
+    assert.ok(result.source.includes(new URL("../operations/" + name, import.meta.url).href));
+    assert.equal(result.source.includes(`"./${name}"`), false);
+  }
+  assert.ok(result.source.includes("protected-cookie-no-web-storage-credential"));
+  assert.ok(result.source.includes("invitation-cookie-survives-anonymous-reload"));
+  assert.ok(result.source.includes("enrollment-cookie-and-subject-marker-survive-pending-reload"));
+});
 function page({ unavailable = false } = {}) {
   return {
     async evaluate() {

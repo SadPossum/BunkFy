@@ -3,7 +3,7 @@ import { readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { basename, dirname, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-const ORIGINAL_SHA256 = "fdce2f37931c865bba142a9958e24872dd526957a6cd0ab7fe3e0be883286157";
+const ORIGINAL_SHA256 = "8be32ac7361897fa0384cc63624ff4b6dc1cb8b94003d26e7b8d395fc1f14857";
 const HTTP_STATUSES = [200, 400, 401, 403, 404, 409, 429, 500, 503];
 const FAILURE_CODES = new Set([
   "Workspaces.AccessProvisioningFailed",
@@ -162,6 +162,7 @@ export function instrumentOnboardingSource(source, operationsDirectory, helperUr
   const replacements = [
     ["\"./preview-browser-onboarding.common.mjs\"", JSON.stringify(pathToFileURL(resolve(operationsDirectory, "preview-browser-onboarding.common.mjs")).href)],
     ["\"./preview-browser-workspace-access-administration.mjs\"", JSON.stringify(pathToFileURL(resolve(operationsDirectory, "preview-browser-workspace-access-administration.mjs")).href)],
+    ["\"./preview-browser-join-custody.mjs\"", JSON.stringify(pathToFileURL(resolve(operationsDirectory, "preview-browser-join-custody.mjs")).href)],
     ["const scriptDirectory = dirname(fileURLToPath(import.meta.url));", `const scriptDirectory = ${JSON.stringify(operationsDirectory)};`],
     ["  const enrollmentPage = await enrollmentContext.newPage();", `  const enrollmentPage = await enrollmentContext.newPage();
   const enrollmentRequests = observeEnrollmentRequests(enrollmentPage,
