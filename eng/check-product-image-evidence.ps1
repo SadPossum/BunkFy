@@ -110,7 +110,7 @@ $requiredWorkflowTokens = @(
     'docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c',
     'docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a',
     'aquasecurity/setup-trivy@81e514348e19b6112ce2a7e3ecbafe19c1e1f567',
-    'version: v0.70.0',
+    'version: v0.76.1',
     'context: apps/backend',
     'file: apps/backend/Dockerfile',
     'target: backend',
