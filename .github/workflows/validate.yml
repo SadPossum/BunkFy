@@ -1,58 +1,139 @@
-name: validate
+name: Verify exact patched backend runtime base
 
 on:
-  pull_request:
-  push:
-    branches:
-      - main
-      - dev
   workflow_dispatch:
+    inputs:
+      expected_harness_commit:
+        description: Exact reviewed diagnostic workflow commit
+        required: true
+        type: string
 
 permissions:
   contents: read
 
+concurrency:
+  group: apt-runtime-base-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
-  validate:
-    runs-on: windows-latest
+  runtime-base:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      BACKEND_SOURCE: 883cb7555822610b077e39145dc7bacfcdc83863
+      BACKEND_TREE: b88110dd5ba912e7d57683d170771490ba7866a5
     steps:
-      - name: Checkout root
+      - name: Require exact diagnostic identity
+        shell: python
+        env:
+          EXPECTED_HARNESS: ${{ inputs.expected_harness_commit }}
+        run: |
+          import os
+          if os.environ['GITHUB_SHA'] != os.environ['EXPECTED_HARNESS']:
+              raise RuntimeError('Diagnostic source differs from reviewed workflow.')
+
+      - name: Checkout independently qualified scanner installer
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          fetch-depth: 0
-          submodules: recursive
+          ref: 32bf2dce0bb9537520a945c92bdb773a1e80d740
+          path: tooling
+          submodules: false
           persist-credentials: false
 
-      - name: Setup .NET
-        uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
+      - name: Checkout exact Docker recipe candidate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          dotnet-version: 10.0.403
+          repository: SadPossum/BunkFy.Backend
+          ref: 883cb7555822610b077e39145dc7bacfcdc83863
+          path: candidate
+          fetch-depth: 0
+          submodules: false
+          persist-credentials: false
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
-        with:
-          version: 11.7.0
-
-      - name: Setup Node
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: 22
-          cache: pnpm
-          cache-dependency-path: apps/web/pnpm-lock.yaml
-
-      - name: Bootstrap
-        shell: pwsh
-        run: ./eng/bootstrap.ps1
-
-      - name: Check Preview storage security evidence boundaries
+      - name: Verify recipe-only source scope
+        working-directory: candidate
+        shell: python
         run: |
-          python3 eng/operations/probe-preview-storage.tests.py
-          python3 eng/operations/check-preview-storage-security.tests.py
-          python3 eng/operations/check-preview-infrastructure-security.tests.py
+          import os, subprocess
+          def git(*args):
+              return subprocess.check_output(['git', *args], text=True).strip()
+          if git('rev-parse', 'HEAD') != os.environ['BACKEND_SOURCE'] or git('rev-parse', 'HEAD^{tree}') != os.environ['BACKEND_TREE']:
+              raise RuntimeError('Recipe source or tree differs.')
+          if git('status', '--porcelain') or git('rev-list', '--parents', '-n', '1', 'HEAD').split()[1:] != ['6c8104feeb69263543a73fba82bb479d2b4b8996']:
+              raise RuntimeError('Recipe checkout is dirty or has a different parent.')
+          if set(git('diff', '--name-only', 'HEAD^', 'HEAD').splitlines()) != {'Dockerfile', '.dockerignore'}:
+              raise RuntimeError('Unexpected application changes in diagnostic recipe.')
 
-      - name: Install Chromium
-        working-directory: apps/web
-        run: pnpm exec playwright install chromium
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
 
-      - name: Verify
-        shell: pwsh
-        run: ./eng/verify.ps1
+      - name: Build only changed runtime-base stage without publication
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: candidate
+          file: candidate/Dockerfile
+          target: runtime-base
+          platforms: linux/amd64
+          load: true
+          push: false
+          provenance: false
+          tags: codex-apt-runtime-base:883cb755
+
+      - name: Install checksum-verified scanner
+        working-directory: tooling
+        run: python3 eng/operations/install-probe-trivy.py
+
+      - name: Verify actual patched packages and unchanged non-root runtime tooling
+        shell: python
+        run: |
+          import json, os, pathlib, re, subprocess
+          os.umask(0o077)
+          evidence = pathlib.Path('evidence')
+          evidence.mkdir(mode=0o700)
+          image = json.loads(subprocess.check_output(['docker', 'image', 'inspect', 'codex-apt-runtime-base:883cb755'], text=True))[0]
+          if not re.fullmatch(r'sha256:[a-f0-9]{64}', image['Id']) or image['Config']['User'] != 'app':
+              raise RuntimeError('Expected exact image ID and preserved app user.')
+          script = r"""set -eu; id -u; dpkg-query -W -f='${Version}\n' apt libapt-pkg6.0t64; curl --version >/dev/null; for p in data-protection file-drop data-rights-ledger-delta; do test -d /var/lib/bunkfy/$p; test "$(stat -c %U /var/lib/bunkfy/$p)" = app; done"""
+          container = 'codex-apt-base-' + os.environ['GITHUB_RUN_ID']
+          prior = subprocess.run(['docker', 'container', 'inspect', container], capture_output=True, text=True, timeout=15)
+          if prior.returncode == 0:
+              raise RuntimeError('Diagnostic container name already exists; refusing ambiguity.')
+          try:
+              result = subprocess.run(['docker', 'run', '--name', container, '--label', 'codex.source=' + os.environ['BACKEND_SOURCE'],
+                  '--rm', '--network', 'none', '--read-only', '--cap-drop', 'ALL', '--security-opt', 'no-new-privileges:true',
+                  '--entrypoint', '/bin/sh', image['Id'], '-ec', script], capture_output=True, text=True, timeout=30)
+          finally:
+              remaining = subprocess.run(['docker', 'container', 'inspect', container], capture_output=True, text=True, timeout=15)
+              if remaining.returncode == 0:
+                  owned = json.loads(remaining.stdout)[0]
+                  if owned['Config']['Labels'].get('codex.source') != os.environ['BACKEND_SOURCE']:
+                      raise RuntimeError('Refusing cleanup of an unowned diagnostic container.')
+                  subprocess.run(['docker', 'container', 'rm', '--force', container], check=True, capture_output=True, timeout=15)
+          rows = result.stdout.splitlines()
+          if result.returncode != 0 or rows != ['1654', '2.8.4ubuntu0.1', '2.8.4ubuntu0.1']:
+              raise RuntimeError('Patched package, curl or non-root directory probe failed.')
+          receipt = {'source': os.environ['BACKEND_SOURCE'], 'tree': os.environ['BACKEND_TREE'],
+              'harness': os.environ['GITHUB_SHA'], 'imageId': image['Id'], 'uid': 1654,
+              'aptVersion': rows[1], 'libaptVersion': rows[2], 'curlAndOwnedPathsPassed': True,
+              'networkDisabledForRuntimeProbe': True, 'ownedContainerRemoved': True, 'result': 'passed', 'registryPublished': False,
+              'scope': 'Disposable runtime-base package qualification only. No application publication, full-image, production or migration acceptance.'}
+          (evidence / 'runtime-base.json').write_text(json.dumps(receipt, indent=2) + '\n')
+
+      - name: Record actual raw vulnerabilities and fail on any HIGH or CRITICAL
+        run: trivy image --scanners vuln,secret --severity HIGH,CRITICAL --ignore-unfixed=false --exit-code 1 --format json --output evidence/runtime-base-security.json codex-apt-runtime-base:883cb755
+
+      - name: Retain actual package inventory and scanner identity
+        if: always()
+        run: |
+          mkdir -p evidence
+          cp tooling/artifacts/tool-identity.json evidence/tool-identity.json
+          trivy image --format cyclonedx --output evidence/runtime-base-sbom.cdx.json codex-apt-runtime-base:883cb755
+
+      - name: Retain source-bound diagnostic evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: apt-runtime-base-${{ github.run_id }}-${{ github.run_attempt }}
+          path: evidence/*.json
+          if-no-files-found: error
+          retention-days: 30
