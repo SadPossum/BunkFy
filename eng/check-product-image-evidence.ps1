@@ -107,10 +107,10 @@ $requiredWorkflowTokens = @(
     './eng/export-source-set.ps1',
     '-RequireClean',
     './apps/backend/eng/gma-bootstrap.ps1',
-    'docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c',
-    'docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a',
+    'docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069',
+    'docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc',
     'aquasecurity/setup-trivy@81e514348e19b6112ce2a7e3ecbafe19c1e1f567',
-    'version: v0.70.0',
+    'version: v0.76.1',
     'context: apps/backend',
     'file: apps/backend/Dockerfile',
     'target: backend',
@@ -154,7 +154,7 @@ foreach ($token in $requiredWorkflowTokens) {
 
 if ([regex]::Matches(
         $workflow,
-        'docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a',
+        'docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc',
         [System.Text.RegularExpressions.RegexOptions]::IgnoreCase).Count -ne 2) {
     throw 'Product image evidence must build exactly two OCI images.'
 }
