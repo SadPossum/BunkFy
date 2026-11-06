@@ -3,6 +3,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   assertPreviewCompose,
+  assertRateLimitAwarePropertyDenial,
   assertRegularFile,
   assertReleaseIdentity,
   createApiClient,
@@ -1657,13 +1658,10 @@ async function waitForProvisionedAccess(
     accessToken: identity.accessToken,
     stage: "allowed-property-route",
   });
-  await api(`/api/properties/${deniedId}`, {
+  await assertRateLimitAwarePropertyDenial(api, `/api/properties/${deniedId}`, {
     tenantId: workspaceId,
     accessToken: identity.accessToken,
-    expectedStatus: 403,
-    responseType: "body",
-    stage: "denied-property-route",
-  });
+  }, pollOptions("Access.DeniedPropertyRouteTimeout", "denied-property-route"));
   const members = await listAll(
     (page) => api(`/api/organizations/${workspaceId}/members?page=${page}&pageSize=100`, {
       tenantId: workspaceId,
