@@ -153,6 +153,23 @@ export async function recordEnrollmentDiagnostic({ page, api, workspaceId, sourc
   return snapshot;
 }
 
+export async function assertRateLimitAwarePropertyDenial(api, path, identity, poll, options) {
+  return await poll(
+    () => api(path, {
+      method: "GET",
+      tenantId: identity.tenantId,
+      accessToken: identity.accessToken,
+      expectedStatus: [403, 429],
+      responseType: "body",
+      stage: "denied-property-route",
+    }),
+    // Throttling cannot prove authorization. The existing bounded poller
+    // respects Retry-After, and only an actual forbidden result completes it.
+    response => response.status === 403,
+    options,
+  );
+}
+
 export function instrumentOnboardingSource(source, operationsDirectory, helperUrl = import.meta.url) {
   const originalSha256 = createHash("sha256").update(source).digest("hex");
   if (originalSha256 !== ORIGINAL_SHA256) {
@@ -164,6 +181,8 @@ export function instrumentOnboardingSource(source, operationsDirectory, helperUr
     ["\"./preview-browser-workspace-access-administration.mjs\"", JSON.stringify(pathToFileURL(resolve(operationsDirectory, "preview-browser-workspace-access-administration.mjs")).href)],
     ["\"./preview-browser-join-custody.mjs\"", JSON.stringify(pathToFileURL(resolve(operationsDirectory, "preview-browser-join-custody.mjs")).href)],
     ["const scriptDirectory = dirname(fileURLToPath(import.meta.url));", `const scriptDirectory = ${JSON.stringify(operationsDirectory)};`],
+    ['  await api(`/api/properties/${deniedId}`, {\n    tenantId: workspaceId,\n    accessToken: identity.accessToken,\n    expectedStatus: 403,\n    responseType: "body",\n    stage: "denied-property-route",\n  });',
+      '  await assertRateLimitAwarePropertyDenial(api, `/api/properties/${deniedId}`, {\n    tenantId: workspaceId,\n    accessToken: identity.accessToken,\n  }, pollUntil, pollOptions("Access.DeniedPropertyRouteTimeout", "denied-property-route"));'],
     ["  const enrollmentPage = await enrollmentContext.newPage();", `  const enrollmentPage = await enrollmentContext.newPage();
   const enrollmentRequests = observeEnrollmentRequests(enrollmentPage,
     { workspaceId: targetWorkspaceId, homeWorkspaceId: applicantHomeWorkspaceId });`],
@@ -209,7 +228,7 @@ export function instrumentOnboardingSource(source, operationsDirectory, helperUr
     result = result.replace(before, after);
   }
   return {
-    source: `import { recordEnrollmentDiagnostic, cleanupFailureObservation, observeEnrollmentRequests } from ${JSON.stringify(helperUrl)};\n` + result,
+    source: `import { recordEnrollmentDiagnostic, cleanupFailureObservation, observeEnrollmentRequests, assertRateLimitAwarePropertyDenial } from ${JSON.stringify(helperUrl)};\n` + result,
     originalSha256,
   };
 }
@@ -235,6 +254,9 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
     enrollmentObservationHooks: 1,
     cleanupObservationHooks: 1,
     requestObservationHooks: 1,
+    safeGetProbeHooks: 1,
+    denial403AssertionPreserved: true,
+    rateLimitDoesNotSatisfyAuthorizationProof: true,
     originalAcceptanceAndCleanupPreserved: true,
     trackedCandidateFilesChanged: false,
   }) + "\n");
