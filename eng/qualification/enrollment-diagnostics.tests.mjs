@@ -5,8 +5,8 @@ import { join } from "node:path";
 import { test } from "node:test";
 import { EventEmitter } from "node:events";
 import { fileURLToPath } from "node:url";
-import { instrumentOnboardingSource, recordEnrollmentDiagnostic, cleanupFailureObservation, observeEnrollmentRequests, assertRateLimitAwarePropertyDenial } from "./enrollment-diagnostics.mjs";
-import { pollUntil, createApiClient } from "../operations/preview-browser-onboarding.common.mjs";
+import { instrumentOnboardingSource, recordEnrollmentDiagnostic, cleanupFailureObservation, observeEnrollmentRequests } from "./enrollment-diagnostics.mjs";
+import { assertRateLimitAwarePropertyDenial, createApiClient } from "../operations/preview-browser-onboarding.common.mjs";
 
 const PRIVATE = "SYNTHETIC_PRIVATE_EMAIL_TOKEN_RESPONSE_ERROR";
 
@@ -15,6 +15,7 @@ test("the exact current cookie operator instruments without losing its three hel
   const source = readFileSync(new URL("../operations/rehearse-preview-browser-onboarding.mjs", import.meta.url), "utf8");
   const result = instrumentOnboardingSource(source, operations);
   assert.match(result.originalSha256, /^[0-9a-f]{64}$/);
+  assert.equal(result.reviewedDiagnosticBindings, 7);
   for (const name of ["preview-browser-onboarding.common.mjs", "preview-browser-workspace-access-administration.mjs", "preview-browser-join-custody.mjs"]) {
     assert.ok(result.source.includes(new URL("../operations/" + name, import.meta.url).href));
     assert.equal(result.source.includes(`"./${name}"`), false);
@@ -40,7 +41,7 @@ test("the denial probe waits for Retry-After and still requires the real 403", a
       ? { status: 429, headers: { "retry-after": "1" }, body: PRIVATE }
       : { status: 403, headers: {}, body: PRIVATE };
   }, "/api/properties/synthetic", { tenantId: "synthetic-tenant", accessToken: PRIVATE },
-  pollUntil, deniedReadOptions());
+  deniedReadOptions());
   assert.equal(result.status, 403);
   assert.equal(calls.length, 2);
   assert.ok(calls[1].at - startedAt >= 1_000);
@@ -54,7 +55,7 @@ test("throttling longer than the remaining budget never satisfies the denial pro
   await assert.rejects(assertRateLimitAwarePropertyDenial(async () => {
     calls++;
     return { status: 429, headers: { "retry-after": "60" } };
-  }, "/api/properties/synthetic", {}, pollUntil, deniedReadOptions(25)),
+  }, "/api/properties/synthetic", {}, deniedReadOptions(25)),
   error => error.code === "Access.DeniedPropertyRouteTimeout" && error.stage === "denied-property-route");
   assert.equal(calls, 1);
 });
@@ -64,7 +65,7 @@ test("an immediate 403 completes without a second read", async () => {
   const result = await assertRateLimitAwarePropertyDenial(async () => {
     calls++;
     return { status: 403, headers: {} };
-  }, "/api/properties/synthetic", {}, pollUntil, deniedReadOptions());
+  }, "/api/properties/synthetic", {}, deniedReadOptions());
   assert.equal(result.status, 403);
   assert.equal(calls, 1);
 });
@@ -77,7 +78,7 @@ test("actual API status checks keep unexpected success and authentication failur
       return { status: () => status };
     } }, "http://127.0.0.1:1234", 100);
     await assert.rejects(assertRateLimitAwarePropertyDenial(api, "/api/properties/synthetic", {},
-      pollUntil, deniedReadOptions()), error => error.code === `Api.UnexpectedStatus.${status}`);
+      deniedReadOptions()), error => error.code === `Api.UnexpectedStatus.${status}`);
     assert.equal(calls, 1);
   }
 });

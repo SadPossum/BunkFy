@@ -148,7 +148,17 @@ export async function readBoundedBody(response, maximumBytes, code, stage) {
   return body;
 }
 
-export function createApiClient(context, origin, requestTimeoutMilliseconds) {
+export function createApiClient(context, origin, requestTimeoutMilliseconds, {
+  cleanupRateLimitTimeoutMilliseconds = 0,
+  cleanupPollIntervalMilliseconds = 1_000,
+} = {}) {
+  if (!Number.isSafeInteger(cleanupRateLimitTimeoutMilliseconds) ||
+      cleanupRateLimitTimeoutMilliseconds < 0 || cleanupRateLimitTimeoutMilliseconds > 600_000 ||
+      !Number.isSafeInteger(cleanupPollIntervalMilliseconds) ||
+      cleanupPollIntervalMilliseconds <= 0 || cleanupPollIntervalMilliseconds > 5_000) {
+    fail("Configuration.InvalidCleanupRetryBudget", "configuration");
+  }
+  let cleanupDeadline = null;
   return async function invoke(path, {
     method = "GET",
     tenantId = "global",
@@ -157,23 +167,76 @@ export function createApiClient(context, origin, requestTimeoutMilliseconds) {
     expectedStatus = 200,
     responseType = "json",
     stage = "api-request",
+    retryRateLimitedCleanupWrite = false,
   } = {}) {
+    if (typeof retryRateLimitedCleanupWrite !== "boolean" ||
+        (retryRateLimitedCleanupWrite && (method !== "POST" || !stage.startsWith("cleanup-") ||
+          typeof data?.operationId !== "string" ||
+          !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(data.operationId) ||
+          /^0{8}-0{4}-0{4}-0{4}-0{12}$/.test(data.operationId)))) {
+      fail("Configuration.InvalidCleanupWriteRetry", stage);
+    }
     const headers = {
       Accept: "application/json",
       "X-Tenant-Id": tenantId,
     };
     if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
-    const response = await context.fetch(new URL(path, origin).toString(), {
+    const url = new URL(path, origin).toString();
+    const requestOptions = {
       method,
       headers,
-      data,
+      data: retryRateLimitedCleanupWrite ? structuredClone(data) : data,
       failOnStatusCode: false,
       maxRedirects: 0,
       timeout: requestTimeoutMilliseconds,
-    });
+    };
     const acceptedStatuses = Array.isArray(expectedStatus)
       ? expectedStatus
       : [expectedStatus];
+    const retryCleanupRead = cleanupRateLimitTimeoutMilliseconds > 0 &&
+      method === "GET" && stage.startsWith("cleanup-") && !acceptedStatuses.includes(429);
+    const retryCleanupWrite = cleanupRateLimitTimeoutMilliseconds > 0 &&
+      retryRateLimitedCleanupWrite && !acceptedStatuses.includes(429);
+    const retryCleanupRequest = retryCleanupRead || retryCleanupWrite;
+    if (retryCleanupRequest && cleanupDeadline === null) {
+      cleanupDeadline = Date.now() + cleanupRateLimitTimeoutMilliseconds;
+    }
+    let response;
+    let retrying = false;
+    while (true) {
+      const remainingMilliseconds = cleanupDeadline - Date.now();
+      if ((retrying || retryCleanupWrite) && remainingMilliseconds <= 0) {
+        fail("Cleanup.RateLimitTimeout", stage);
+      }
+      response = await context.fetch(url, retrying || retryCleanupWrite
+        ? { ...requestOptions, timeout: Math.min(requestTimeoutMilliseconds, remainingMilliseconds) }
+        : requestOptions);
+      if (response.status() !== 429 || !retryCleanupRequest) break;
+      if (retryCleanupWrite) {
+        // The reviewed admission middleware returns this problem before invoking
+        // the endpoint. Unclassified refusals and uncertain writes stay terminal.
+        const problem = await readBoundedJson(response, MAXIMUM_API_BYTES, "Api.ResponseTooLarge", stage);
+        if (problem?.title !== "Http.RateLimitExceeded" || problem?.status !== 429) break;
+      }
+
+      const responseHeaders = response.headers();
+      const raw = responseHeaders["retry-after"]?.trim();
+      const waitMilliseconds = raw && /^[0-9]+$/.test(raw) &&
+          !Number.isSafeInteger(Number(raw) * 1_000)
+        ? Number.POSITIVE_INFINITY
+        : resolvePollDelayMilliseconds(
+          { status: 429, headers: responseHeaders },
+          cleanupPollIntervalMilliseconds,
+          Number.MAX_SAFE_INTEGER,
+        );
+      // Release throttled responses before waiting; never retain their bodies.
+      await response.dispose();
+      if (waitMilliseconds >= cleanupDeadline - Date.now()) {
+        fail("Cleanup.RateLimitTimeout", stage);
+      }
+      await delay(waitMilliseconds);
+      retrying = true;
+    }
     if (!acceptedStatuses.includes(response.status())) {
       fail(`Api.UnexpectedStatus.${response.status()}`, stage);
     }
@@ -294,6 +357,23 @@ export async function pollUntil(action, predicate, {
     ));
   }
   fail(code, stage);
+}
+
+export async function assertRateLimitAwarePropertyDenial(api, path, identity, options) {
+  return await pollUntil(
+    () => api(path, {
+      method: "GET",
+      tenantId: identity.tenantId,
+      accessToken: identity.accessToken,
+      expectedStatus: [403, 429],
+      responseType: "body",
+      stage: "denied-property-route",
+    }),
+    // Throttling cannot prove authorization. The existing bounded poller
+    // respects Retry-After, and only an actual forbidden result completes it.
+    response => response.status === 403,
+    options,
+  );
 }
 
 export function resolvePollDelayMilliseconds(

@@ -3,7 +3,7 @@ import { readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { basename, dirname, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-const ORIGINAL_SHA256 = "8be32ac7361897fa0384cc63624ff4b6dc1cb8b94003d26e7b8d395fc1f14857";
+const ORIGINAL_SHA256 = "3b6ef435987db8486c618b86667ef215bb9cc67d19dd5d6f694d9d3c42112c73";
 const HTTP_STATUSES = [200, 400, 401, 403, 404, 409, 429, 500, 503];
 const FAILURE_CODES = new Set([
   "Workspaces.AccessProvisioningFailed",
@@ -153,23 +153,6 @@ export async function recordEnrollmentDiagnostic({ page, api, workspaceId, sourc
   return snapshot;
 }
 
-export async function assertRateLimitAwarePropertyDenial(api, path, identity, poll, options) {
-  return await poll(
-    () => api(path, {
-      method: "GET",
-      tenantId: identity.tenantId,
-      accessToken: identity.accessToken,
-      expectedStatus: [403, 429],
-      responseType: "body",
-      stage: "denied-property-route",
-    }),
-    // Throttling cannot prove authorization. The existing bounded poller
-    // respects Retry-After, and only an actual forbidden result completes it.
-    response => response.status === 403,
-    options,
-  );
-}
-
 export function instrumentOnboardingSource(source, operationsDirectory, helperUrl = import.meta.url) {
   const originalSha256 = createHash("sha256").update(source).digest("hex");
   if (originalSha256 !== ORIGINAL_SHA256) {
@@ -181,8 +164,6 @@ export function instrumentOnboardingSource(source, operationsDirectory, helperUr
     ["\"./preview-browser-workspace-access-administration.mjs\"", JSON.stringify(pathToFileURL(resolve(operationsDirectory, "preview-browser-workspace-access-administration.mjs")).href)],
     ["\"./preview-browser-join-custody.mjs\"", JSON.stringify(pathToFileURL(resolve(operationsDirectory, "preview-browser-join-custody.mjs")).href)],
     ["const scriptDirectory = dirname(fileURLToPath(import.meta.url));", `const scriptDirectory = ${JSON.stringify(operationsDirectory)};`],
-    ['  await api(`/api/properties/${deniedId}`, {\n    tenantId: workspaceId,\n    accessToken: identity.accessToken,\n    expectedStatus: 403,\n    responseType: "body",\n    stage: "denied-property-route",\n  });',
-      '  await assertRateLimitAwarePropertyDenial(api, `/api/properties/${deniedId}`, {\n    tenantId: workspaceId,\n    accessToken: identity.accessToken,\n  }, pollUntil, pollOptions("Access.DeniedPropertyRouteTimeout", "denied-property-route"));'],
     ["  const enrollmentPage = await enrollmentContext.newPage();", `  const enrollmentPage = await enrollmentContext.newPage();
   const enrollmentRequests = observeEnrollmentRequests(enrollmentPage,
     { workspaceId: targetWorkspaceId, homeWorkspaceId: applicantHomeWorkspaceId });`],
@@ -228,8 +209,9 @@ export function instrumentOnboardingSource(source, operationsDirectory, helperUr
     result = result.replace(before, after);
   }
   return {
-    source: `import { recordEnrollmentDiagnostic, cleanupFailureObservation, observeEnrollmentRequests, assertRateLimitAwarePropertyDenial } from ${JSON.stringify(helperUrl)};\n` + result,
+    source: `import { recordEnrollmentDiagnostic, cleanupFailureObservation, observeEnrollmentRequests } from ${JSON.stringify(helperUrl)};\n` + result,
     originalSha256,
+    reviewedDiagnosticBindings: replacements.length,
   };
 }
 
@@ -254,7 +236,9 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
     enrollmentObservationHooks: 1,
     cleanupObservationHooks: 1,
     requestObservationHooks: 1,
-    safeGetProbeHooks: 1,
+    safeGetProbeHooks: 0,
+    canonicalSafeGetProbeCalls: 1,
+    reviewedDiagnosticBindings: instrumented.reviewedDiagnosticBindings,
     denial403AssertionPreserved: true,
     rateLimitDoesNotSatisfyAuthorizationProof: true,
     originalAcceptanceAndCleanupPreserved: true,
