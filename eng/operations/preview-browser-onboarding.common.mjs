@@ -359,6 +359,23 @@ export async function pollUntil(action, predicate, {
   fail(code, stage);
 }
 
+export async function assertRateLimitAwarePropertyDenial(api, path, identity, options) {
+  return await pollUntil(
+    () => api(path, {
+      method: "GET",
+      tenantId: identity.tenantId,
+      accessToken: identity.accessToken,
+      expectedStatus: [403, 429],
+      responseType: "body",
+      stage: "denied-property-route",
+    }),
+    // Throttling cannot prove authorization. The existing bounded poller
+    // respects Retry-After, and only an actual forbidden result completes it.
+    response => response.status === 403,
+    options,
+  );
+}
+
 export function resolvePollDelayMilliseconds(
   candidate,
   fallbackMilliseconds,

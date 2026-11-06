@@ -6,6 +6,7 @@ import { setImmediate as settle } from "node:timers/promises";
 import test from "node:test";
 import {
   ProofFailure,
+  assertRateLimitAwarePropertyDenial,
   createApiClient,
   fingerprint,
   isVerifiedServiceState,
@@ -411,4 +412,62 @@ test("oversized rejection bodies and delays beyond the cleanup budget cannot tri
   await assert.rejects(tooLate.api("/api/staff/members/fixture/depart", cleanupWrite()),
     error => error.code === "Cleanup.RateLimitTimeout");
   assert.equal(tooLate.calls.length, 1); assert.equal(tooLate.disposed, 1);
+});
+
+const PRIVATE = "SYNTHETIC_PRIVATE_EMAIL_TOKEN_RESPONSE_ERROR";
+
+function deniedReadOptions(timeoutMilliseconds = 2_000) {
+  return { timeoutMilliseconds, pollIntervalMilliseconds: 5,
+    code: "Access.DeniedPropertyRouteTimeout", stage: "denied-property-route" };
+}
+
+test("the denial probe waits for Retry-After and still requires the real 403", async () => {
+  const calls = [];
+  const startedAt = Date.now();
+  const result = await assertRateLimitAwarePropertyDenial(async (path, options) => {
+    calls.push({ path, options, at: Date.now() });
+    return calls.length === 1
+      ? { status: 429, headers: { "retry-after": "1" }, body: PRIVATE }
+      : { status: 403, headers: {}, body: PRIVATE };
+  }, "/api/properties/synthetic", { tenantId: "synthetic-tenant", accessToken: PRIVATE },
+  deniedReadOptions());
+  assert.equal(result.status, 403);
+  assert.equal(calls.length, 2);
+  assert.ok(calls[1].at - startedAt >= 1_000);
+  assert.ok(calls.every(({ options }) => options.method === "GET" && options.tenantId === "synthetic-tenant" &&
+    options.accessToken === PRIVATE && options.responseType === "body" && options.stage === "denied-property-route"));
+  assert.deepEqual(calls[0].options.expectedStatus, [403, 429]);
+});
+
+test("throttling longer than the remaining budget never satisfies the denial proof", async () => {
+  let calls = 0;
+  await assert.rejects(assertRateLimitAwarePropertyDenial(async () => {
+    calls++;
+    return { status: 429, headers: { "retry-after": "60" } };
+  }, "/api/properties/synthetic", {}, deniedReadOptions(25)),
+  error => error.code === "Access.DeniedPropertyRouteTimeout" && error.stage === "denied-property-route");
+  assert.equal(calls, 1);
+});
+
+test("an immediate 403 completes without a second read", async () => {
+  let calls = 0;
+  const result = await assertRateLimitAwarePropertyDenial(async () => {
+    calls++;
+    return { status: 403, headers: {} };
+  }, "/api/properties/synthetic", {}, deniedReadOptions());
+  assert.equal(result.status, 403);
+  assert.equal(calls, 1);
+});
+
+test("actual API status checks keep unexpected success and authentication failures terminal", async () => {
+  for (const status of [200, 201, 401, 404, 409, 500, 503]) {
+    let calls = 0;
+    const api = createApiClient({ async fetch() {
+      calls++;
+      return { status: () => status };
+    } }, "http://127.0.0.1:1234", 100);
+    await assert.rejects(assertRateLimitAwarePropertyDenial(api, "/api/properties/synthetic", {},
+      deniedReadOptions()), error => error.code === `Api.UnexpectedStatus.${status}`);
+    assert.equal(calls, 1);
+  }
 });
