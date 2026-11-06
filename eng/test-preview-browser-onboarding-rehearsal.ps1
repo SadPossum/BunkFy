@@ -1,3 +1,7 @@
+param(
+    [string] $EnvironmentPath = '/home/artem/deployments/bunkfy-preview/.env'
+)
+
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
@@ -6,19 +10,21 @@ $operationsPath = Join-Path $PSScriptRoot 'operations'
 $testsPath = Join-Path $PSScriptRoot 'tests'
 $commonPath = Join-Path $operationsPath 'preview-browser-onboarding.common.mjs'
 $driverPath = Join-Path $operationsPath 'rehearse-preview-browser-onboarding.mjs'
+$joinCustodyPath = Join-Path $operationsPath 'preview-browser-join-custody.mjs'
 $workspaceAccessContributorPath = Join-Path $operationsPath 'preview-browser-workspace-access-administration.mjs'
 $operatorPath = Join-Path $operationsPath 'rehearse-preview-browser-onboarding.ps1'
 $testPath = Join-Path $testsPath 'preview-browser-onboarding.common.test.mjs'
+$joinCustodyTestPath = Join-Path $testsPath 'preview-browser-join-custody.test.mjs'
 $composePath = Join-Path (Join-Path $root 'deploy') 'preview/compose.yaml'
-$environmentPath = '/home/artem/deployments/bunkfy-preview/.env'
+$environmentPath = $EnvironmentPath
 
-foreach ($path in @($commonPath, $driverPath, $workspaceAccessContributorPath, $operatorPath, $testPath, $composePath)) {
+foreach ($path in @($commonPath, $driverPath, $joinCustodyPath, $workspaceAccessContributorPath, $operatorPath, $testPath, $joinCustodyTestPath, $composePath)) {
     if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
         throw "Preview browser rehearsal fixture is missing '$path'."
     }
 }
 
-& node --test $testPath
+& node --test $testPath $joinCustodyTestPath
 if ($LASTEXITCODE -ne 0) {
     throw 'Preview browser onboarding Node contract tests failed.'
 }
@@ -30,6 +36,10 @@ if ($LASTEXITCODE -ne 0) {
 & node --check $driverPath
 if ($LASTEXITCODE -ne 0) {
     throw 'Preview browser onboarding driver has invalid syntax.'
+}
+& node --check $joinCustodyPath
+if ($LASTEXITCODE -ne 0) {
+    throw 'Preview browser join custody helper has invalid syntax.'
 }
 & node --check $workspaceAccessContributorPath
 if ($LASTEXITCODE -ne 0) {
@@ -48,7 +58,8 @@ if ([string]$webPackage.scripts.'browser:install' -cne 'playwright install chrom
 
 $driver = Get-Content -LiteralPath $driverPath -Raw
 $workspaceAccessContributor = Get-Content -LiteralPath $workspaceAccessContributorPath -Raw
-$browserSources = $driver + "`n" + $workspaceAccessContributor
+$joinCustody = Get-Content -LiteralPath $joinCustodyPath -Raw
+$browserSources = $driver + "`n" + $workspaceAccessContributor + "`n" + $joinCustody
 foreach ($forbidden in @(
         'screenshot(',
         'recordVideo',
@@ -69,6 +80,9 @@ foreach ($required in @(
         'stopPreviewWorker(',
         'startPreviewWorker(',
         'assertSecretCleared(',
+        'assertJoinCookie(',
+        'assertJoinOperationRequest(',
+        'joinContextFromReceipt(',
         'removeNonOwnerMembers(',
         'runPreviewWorkspaceAccessAdministration(',
         'ensureWorkspaceAccessProfileArchived(',

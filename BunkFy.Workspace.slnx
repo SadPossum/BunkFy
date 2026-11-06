@@ -1027,6 +1027,7 @@
     <File Path="eng/operations/local-sensitive-state.common.ps1" />
     <File Path="eng/operations/native-binary-command.common.ps1" />
     <File Path="eng/operations/offboard-staff-access.ps1" />
+    <File Path="eng/operations/preview-browser-join-custody.mjs" />
     <File Path="eng/operations/preview-browser-onboarding.common.mjs" />
     <File Path="eng/operations/preview-browser-workspace-access-administration.mjs" />
     <File Path="eng/operations/preview-infrastructure.common.ps1" />
@@ -1071,6 +1072,7 @@
     <File Path="eng/operations/fixtures/native-binary-command-probe.ps1" />
   </Folder>
   <Folder Name="/eng/tests/">
+    <File Path="eng/tests/preview-browser-join-custody.test.mjs" />
     <File Path="eng/tests/preview-browser-onboarding.common.test.mjs" />
   </Folder>
   <Folder Name="/src/">
