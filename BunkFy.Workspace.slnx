@@ -334,6 +334,7 @@
     <File Path="apps/backend/eng/verify.ps1" />
   </Folder>
   <Folder Name="/apps/backend/eng/fixtures/minio/">
+    <File Path="apps/backend/eng/fixtures/minio/HTML-parser-assessment.md" />
     <File Path="apps/backend/eng/fixtures/minio/README.md" />
   </Folder>
   <Folder Name="/apps/backend/gma/extensions/src/">

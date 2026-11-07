@@ -145,19 +145,19 @@ class ActualGitStorageOwnerBinding(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix='bunkfy-owner-git-') as temporary:
             root=Path(temporary);backend=root/'apps/backend';backend.mkdir(parents=True)
             def git(where,*arguments):
-                result=subprocess.run(['git','-c','user.name=Fixture','-c','user.email=fixture@example.invalid',
+                result=subprocess.run(['git','-c','core.autocrlf=false','-c','user.name=Fixture','-c','user.email=fixture@example.invalid',
                                        '-C',str(where),*arguments],capture_output=True,check=True)
                 return result.stdout.decode().strip()
             git(backend,'init','--quiet')
             for relative in gate.HELPERS:
-                target=backend/relative;target.parent.mkdir(parents=True,exist_ok=True);target.write_text('pass\n')
+                target=backend/relative;target.parent.mkdir(parents=True,exist_ok=True);target.write_bytes(b'pass\n')
             git(backend,'add','--',*gate.HELPERS);git(backend,'commit','--quiet','-m','Known helper fixture')
             pin=git(backend,'rev-parse','HEAD');git(root,'init','--quiet')
             git(root,'update-index','--add','--cacheinfo','160000,'+pin+',apps/backend')
             git(root,'commit','--quiet','-m','Pin actual helper fixture')
             with mock.patch.object(gate,'ROOT',root),mock.patch.object(gate,'BACKEND',backend):
                 self.assertIsNone(gate.require_pinned_backend())
-                changed=backend/gate.HELPERS[0];changed.write_text('pass # changed\n')
+                changed=backend/gate.HELPERS[0];changed.write_bytes(b'pass # changed\n')
                 with self.assertRaises(ValueError):gate.require_pinned_backend()
                 git(backend,'add','--',gate.HELPERS[0]);git(backend,'commit','--quiet','-m','A different helper revision')
                 with self.assertRaises(ValueError):gate.require_pinned_backend()
