@@ -6,9 +6,12 @@ import datetime
 import gzip
 import importlib.util
 import json
+import subprocess
+import tempfile
 from pathlib import Path
 import sys
 import unittest
+from unittest import mock
 
 
 sys.dont_write_bytecode = True
@@ -86,6 +89,78 @@ class StorageSecurityBoundaries(unittest.TestCase):
         values[1]['Results'][-1]['Vulnerabilities'] = []
         summary, _ = gate.verify(*values, 0, now=NOW)
         self.assertEqual((0, 0), (summary['rawHighFindings'], summary['unresolvedSecurityFindings']))
+
+
+class RootStorageOwnerBoundaries(unittest.TestCase):
+    def with_parser_findings(self):
+        values=StorageSecurityBoundaries().values();owner=gate.load_backend()
+        for target in ('usr/bin/silo','usr/bin/mcli'):
+            result=next(r for r in values[1]['Results'] if r['Target']==target)
+            result.setdefault('Vulnerabilities',[]).append({'VulnerabilityID':owner.parser_audit.CVE,
+                'Severity':'HIGH','PkgName':'golang.org/x/net','InstalledVersion':'v0.61.0',
+                'PkgIdentifier':{'PURL':owner.parser_audit.PURL}})
+        proof={'schemaVersion':1,'imageId':values[0]['imageConfigDigest'],'goVersion':'go1.27.3',
+               'containerNeverStarted':True,'inspectionContainerRemoved':True,'binaries':{}}
+        for path,subject in owner.parser_audit.SUBJECTS.items():
+            proof['binaries'][path]={**subject,'pclnMagic':'0xfffffff1','goBuildInfoPresent':True,
+                'elfSymtabPresent':False,'allXNetHtmlNames':[],
+                'controls':['main.main','runtime.goexit','runtime.main'],
+                'targetSymbols':{k:[] for k in ('Parse','ParseFragment','ParseFragmentWithOptions','ParseWithOptions')}}
+        return values,proof
+
+    def test_root_registry_subject_uses_its_own_policy_and_exact_owner_proof(self):
+        values,proof=self.with_parser_findings()
+        summary,vex=gate.verify(*values,1,now=NOW,binary_evidence=proof)
+        self.assertEqual(values[0]['image'],summary['image'])
+        self.assertEqual(values[0]['imageConfigDigest'],summary['imageConfigDigest'])
+        self.assertEqual((3,1,2,0),(summary['rawHighFindings'],summary['fixedInReviewedFork'],
+                                   summary['parserCodeNotPresent'],summary['unresolvedSecurityFindings']))
+        self.assertEqual(DATA['sbom']['metadata']['component']['purl'],vex['statements'][1]['products'][0]['@id'])
+        self.assertNotIn('derivedFrom',summary)
+
+    def test_root_cannot_accept_missing_wrong_subject_or_unknown_advisory_evidence(self):
+        values,proof=self.with_parser_findings()
+        for bad in (None,dict(proof,imageId='sha256:'+'0'*64)):
+            with self.assertRaises((ValueError,KeyError,TypeError)):
+                gate.verify(*values,1,now=NOW,binary_evidence=bad)
+        row=next(r for r in values[1]['Results'] if r['Target']=='usr/bin/silo')
+        row['Vulnerabilities'][-1]['VulnerabilityID']='CVE-2099-99999'
+        with self.assertRaises(ValueError):gate.verify(*values,1,now=NOW,binary_evidence=proof)
+
+    def test_mismatched_backend_checkout_stops_before_loading_any_helper(self):
+        responses=[mock.Mock(returncode=0,stdout=b'a'*40),mock.Mock(returncode=0,stdout=b'b'*40)]
+        with mock.patch.object(gate.subprocess,'run',side_effect=responses) as calls:
+            with self.assertRaises(ValueError):gate.require_pinned_backend()
+        self.assertEqual(2,calls.call_count)
+
+    def test_locally_changed_owning_helper_is_rejected(self):
+        responses=[mock.Mock(returncode=0,stdout=b'a'*40),mock.Mock(returncode=0,stdout=b'a'*40),
+                   mock.Mock(returncode=0,stdout=b'unrelated-helper-bytes')]
+        with mock.patch.object(gate.subprocess,'run',side_effect=responses):
+            with self.assertRaises(ValueError):gate.require_pinned_backend()
+
+
+class ActualGitStorageOwnerBinding(unittest.TestCase):
+    def test_clean_real_gitlink_and_bytes_pass_but_changed_helper_or_checkout_fail(self):
+        with tempfile.TemporaryDirectory(prefix='bunkfy-owner-git-') as temporary:
+            root=Path(temporary);backend=root/'apps/backend';backend.mkdir(parents=True)
+            def git(where,*arguments):
+                result=subprocess.run(['git','-c','core.autocrlf=false','-c','user.name=Fixture','-c','user.email=fixture@example.invalid',
+                                       '-C',str(where),*arguments],capture_output=True,check=True)
+                return result.stdout.decode().strip()
+            git(backend,'init','--quiet')
+            for relative in gate.HELPERS:
+                target=backend/relative;target.parent.mkdir(parents=True,exist_ok=True);target.write_bytes(b'pass\n')
+            git(backend,'add','--',*gate.HELPERS);git(backend,'commit','--quiet','-m','Known helper fixture')
+            pin=git(backend,'rev-parse','HEAD');git(root,'init','--quiet')
+            git(root,'update-index','--add','--cacheinfo','160000,'+pin+',apps/backend')
+            git(root,'commit','--quiet','-m','Pin actual helper fixture')
+            with mock.patch.object(gate,'ROOT',root),mock.patch.object(gate,'BACKEND',backend):
+                self.assertIsNone(gate.require_pinned_backend())
+                changed=backend/gate.HELPERS[0];changed.write_bytes(b'pass # changed\n')
+                with self.assertRaises(ValueError):gate.require_pinned_backend()
+                git(backend,'add','--',gate.HELPERS[0]);git(backend,'commit','--quiet','-m','A different helper revision')
+                with self.assertRaises(ValueError):gate.require_pinned_backend()
 
 
 if __name__ == '__main__':

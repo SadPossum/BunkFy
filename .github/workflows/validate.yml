@@ -44,10 +44,15 @@ jobs:
         run: ./eng/bootstrap.ps1
 
       - name: Check Preview storage security evidence boundaries
+        shell: pwsh
         run: |
-          python3 eng/operations/probe-preview-storage.tests.py
-          python3 eng/operations/check-preview-storage-security.tests.py
-          python3 eng/operations/check-preview-infrastructure-security.tests.py
+          foreach ($script in @(
+              'eng/operations/probe-preview-storage.tests.py',
+              'eng/operations/check-preview-storage-security.tests.py',
+              'eng/operations/check-preview-infrastructure-security.tests.py')) {
+            & python3 $script
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
 
       - name: Install Chromium
         working-directory: apps/web
