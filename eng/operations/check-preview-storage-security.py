@@ -10,7 +10,8 @@ import subprocess
 ROOT = Path(__file__).resolve().parents[2]
 BACKEND = ROOT / 'apps/backend'
 HELPERS = ('eng/operations/check-preview-storage-security.py',
-           'eng/operations/inspect-preview-storage-parser.py')
+           'eng/operations/inspect-preview-storage-parser.py',
+           'eng/operations/image-config-digest.py')
 _backend = None
 
 
@@ -36,8 +37,9 @@ def load_backend():
     global _backend
     if _backend is None:
         spec = importlib.util.spec_from_file_location('bunkfy_owned_storage_gate', BACKEND / HELPERS[0])
-        _backend = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(_backend)
+        owner = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(owner)
+        _backend = owner
     return _backend
 
 
@@ -65,7 +67,7 @@ if __name__ == '__main__':
     binary_evidence = None
     if any(finding.get('VulnerabilityID') == owner.parser_audit.CVE
            for result in scan.get('Results', []) for finding in result.get('Vulnerabilities', [])):
-        binary_evidence = owner.parser_audit.collect(policy['imageConfigDigest'])
+        binary_evidence = owner.parser_audit.collect(policy['imageConfigDigest'], image_reference=policy['image'])
         (args.directory / 'silo-parser-applicability.json').write_text(json.dumps(binary_evidence, indent=2) + '\n')
     summary, vex = verify(policy, scan, load('silo-runtime.json'), load('silo-sbom.cdx.json'),
                           load('tool-identity.json'), args.scanner_exit_code, binary_evidence=binary_evidence)

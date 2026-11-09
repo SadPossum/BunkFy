@@ -129,7 +129,7 @@ $requiredWorkflowTokens = @(
     './eng/verify-image-candidate.ps1',
     '-ExpectedSourceCommit "${{ github.sha }}"',
     '-AllowUnattested',
-    'github/codeql-action/upload-sarif@1fc58d04a4d4374f921bdac573c3811c240f9c26',
+    'github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066',
     'actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6',
     'subject-checksums: artifacts/image-evidence/checksums.sha256',
     'subject-checksums: artifacts/image-candidate/checksums.sha256',
