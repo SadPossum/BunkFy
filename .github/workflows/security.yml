@@ -13,6 +13,7 @@ on:
 permissions:
   contents: read
   security-events: write
+  actions: read
 
 concurrency:
   group: security-${{ github.ref }}
@@ -45,13 +46,13 @@ jobs:
         run: ./eng/check-product-image-evidence.ps1
 
       - name: Run pinned GMA repository security baseline
-        uses: SadPossum/GMA-Skeleton/.github/actions/security-baseline@02210e3379976fd342251ffd6d967bbb541b7384
+        uses: SadPossum/GMA-Skeleton/.github/actions/security-baseline@c54ce9d216da81cff3e17aeab8919b830ad76c73
         with:
           exception-file: .gma/security-exceptions.json
 
       - name: Publish code-scanning evidence
-        if: ${{ always() && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
-        uses: github/codeql-action/upload-sarif@1fc58d04a4d4374f921bdac573c3811c240f9c26 # v4.39.2
+        if: ${{ always() && hashFiles('artifacts/security/trivy-results.sarif') != '' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
+        uses: github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
         with:
           sarif_file: artifacts/security/trivy-results.sarif
           category: trivy-bunkfy-product-source

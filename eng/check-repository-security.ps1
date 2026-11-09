@@ -4,7 +4,7 @@ param()
 . (Join-Path $PSScriptRoot 'common.ps1')
 
 $root = Get-BunkFyRepositoryRoot
-$skeletonSecurityRevision = '02210e3379976fd342251ffd6d967bbb541b7384'
+$skeletonSecurityRevision = 'c54ce9d216da81cff3e17aeab8919b830ad76c73'
 $requiredFiles = @(
     '.github\dependabot.yml',
     '.github\workflows\codeql.yml',
@@ -169,7 +169,7 @@ if ($repositoryManifest.securityBaseline.repository -ne 'SadPossum/GMA-Skeleton'
 }
 
 $dependencyEcosystems = @($repositoryManifest.dependencyEcosystems)
-$expectedDependencyEcosystems = @('github-actions', 'gitsubmodule')
+$expectedDependencyEcosystems = @('github-actions', 'gitsubmodule', 'nuget')
 if ($repositoryManifest.dependencyEcosystems -isnot [System.Array] -or
     $dependencyEcosystems.Count -ne $expectedDependencyEcosystems.Count -or
     @($dependencyEcosystems | Select-Object -Unique).Count -ne
@@ -329,7 +329,7 @@ $requiredSecurityTokens = @(
     'Validate repository security policy',
     './eng/check-repository-security.ps1',
     'exception-file: .gma/security-exceptions.json',
-    'github/codeql-action/upload-sarif@1fc58d04a4d4374f921bdac573c3811c240f9c26',
+    'github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066',
     'actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9',
     'security-events: write',
     'if-no-files-found: error',
@@ -344,8 +344,8 @@ foreach ($token in $requiredSecurityTokens) {
 $codeQlWorkflow = [System.IO.File]::ReadAllText(
     (Join-Path $root '.github\workflows\codeql.yml'))
 foreach ($token in @(
-    'github/codeql-action/init@1fc58d04a4d4374f921bdac573c3811c240f9c26',
-    'github/codeql-action/analyze@1fc58d04a4d4374f921bdac573c3811c240f9c26',
+    'github/codeql-action/init@33d7b85da1a04171e211befe2c739303b9a4c066',
+    'github/codeql-action/analyze@33d7b85da1a04171e211befe2c739303b9a4c066',
     'language: csharp',
     'language: javascript-typescript',
     'build-mode: manual',
@@ -356,7 +356,7 @@ foreach ($token in @(
 }
 
 $dependabot = [System.IO.File]::ReadAllText((Join-Path $root '.github\dependabot.yml'))
-foreach ($token in @('package-ecosystem: github-actions', 'package-ecosystem: gitsubmodule')) {
+foreach ($token in @('package-ecosystem: github-actions', 'package-ecosystem: gitsubmodule', 'package-ecosystem: nuget')) {
     if ($dependabot.IndexOf($token, [System.StringComparison]::Ordinal) -lt 0) {
         throw "BunkFy dependency update policy is missing required token '$token'."
     }

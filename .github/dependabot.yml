@@ -5,6 +5,10 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    # Action pins, approval manifests and policy checks are updated together.
+    ignore:
+      - dependency-name: "SadPossum/GMA-Skeleton/.github/actions/security-baseline"
+      - dependency-name: "SadPossum/GMA-Skeleton/.github/actions/source-release-evidence"
     groups:
       compatible-actions:
         applies-to: version-updates
