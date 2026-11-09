@@ -65,6 +65,7 @@ jobs:
           sparse-checkout: |
             /eng/operations/check-preview-storage-security.py
             /eng/operations/inspect-preview-storage-parser.py
+            /eng/operations/image-config-digest.py
 
       - name: Pull the exact reviewed Linux provider
         run: docker pull --platform linux/amd64 "$STORAGE_IMAGE"

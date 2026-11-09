@@ -6,6 +6,7 @@ import datetime
 import gzip
 import importlib.util
 import json
+import shutil
 import subprocess
 import tempfile
 from pathlib import Path
@@ -92,6 +93,26 @@ class StorageSecurityBoundaries(unittest.TestCase):
 
 
 class RootStorageOwnerBoundaries(unittest.TestCase):
+    def test_sparse_owner_checkout_contains_every_imported_helper(self):
+        with tempfile.TemporaryDirectory(prefix='bunkfy-sparse-owner-') as temporary:
+            backend=Path(temporary)
+            for relative in gate.HELPERS:
+                target=backend/relative;target.parent.mkdir(parents=True,exist_ok=True)
+                shutil.copyfile(gate.BACKEND/relative,target)
+            with mock.patch.object(gate,'BACKEND',backend),mock.patch.object(gate,'_backend',None):
+                summary,_=gate.verify(*StorageSecurityBoundaries().values(),1,now=NOW)
+                self.assertEqual(0,summary['unresolvedSecurityFindings'])
+
+    def test_missing_import_does_not_cache_a_partially_loaded_owner(self):
+        with tempfile.TemporaryDirectory(prefix='bunkfy-missing-owner-') as temporary:
+            backend=Path(temporary)
+            for relative in gate.HELPERS[:-1]:
+                target=backend/relative;target.parent.mkdir(parents=True,exist_ok=True)
+                shutil.copyfile(gate.BACKEND/relative,target)
+            with mock.patch.object(gate,'BACKEND',backend),mock.patch.object(gate,'_backend',None):
+                for _ in range(2):
+                    with self.assertRaises(FileNotFoundError):gate.load_backend()
+
     def with_parser_findings(self):
         values=StorageSecurityBoundaries().values();owner=gate.load_backend()
         for target in ('usr/bin/silo','usr/bin/mcli'):
@@ -157,6 +178,10 @@ class ActualGitStorageOwnerBinding(unittest.TestCase):
             git(root,'commit','--quiet','-m','Pin actual helper fixture')
             with mock.patch.object(gate,'ROOT',root),mock.patch.object(gate,'BACKEND',backend):
                 self.assertIsNone(gate.require_pinned_backend())
+                for relative in gate.HELPERS:
+                    changed=backend/relative;changed.write_bytes(b'pass # changed\n')
+                    with self.assertRaises(ValueError):gate.require_pinned_backend()
+                    git(backend,'checkout','--',relative)
                 changed=backend/gate.HELPERS[0];changed.write_bytes(b'pass # changed\n')
                 with self.assertRaises(ValueError):gate.require_pinned_backend()
                 git(backend,'add','--',gate.HELPERS[0]);git(backend,'commit','--quiet','-m','A different helper revision')
