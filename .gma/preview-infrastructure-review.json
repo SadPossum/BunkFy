@@ -3,7 +3,7 @@
   "purpose": "Exact Linux amd64 engineering Preview assessment; not general PostgreSQL image clearance or production admission. New/changed advisories, subjects or execution profiles require review.",
   "reviewedAt": "2026-11-04T14:23:49.836114+00:00",
   "reviewExpiresAt": "2026-12-04T14:23:49.836114+00:00",
-  "fixtureSha256": "22711e1680447e9766e98df4c4011d420a8429ac5ad49895c650ba8fed4138d1",
+  "fixtureSha256": "5525610f6ee862e76e393cd4d42a9dd9be4aa6bae2bd816ce2efc251150d4afd",
   "postgres": {
     "image": "bunkfy-preview-postgres:17.11-libxslt-r4",
     "imageConfigDigest": "sha256:f1197795f74c7dfa29376e2fa16a21c41a6191190b4a40457363d297146c1f63",
