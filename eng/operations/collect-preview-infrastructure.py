@@ -163,7 +163,10 @@ def main():
     profile = json.loads((ROOT / '.gma/preview-infrastructure-profiles.json').read_text())['profiles']['maintained']
     references = dict(profile['images'], archiveUtility=profile['archiveUtilityImage'])
     codes = {}
-    run(['python3', str(ROOT / 'eng/operations/prepare-preview-postgres.py')], timeout=420)
+    preparation = run(['python3', str(ROOT / 'eng/operations/prepare-preview-postgres.py')], check=False, timeout=420)
+    if preparation.returncode:
+        # This build has only public recipe/package inputs; no database credentials.
+        raise RuntimeError('Public PostgreSQL image preparation failed:\n' + preparation.stdout + preparation.stderr)
     try:
         for name, image in references.items():
             if name != 'postgres':
