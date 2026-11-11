@@ -21,7 +21,7 @@ def main():
     with tempfile.TemporaryDirectory(prefix='bunkfy-preview-pg-build-') as name:
         directory = Path(name)
         archive = directory / 'image.tar'
-        subprocess.run(['docker', 'build', '--platform', 'linux/amd64', '--network', 'none',
+        subprocess.run(['docker', 'buildx', 'build', '--platform', 'linux/amd64', '--network', 'none',
             '--build-arg', 'SOURCE_DATE_EPOCH=' + str(build['sourceDateEpoch']), '--provenance=false',
             '--output', 'type=docker,rewrite-timestamp=true,dest=' + str(archive),
             '--file', str(recipe), '--tag', profile['images']['postgres'], str(directory)], check=True, timeout=300)
