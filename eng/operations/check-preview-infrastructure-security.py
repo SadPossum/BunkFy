@@ -62,7 +62,7 @@ def verify_helper(policy, fixture, advisories):
     summary = fixture['helperSummary']
     require(hashlib.sha256(raw.encode()).hexdigest() == pg['helperRawReportSha256'] == summary['rawReportSha256']
             and summary['helperSha256'] == pg['helperSha256']
-            and summary['imageConfigDigest'] == pg['imageConfigDigest']
+            and summary['imageConfigDigest'] == pg.get('helperEvidenceSource', pg)['imageConfigDigest']
             and summary['analyzerSha256'] == pg['analyzerSha256'],
             'The qualified image/helper/analyzer/raw-report binding changed.')
     messages = list(records(raw))
@@ -128,7 +128,29 @@ def verify_context(policy, profile, context, source):
             'Owned context resources or generated secrets were not cleaned up.')
 
 
-def verify(policy, profiles, scans, context, tool, fixture, advisories, codes, source, now=None):
+def bind_image(metadata, expected, descriptors):
+    subject = metadata['ImageID']
+    seen = set()
+    while subject != expected:
+        require(subject not in seen and subject in descriptors and len(seen) < 4,
+                'Missing, cyclic or unrelated OCI image identity proof.')
+        seen.add(subject)
+        raw = descriptors[subject]
+        require(isinstance(raw, str) and len(raw.encode()) <= 65536
+                and 'sha256:' + hashlib.sha256(raw.encode()).hexdigest() == subject,
+                'OCI descriptor bytes do not match their content address.')
+        value = json.loads(raw)
+        require(value['schemaVersion'] == 2, 'Unsupported OCI schema.')
+        if 'config' in value:
+            subject = value['config']['digest']
+            require(subject == expected, 'OCI image configuration changed.')
+        else:
+            matches = [v for v in value['manifests'] if v.get('platform') == {'os': 'linux', 'architecture': 'amd64'}]
+            require(len(matches) == 1, 'One exact Linux amd64 manifest is required.')
+            subject = matches[0]['digest']
+
+
+def verify(policy, profiles, scans, context, tool, fixture, advisories, codes, source, now=None, proofs=None):
     now = now or datetime.datetime.now(datetime.timezone.utc)
     issued = datetime.datetime.fromisoformat(policy['reviewedAt'])
     expiry = datetime.datetime.fromisoformat(policy['reviewExpiresAt'])
@@ -138,6 +160,12 @@ def verify(policy, profiles, scans, context, tool, fixture, advisories, codes, s
             and tool['archiveSha256'] == 'c7cbe3137fb8a48a17574bede3dd6beb16742d1e9772929940fc90082c39d9c0',
             'An unverified scanner result cannot qualify infrastructure.')
     profile = profiles['profiles']['maintained']
+    require(policy['postgres']['image'] == profile['images']['postgres']
+            and policy['postgres']['imageConfigDigest'] == profile['configurationIds']['postgres']
+            and policy['postgres']['patchBuild'] == profile['postgresBuild']
+            and hashlib.sha256((ROOT / profile['postgresBuild']['recipe']).read_bytes()).hexdigest()
+                == profile['postgresBuild']['recipeSha256'], 'Patched PostgreSQL recipe or subject changed.')
+    proofs = fixture.get('imageDescriptors', {}) if proofs is None else proofs
     verify_helper(policy, fixture, advisories)
     verify_context(policy, profile, context, source)
     require(set(scans) == set(codes) == set(policy['coverage']) ==
@@ -151,10 +179,20 @@ def verify(policy, profiles, scans, context, tool, fixture, advisories, codes, s
         require(datetime.timedelta(0) <= now - created <= datetime.timedelta(hours=2), 'Fresh raw scan required: ' + name)
         metadata = scan['Metadata']
         repository = image.split('@')[0].rsplit(':', 1)[0]
-        require(metadata['ImageID'] == profile['configurationIds'][name]
-                and metadata['ImageConfig']['os'] == 'linux'
-                and metadata['ImageConfig']['architecture'] == 'amd64'
-                and metadata['RepoDigests'] == [repository + '@' + image.rsplit('@', 1)[1]],
+        bind_image(metadata, profile['configurationIds'][name], proofs.get(name, {}))
+        if name == 'postgres':
+            expected_repos = ([] if metadata['ImageID'] == profile['configurationIds'][name]
+                              else [repository + '@' + metadata['ImageID']])
+            require(metadata.get('RepoDigests', []) == expected_repos
+                    and context['runtimeImageId'] == metadata['ImageID'], 'Patched local image or actual container subject changed.')
+            packages = [p for result in scan['Results'] for p in result.get('Packages', []) if p['Name'] == 'libxslt']
+            require(len(packages) == 1 and packages[0]['Version'] == profile['postgresBuild']['version'],
+                    'The reviewed libxslt patch is not installed.')
+        else:
+            require(metadata['RepoDigests'] == [repository + '@' + image.rsplit('@', 1)[1]],
+                    'Registry image digest changed: ' + name)
+        require(metadata['ImageConfig']['os'] == 'linux'
+                and metadata['ImageConfig']['architecture'] == 'amd64',
                 'Raw scan configuration/platform/registry digest changed: ' + name)
         results = scan['Results']
         targets = {value['Target']: value for value in results}
@@ -203,7 +241,8 @@ def main():
     scans = {name: load(destination / (name + '-security.json')) for name in policy['coverage']}
     summary = verify(policy, load(ROOT / '.gma/preview-infrastructure-profiles.json'), scans,
                      load(destination / 'postgres-context.json'), load(destination / 'tool-identity.json'),
-                     fixture, advisories, load(destination / 'infrastructure-scan-exit-codes.json'), source)
+                     fixture, advisories, load(destination / 'infrastructure-scan-exit-codes.json'), source,
+                     proofs={name: load(destination / (name + '-image-descriptors.json')) for name in policy['coverage']})
     (destination / 'infrastructure-security-summary.json').write_text(json.dumps(summary, indent=2) + '\n')
     print(json.dumps({key: summary[key] for key in ('result', 'rawHighCriticalFindings',
           'unresolvedSecurityFindings', 'advisoriesRevalidated', 'reviewExpiresAt')}))

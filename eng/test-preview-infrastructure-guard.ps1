@@ -9,13 +9,17 @@ $composePath = Join-Path $root 'deploy/preview/compose.yaml'
 $template = Join-Path $root 'deploy/preview/.env.example'
 $originalProfileExists = Test-Path Env:BUNKFY_INFRA_PROFILE
 $originalProfile = [Environment]::GetEnvironmentVariable('BUNKFY_INFRA_PROFILE')
+$originalGeneration = [Environment]::GetEnvironmentVariable('BUNKFY_INFRA_GENERATION')
 try {
     $env:BUNKFY_INFRA_PROFILE = 'legacy'
+    $env:BUNKFY_INFRA_GENERATION = '1'
     $legacy = Get-BunkFyPreviewComposeDefinition -Root $root -ComposePath $composePath -EnvironmentPath $template
     $env:BUNKFY_INFRA_PROFILE = 'maintained'
+    $env:BUNKFY_INFRA_GENERATION = '2'
     $maintained = Get-BunkFyPreviewComposeDefinition -Root $root -ComposePath $composePath -EnvironmentPath $template
 }
 finally {
+    [Environment]::SetEnvironmentVariable('BUNKFY_INFRA_GENERATION', $originalGeneration)
     if ($originalProfileExists) { [Environment]::SetEnvironmentVariable('BUNKFY_INFRA_PROFILE', $originalProfile) }
     else { Remove-Item Env:BUNKFY_INFRA_PROFILE -ErrorAction SilentlyContinue }
 }
@@ -216,7 +220,7 @@ foreach ($logicalName in @('postgres-data', 'redis-data', 'nats-data')) {
     Check-Case "$logicalName-unlabelled-original-state-retained-on-legacy" {
         Assert-BunkFyPreviewInfrastructureVolumes $legacy
     }
-    $fixture.Volumes.Values | ForEach-Object { $_['com.bunkfy.preview.infrastructure-generation'] = 'maintained:1' }
+    $fixture.Volumes.Values | ForEach-Object { $_['com.bunkfy.preview.infrastructure-generation'] = 'maintained:2' }
     Check-Case "$logicalName-maintained-state-accepted" {
         Assert-BunkFyPreviewInfrastructureVolumes $maintained
     }

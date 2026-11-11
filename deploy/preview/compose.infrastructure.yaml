@@ -9,7 +9,7 @@ services:
   mailpit-legacy:
     image: axllent/mailpit:v1.30.7@sha256:d5ecbb067db3705fa953d79e1b7f81ef84038df67aba6c52825d8c02a1ea748a
   postgres-maintained:
-    image: postgres:17.11-alpine3.23@sha256:05aa77262db9277fde6374bb2f901c9604b8a9373029e1a7993440c6aae48736
+    image: bunkfy-preview-postgres:17.11-libxslt-r4
     platform: linux/amd64
     user: "70:70"
     read_only: true

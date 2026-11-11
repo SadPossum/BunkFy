@@ -5,8 +5,8 @@
   "reviewExpiresAt": "2026-12-04T14:23:49.836114+00:00",
   "fixtureSha256": "db117216d0451b6d026e428c09bec019ad9c6cbfc698d20af1280fe46889b6a5",
   "postgres": {
-    "image": "postgres:17.11-alpine3.23@sha256:05aa77262db9277fde6374bb2f901c9604b8a9373029e1a7993440c6aae48736",
-    "imageConfigDigest": "sha256:63fb01dbab2f21a30c1188f6b05319df39b786a5845a5541299ed0dc3ed5bc69",
+    "image": "bunkfy-preview-postgres:17.11-libxslt-r4",
+    "imageConfigDigest": "sha256:458363389bbc6483cff20d3ef7af7f445a244a38fbfcb922b8e936cecdbf04c7",
     "helperSha256": "52c8749d0142edd234e9d6bd5237dff2d81e71f43537e2f4f66f75dd4b243dd0",
     "helperRawReportSha256": "c3f81a9529f261da2476b7c7a0952759de0b16176a866abfcbfe25da6effaf36",
     "analyzerSha256": "430ca1cdc47cdab85673a244fd78e628c26d189081f0bc0ad23f73457c724086",
@@ -148,7 +148,21 @@
       "GO-2026-6686": "eb2d42daa2af9eca5d6008e51e5c414f69d038505a4a8e9d62e4341eefe7967b",
       "GO-2026-6809": "de4d9bca56ac815cf747145e4a5774747d07130d1f51f277a7e5f117041f17a1"
     },
-    "assessment": "Original 26 stdlib advisories have explicit affected symbols and no matching function in the exact helper binary under unmodified govulncheck 1.9.0. Additional moby/sys/user unbounded-file DoS symbols are present; only the enforced UID70/read-only-root/capability-free/no-new-privileges/data-volume-only context with fixed bounded root-owned unwritable passwd/group files qualifies that conditional assessment. Raw findings remain retained; no global ignores."
+    "assessment": "Original 26 stdlib advisories have explicit affected symbols and no matching function in the exact helper binary under unmodified govulncheck 1.9.0. Additional moby/sys/user unbounded-file DoS symbols are present; only the enforced UID70/read-only-root/capability-free/no-new-privileges/data-volume-only context with fixed bounded root-owned unwritable passwd/group files qualifies that conditional assessment. Raw findings remain retained; no global ignores.",
+    "helperEvidenceSource": {
+      "image": "postgres:17.11-alpine3.23@sha256:05aa77262db9277fde6374bb2f901c9604b8a9373029e1a7993440c6aae48736",
+      "imageConfigDigest": "sha256:63fb01dbab2f21a30c1188f6b05319df39b786a5845a5541299ed0dc3ed5bc69",
+      "note": "Original symbol report retained byte for byte. Patched image reuses exactly the SHA256-identified helper; current extracted helper/input/entrypoint hashes and constrained Compose process are requalified independently."
+    },
+    "patchBuild": {
+      "recipe": "deploy/preview/postgres.Dockerfile",
+      "recipeSha256": "2991b31f1131b5c4d4a8426400f59e249deb5046698faa7934cf85c00c96b22e",
+      "baseImage": "postgres:17.11-alpine3.23@sha256:05aa77262db9277fde6374bb2f901c9604b8a9373029e1a7993440c6aae48736",
+      "package": "libxslt",
+      "version": "1.1.43-r4",
+      "apkSha256": "0469e5c1ebc5f9d07c260f403b8bc7faaf65f8672a1f113fda9d34ab5b6701a0",
+      "sourceDateEpoch": 0
+    }
   },
   "coverage": {
     "redis": {
@@ -159,7 +173,7 @@
       "mailpit": 53
     },
     "postgres": {
-      "postgres:17.11-alpine3.23@sha256:05aa77262db9277fde6374bb2f901c9604b8a9373029e1a7993440c6aae48736 (alpine 3.23.7)": 45,
+      "bunkfy-preview-postgres:17.11-libxslt-r4 (alpine 3.23.7)": 45,
       "usr/local/bin/gosu": 4
     },
     "nats": {

@@ -114,16 +114,20 @@ function Read-BunkFyDockerExportConfigurationDigest {
 
 function Get-BunkFyDockerImageConfigurationDigest {
     param(
-        [Parameter(Mandatory)][ValidatePattern('^[a-z0-9][A-Za-z0-9./:_-]*@sha256:[a-f0-9]{64}$')][string] $Reference,
-        [Parameter(Mandatory)][ValidatePattern('^sha256:[a-f0-9]{64}$')][string] $RuntimeImageId
+        [Parameter(Mandatory)][ValidatePattern('^(?:[a-z0-9][A-Za-z0-9./:_-]*@sha256:[a-f0-9]{64}|bunkfy-preview-postgres:17[.]11-libxslt-r4)$')][string] $Reference,
+        [Parameter(Mandatory)][ValidatePattern('^sha256:[a-f0-9]{64}$')][string] $RuntimeImageId,
+        [switch] $LocalPreviewPostgres
     )
 
+    if (($Reference -ceq 'bunkfy-preview-postgres:17.11-libxslt-r4') -ne [bool]$LocalPreviewPostgres) {
+        throw 'Local image export requires the exact patched Preview PostgreSQL subject.'
+    }
     $metadataJson = @(& docker image inspect $Reference)
     if ($LASTEXITCODE -ne 0) { throw 'Unable to inspect the selected local infrastructure image.' }
     $metadata = @(($metadataJson -join "`n") | ConvertFrom-Json)
     if ($metadata.Count -ne 1 -or $metadata[0].Id -cne $RuntimeImageId -or
         $metadata[0].Os -cne 'linux' -or $metadata[0].Architecture -cne 'amd64' -or
-        $RuntimeImageId -cne ('sha256:' + ($Reference -split '@sha256:', 2)[1])) {
+        (-not $LocalPreviewPostgres -and $RuntimeImageId -cne ('sha256:' + ($Reference -split '@sha256:', 2)[1]))) {
         throw 'Local runtime image identity does not bind the selected immutable Linux amd64 reference.'
     }
     $cacheKey = "$RuntimeImageId|linux/amd64"

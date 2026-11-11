@@ -10,6 +10,11 @@ function Resolve-BunkFyQualifiedImageConfiguration {
     # the content-addressed manifest/index Id instead. Keep container bindings
     # on runtime IDs, while the backup/security contract retains config hashes.
     if ($RuntimeImageId -ceq $ExpectedConfigurationId) { return $RuntimeImageId }
+    if ($Reference -ceq 'bunkfy-preview-postgres:17.11-libxslt-r4') {
+        $configurationId = Get-BunkFyDockerImageConfigurationDigest -Reference $Reference -RuntimeImageId $RuntimeImageId -LocalPreviewPostgres
+        if ($configurationId -cne $ExpectedConfigurationId) { throw 'Local patched PostgreSQL configuration changed.' }
+        return $configurationId
+    }
     if ($Reference -cnotmatch '@(?<digest>sha256:[a-f0-9]{64})$' -or $RuntimeImageId -cne $Matches['digest']) {
         throw "Local infrastructure image '$Name' differs from the qualified Linux amd64 configuration."
     }
@@ -143,7 +148,7 @@ function Assert-BunkFyPreviewInfrastructureVolumes {
     param([Parameter(Mandatory = $true)][object] $ComposeDefinition)
 
     $profile = Get-BunkFyPreviewInfrastructureProfile -ComposeDefinition $ComposeDefinition
-    $generation = "$($profile.Name):1"
+    $generation = if ($profile.Name -ceq 'maintained') { 'maintained:2' } else { 'legacy:1' }
     $volumeNames = [Collections.Generic.List[string]]::new()
     foreach ($logicalName in @('postgres-data', 'redis-data', 'nats-data')) {
         $volume = $ComposeDefinition.volumes.PSObject.Properties[$logicalName].Value
