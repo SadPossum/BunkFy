@@ -3,7 +3,7 @@
   "purpose": "Exact Linux amd64 engineering Preview assessment; not general PostgreSQL image clearance or production admission. New/changed advisories, subjects or execution profiles require review.",
   "reviewedAt": "2026-11-04T14:23:49.836114+00:00",
   "reviewExpiresAt": "2026-12-04T14:23:49.836114+00:00",
-  "fixtureSha256": "db117216d0451b6d026e428c09bec019ad9c6cbfc698d20af1280fe46889b6a5",
+  "fixtureSha256": "22711e1680447e9766e98df4c4011d420a8429ac5ad49895c650ba8fed4138d1",
   "postgres": {
     "image": "bunkfy-preview-postgres:17.11-libxslt-r4",
     "imageConfigDigest": "sha256:458363389bbc6483cff20d3ef7af7f445a244a38fbfcb922b8e936cecdbf04c7",
@@ -161,7 +161,8 @@
       "package": "libxslt",
       "version": "1.1.43-r4",
       "apkSha256": "0469e5c1ebc5f9d07c260f403b8bc7faaf65f8672a1f113fda9d34ab5b6701a0",
-      "sourceDateEpoch": 0
+      "sourceDateEpoch": 0,
+      "runtimeManifest": "sha256:07a4d00db2e82b26f3f85e0461a387bf64d03337342864cd6949409933dfd9d8"
     }
   },
   "coverage": {

@@ -51,6 +51,11 @@ Check-Case 'actual-resolved-maintained-profile' {
 }
 $record = New-BunkFyPreviewInfrastructureRecord -ComposeDefinition $maintained -ImageIds $ids
 $manifest = Copy-Value ([pscustomobject]@{ schemaVersion = 7; infrastructure = $record })
+Check-Case 'old-maintained-volume-generation-rejected' {
+    $bad = Copy-Value $maintained
+    $bad.volumes.'postgres-data'.labels.'com.bunkfy.preview.infrastructure-generation' = 'maintained:1'
+    Assert-BunkFyPreviewInfrastructureVolumes $bad
+} $true
 Check-Case 'actual-maintained-schema7-roundtrip' {
     Assert-BunkFyPreviewBackupInfrastructure $manifest $maintained $ids
 }

@@ -48,7 +48,8 @@
         "package": "libxslt",
         "version": "1.1.43-r4",
         "apkSha256": "0469e5c1ebc5f9d07c260f403b8bc7faaf65f8672a1f113fda9d34ab5b6701a0",
-        "sourceDateEpoch": 0
+        "sourceDateEpoch": 0,
+        "runtimeManifest": "sha256:07a4d00db2e82b26f3f85e0461a387bf64d03337342864cd6949409933dfd9d8"
       }
     }
   },

@@ -11,6 +11,8 @@ function Resolve-BunkFyQualifiedImageConfiguration {
     # on runtime IDs, while the backup/security contract retains config hashes.
     if ($RuntimeImageId -ceq $ExpectedConfigurationId) { return $RuntimeImageId }
     if ($Reference -ceq 'bunkfy-preview-postgres:17.11-libxslt-r4') {
+        $manifest = (Get-BunkFyPreviewInfrastructurePolicy).profiles.maintained.postgresBuild.runtimeManifest
+        if ($RuntimeImageId -cne $manifest) { throw 'Local patched PostgreSQL manifest changed.' }
         $configurationId = Get-BunkFyDockerImageConfigurationDigest -Reference $Reference -RuntimeImageId $RuntimeImageId -LocalPreviewPostgres
         if ($configurationId -cne $ExpectedConfigurationId) { throw 'Local patched PostgreSQL configuration changed.' }
         return $configurationId

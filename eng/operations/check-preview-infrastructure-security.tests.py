@@ -60,6 +60,16 @@ class InfrastructureSecurityBoundaries(unittest.TestCase):
                 with self.subTest(image=name, mutation=index):
                     self.rejects(change)
 
+    def test_local_patch_requires_hashed_descriptors_runtime_binding_and_fixed_package(self):
+        self.rejects(lambda x: x[5]['imageDescriptors'].update(postgres={}))
+        key = next(iter(DATA['imageDescriptors']['postgres']))
+        self.rejects(lambda x: x[5]['imageDescriptors']['postgres'].update({key: '{}'}))
+        self.rejects(lambda x: x[3].update(runtimeImageId='sha256:' + '0' * 64))
+        self.rejects(lambda x: x[1]['profiles']['maintained']['postgresBuild'].update(recipeSha256='0' * 64))
+        self.rejects(lambda x: next(p for r in x[2]['postgres']['Results'] for p in r.get('Packages', [])
+                                  if p['Name'] == 'libxslt').update(Version='1.1.43-r3'))
+        self.rejects(lambda x: x[2]['postgres']['Metadata'].update(RepoDigests=[]))
+
     def test_new_vulnerabilities_and_secrets_block_every_image(self):
         finding = DATA['scans']['postgres']['Results'][-1]['Vulnerabilities'][0]
         for name in DATA['scans']:
