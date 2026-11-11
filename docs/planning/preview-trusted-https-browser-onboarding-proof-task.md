@@ -46,7 +46,7 @@ the existing loopback browser proof and the new trusted-HTTPS API domain proof.
 ## Outcome
 
 - Release `preview-browser-https-1f3fd75` passed all 18 browser checks through
-  `https://213.109.163.152` with trusted TLS and continuous release identity.
+  the configured preview HTTPS origin with trusted TLS and continuous release identity.
 - Chromium `151.0.7922.34` completed password registration, captured email
   verification, invitation continuation and replay, Team QR rendering, pending
   denial, approval, and one-time convergence after a guarded Worker restart.

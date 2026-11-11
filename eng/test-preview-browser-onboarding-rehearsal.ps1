@@ -1,5 +1,5 @@
 param(
-    [string] $EnvironmentPath = '/home/artem/deployments/bunkfy-preview/.env'
+    [string] $EnvironmentPath
 )
 
 Set-StrictMode -Version Latest
@@ -17,6 +17,16 @@ $testPath = Join-Path $testsPath 'preview-browser-onboarding.common.test.mjs'
 $joinCustodyTestPath = Join-Path $testsPath 'preview-browser-join-custody.test.mjs'
 $composePath = Join-Path (Join-Path $root 'deploy') 'preview/compose.yaml'
 $environmentPath = $EnvironmentPath
+$environmentRequested = $PSBoundParameters.ContainsKey('EnvironmentPath')
+if ($environmentRequested) {
+    if ([string]::IsNullOrWhiteSpace($EnvironmentPath)) {
+        throw 'EnvironmentPath cannot be empty when supplied.'
+    }
+    $environmentPath = [IO.Path]::GetFullPath($EnvironmentPath)
+    if (-not (Test-Path -LiteralPath $environmentPath -PathType Leaf)) {
+        throw 'The supplied Preview fixture environment file does not exist.'
+    }
+}
 
 foreach ($path in @($commonPath, $driverPath, $joinCustodyPath, $workspaceAccessContributorPath, $operatorPath, $testPath, $joinCustodyTestPath, $composePath)) {
     if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
@@ -143,7 +153,7 @@ foreach ($required in @(
     }
 }
 
-if (Test-Path -LiteralPath $environmentPath -PathType Leaf) {
+if ($environmentRequested) {
     $moduleUri = [Uri]::new($commonPath).AbsoluteUri
     $expression = @"
 import { assertPreviewCompose } from '$moduleUri';
