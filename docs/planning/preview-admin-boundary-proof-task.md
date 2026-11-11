@@ -43,8 +43,8 @@ running.
   including exact service networks, loopback-only host bindings, no direct
   public API port, public-edge-to-Admin network denial, and public Admin `404`.
 - Evidence set `d6bb74ec-d80b-4c62-9070-fc9a505f4780` binds both observations to
-  release `preview-runtime-hardening-20260811`, public origin
-  `https://213.109.163.152`, and Admin origin `http://127.0.0.1:5195`.
+  release `preview-runtime-hardening-20260811`, the public preview origin recorded
+  in the protected evidence, and Admin origin `http://127.0.0.1:5195`.
 - The allowed host observation passed five checks: Admin health returned `200`,
   anonymous audit returned `401`, and the release remained continuous. Local
   evidence SHA-256 is

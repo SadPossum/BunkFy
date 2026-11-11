@@ -47,8 +47,8 @@ current committed root or its newer retained audit state.
   contract `bunkfy-preview-state` version 2. It binds root `6bb0c6e`, backend
   `a269085`, web `2583e28`, the running backend/web image IDs, and eight
   declared state artifacts.
-- The protected backup is retained outside the repository at
-  `/home/artem/deployments/bunkfy-backups/preview-post-domain-20260812T004145Z`.
+- Protected backup `preview-post-domain-20260812T004145Z` is retained outside the
+  repository; its location is recorded in the operator's backup inventory.
   Its manifest SHA-256 is
   `c4d81aa04434aca10d900dbc1be0b8bb1f0f028423fe957f01c8bd3ac08ee153`.
 - Isolated rehearsal `761fb510-a52b-4a8a-b26b-05f9aefb588f` passed all five

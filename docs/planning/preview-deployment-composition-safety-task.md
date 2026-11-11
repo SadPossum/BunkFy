@@ -50,8 +50,8 @@ backup.
   `sha256:3f9dfeb250f5d63436efe12aa09bf8c2763fbcfcdc601fa9bc0d5fc55b38223a`;
   Web runs
   `sha256:e53616330be70b4c38ce4ddc0421b62fd16a999c5ba920eff4bf7ee1753153da`.
-- Pre-rollout backup is retained at
-  `/home/artem/deployments/bunkfy-backups/preview-before-6fcbcc0-20260810T163550Z`.
+- Pre-rollout backup `preview-before-6fcbcc0-20260810T163550Z` is retained outside
+  the repository. Its protected location is recorded in the operator's backup inventory.
 - The isolated PostgreSQL migration rehearsal applied all 221 migrations,
   observed zero pending migrations after apply, passed an idempotent rerun, and
   removed its resources. Evidence is retained with the candidate under

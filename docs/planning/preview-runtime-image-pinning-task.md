@@ -47,9 +47,8 @@ later operation could select different bytes without a repository change.
   production web build.
 - Docker integration and hosted CI were intentionally not used as iterative
   verification.
-- A schema-4 backup created at
-  `/home/artem/deployments/bunkfy-backups/preview-runtime-pins-20260811T173845Z`
-  brought the live Preview composition back healthy with the pinned runtime
+- Schema-4 backup `preview-runtime-pins-20260811T173845Z`, retained at the
+  protected location in the operator's backup inventory, brought the live Preview composition back healthy with the pinned runtime
   references. Its manifest SHA-256 is
   `37caad3b86884c6140b7f0b69dad0c79b30f87a3b325f33df359c1ef580c03a2`.
 - The isolated recovery rehearsal passed all five restore, public-edge, Admin
