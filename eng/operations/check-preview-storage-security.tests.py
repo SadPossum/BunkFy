@@ -92,6 +92,46 @@ class StorageSecurityBoundaries(unittest.TestCase):
         self.assertEqual((0, 0), (summary['rawHighFindings'], summary['unresolvedSecurityFindings']))
 
 
+class RegistryImageIdentityBoundaries(unittest.TestCase):
+    def values(self):
+        original = DATA['containerd']
+        policy = copy.deepcopy(DATA['policy'])
+        now = datetime.datetime.fromisoformat(original['scan']['CreatedAt'].replace('Z', '+00:00')) + datetime.timedelta(minutes=1)
+        policy.update(reviewedAt=(now-datetime.timedelta(minutes=1)).isoformat(),
+                      reviewExpiresAt=(now+datetime.timedelta(days=29)).isoformat())
+        values = [policy] + [copy.deepcopy(original[k]) for k in ('scan','runtime','sbom','tool')]
+        arguments = {'now':now, 'binary_evidence':copy.deepcopy(original['binaryEvidence']),
+                     'image_descriptors':copy.deepcopy(original['descriptors'])}
+        return values, arguments
+
+    def test_authentic_containerd_reports_qualify_without_mutating_producer_evidence(self):
+        values, arguments = self.values()
+        before = copy.deepcopy(values)
+        summary, vex = gate.verify(*values, DATA['containerd']['scannerExitCode'], **arguments)
+        self.assertEqual(before, values)
+        self.assertEqual(0, summary['unresolvedSecurityFindings'])
+        self.assertEqual(values[1]['Metadata']['ImageID'], summary['scannerIdentityBinding']['rawImageId'])
+        self.assertEqual(values[0]['imageConfigDigest'], summary['scannerIdentityBinding']['imageConfigDigest'])
+        self.assertEqual(DATA['sbom']['metadata']['component']['purl'], vex['statements'][0]['products'][0]['@id'])
+
+    def test_missing_changed_or_unrelated_identity_proof_cannot_normalize_a_report(self):
+        values, arguments = self.values()
+        first = next(iter(arguments['image_descriptors']))
+        mutations = [lambda v,a:a.update(image_descriptors=None),
+                     lambda v,a:a['image_descriptors'].update({first:'{}'}),
+                     lambda v,a:v[1]['Metadata'].update(ImageID='sha256:'+'0'*64),
+                     lambda v,a:v[1]['Metadata'].update(RepoDigests=[]),
+                     lambda v,a:next(p for p in v[3]['metadata']['component']['properties']
+                                    if p['name']=='aquasecurity:trivy:ImageID').update(value='sha256:'+'0'*64),
+                     lambda v,a:v[1]['Results'][-1].setdefault('Vulnerabilities',[]).append(
+                         dict(v[1]['Results'][-1]['Vulnerabilities'][0],VulnerabilityID='CVE-2099-99999'))]
+        for index, change in enumerate(mutations):
+            with self.subTest(mutation=index):
+                v,a = self.values();change(v,a)
+                with self.assertRaises((ValueError,KeyError,TypeError)):
+                    gate.verify(*v, DATA['containerd']['scannerExitCode'], **a)
+
+
 class RootStorageOwnerBoundaries(unittest.TestCase):
     def test_sparse_owner_checkout_contains_every_imported_helper(self):
         with tempfile.TemporaryDirectory(prefix='bunkfy-sparse-owner-') as temporary:
