@@ -3,6 +3,7 @@
 
 import datetime
 import hashlib
+import importlib.util
 import json
 import os
 from pathlib import Path
@@ -15,6 +16,9 @@ import uuid
 
 ROOT = Path(__file__).resolve().parents[2]
 OUTPUT = ROOT / 'artifacts'
+_spec = importlib.util.spec_from_file_location('image_identity', ROOT / 'apps/backend/eng/operations/image-config-digest.py')
+image_identity = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(image_identity)
 
 
 def run(arguments, *, env=None, check=True, binary=False, timeout=180):
@@ -39,7 +43,7 @@ def collect_context(profile, source):
     environment = {key: value for key, value in os.environ.items()
                    if not key.startswith(('BUNKFY_', 'COMPOSE_'))}
     environment.update(BUNKFY_COMPOSE_PROJECT_NAME=project, BUNKFY_VOLUME_PREFIX=project,
-                       BUNKFY_INFRA_PROFILE='maintained')
+                       BUNKFY_INFRA_PROFILE='maintained', BUNKFY_INFRA_GENERATION=str(profile['generation']))
     private_env = work / 'preview.env'
     # Test resource bounds only; service image, security and state contracts come
     # from the actual tracked Compose files, not a duplicated probe topology.
@@ -81,8 +85,9 @@ def collect_context(profile, source):
             raise RuntimeError('Unexpected PostgreSQL context container identity.')
         container = inspect('container', identity)
         host = container['HostConfig']
+        context['runtimeImageId'] = container['Image']
         if (container['Config']['Labels'].get('com.docker.compose.project') != project
-                or container['Image'] != context['imageConfigDigest'] or container['Config']['User'] != '70:70'
+                or container['Image'] != inspect('image', profile['images']['postgres'])['Id'] or container['Config']['User'] != '70:70'
                 or not host['ReadonlyRootfs'] or host.get('Privileged') or host.get('CapAdd')
                 or host['CapDrop'] != ['ALL'] or host['SecurityOpt'] != ['no-new-privileges:true']):
             raise RuntimeError('Actual PostgreSQL container credentials or hardening changed.')
@@ -158,11 +163,17 @@ def main():
     profile = json.loads((ROOT / '.gma/preview-infrastructure-profiles.json').read_text())['profiles']['maintained']
     references = dict(profile['images'], archiveUtility=profile['archiveUtilityImage'])
     codes = {}
+    preparation = run(['python3', str(ROOT / 'eng/operations/prepare-preview-postgres.py')], check=False, timeout=420)
+    if preparation.returncode:
+        # This build has only public recipe/package inputs; no database credentials.
+        raise RuntimeError('Public PostgreSQL image preparation failed:\n' + preparation.stdout + preparation.stderr)
     try:
         for name, image in references.items():
-            run(['docker', 'pull', '--platform', 'linux/amd64', image])
+            if name != 'postgres':
+                run(['docker', 'pull', '--platform', 'linux/amd64', image])
             metadata = inspect('image', image)
-            if (metadata['Id'] != profile['configurationIds'][name] or metadata['Os'] != 'linux'
+            configuration = image_identity.image_config_digest(image, OUTPUT / (name + '-image-descriptors.json'))
+            if (configuration != profile['configurationIds'][name] or metadata['Os'] != 'linux'
                     or metadata['Architecture'] != 'amd64'):
                 raise RuntimeError('Pulled infrastructure configuration changed: ' + name)
             result = run(['trivy', 'image', '--scanners', 'vuln,secret', '--severity', 'HIGH,CRITICAL',

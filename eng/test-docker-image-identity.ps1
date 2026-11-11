@@ -104,13 +104,15 @@ $references = Get-BunkFyPreviewInfrastructureReferences $maintained
 $modernIds = [ordered]@{}
 $script:MeasuredConfigurations = @{}
 foreach ($entry in $references.GetEnumerator()) {
-    $modernIds[$entry.Key] = 'sha256:' + ([string]$entry.Value -split '@sha256:', 2)[1]
+    $modernIds[$entry.Key] = if ($entry.Key -ceq 'postgres') {
+        (Get-BunkFyPreviewInfrastructurePolicy).profiles.maintained.postgresBuild.runtimeManifest
+    } else { 'sha256:' + ([string]$entry.Value -split '@sha256:', 2)[1] }
     $script:MeasuredConfigurations[[string]$entry.Value] = [string]$classicIds[$entry.Key]
 }
 $script:ConfigurationReads = 0
 $script:WrongConfiguration = $false
 function Get-BunkFyDockerImageConfigurationDigest {
-    param([string] $Reference, [string] $RuntimeImageId)
+    param([string] $Reference, [string] $RuntimeImageId, [switch] $LocalPreviewPostgres)
     $script:ConfigurationReads++
     if ($script:WrongConfiguration) { return 'sha256:' + ('0' * 64) }
     return $script:MeasuredConfigurations[$Reference]

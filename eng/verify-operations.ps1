@@ -445,7 +445,7 @@ if ($LASTEXITCODE -ne 0) {
 }
 $sourceCompose = $sourceComposeJson | ConvertFrom-Json
 $expectedInfrastructureImages = [ordered]@{
-    postgres = 'postgres:17.11-alpine3.23@sha256:05aa77262db9277fde6374bb2f901c9604b8a9373029e1a7993440c6aae48736'
+    postgres = 'bunkfy-preview-postgres:17.11-libxslt-r4'
     redis = 'redis:8.2.11-alpine@sha256:489a769e0a54dc245896132a15c72d2bc7296719954da99398f43a3877e5f8eb'
     nats = 'nats:2.14.9-alpine@sha256:127c5ccbc538a93f53ebb19461dc193130df386c2d6dab8199661a28a30d85bd'
     minio = 'pgsty/silo:RELEASE.2026-10-26T00-00-00Z@sha256:7bb2aff6b89efe1cb1303c10fc21d579447434ed06649ac9ec05a5e2dbf30ad7'
@@ -454,7 +454,7 @@ $expectedInfrastructureImages = [ordered]@{
 foreach ($entry in $expectedInfrastructureImages.GetEnumerator()) {
     $actual = [string]$resolvedCompose.services.PSObject.Properties[$entry.Key].Value.image
     if ($actual -cne $entry.Value) {
-        throw "Preview infrastructure image '$($entry.Key)' is not pinned to the reviewed digest."
+        throw "Preview infrastructure image '$($entry.Key)' differs from the reviewed image identity."
     }
 }
 if ([string]$resolvedCompose.services.minio.platform -cne 'linux/amd64' -or

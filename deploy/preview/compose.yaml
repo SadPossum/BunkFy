@@ -480,15 +480,15 @@ volumes:
   postgres-data:
     name: ${BUNKFY_VOLUME_PREFIX:-bunkfy-preview}-postgres-data
     labels:
-      com.bunkfy.preview.infrastructure-generation: "${BUNKFY_INFRA_PROFILE:-legacy}:1"
+      com.bunkfy.preview.infrastructure-generation: "${BUNKFY_INFRA_PROFILE:-legacy}:${BUNKFY_INFRA_GENERATION:-1}"
   redis-data:
     name: ${BUNKFY_VOLUME_PREFIX:-bunkfy-preview}-redis-data
     labels:
-      com.bunkfy.preview.infrastructure-generation: "${BUNKFY_INFRA_PROFILE:-legacy}:1"
+      com.bunkfy.preview.infrastructure-generation: "${BUNKFY_INFRA_PROFILE:-legacy}:${BUNKFY_INFRA_GENERATION:-1}"
   nats-data:
     name: ${BUNKFY_VOLUME_PREFIX:-bunkfy-preview}-nats-data
     labels:
-      com.bunkfy.preview.infrastructure-generation: "${BUNKFY_INFRA_PROFILE:-legacy}:1"
+      com.bunkfy.preview.infrastructure-generation: "${BUNKFY_INFRA_PROFILE:-legacy}:${BUNKFY_INFRA_GENERATION:-1}"
   minio-data:
     name: ${BUNKFY_VOLUME_PREFIX:-bunkfy-preview}-minio-data
     labels:

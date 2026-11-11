@@ -6,6 +6,7 @@ on:
     - cron: '17 5 * * 1'
   pull_request:
     paths:
+      - .gitattributes
       - apps/backend
       - deploy/preview/compose.yaml
       - deploy/preview/compose.infrastructure.yaml
@@ -15,6 +16,8 @@ on:
       - .gma/preview-infrastructure-review.json
       - eng/operations/check-preview-storage-security*
       - eng/operations/check-preview-infrastructure-security*
+      - deploy/preview/postgres.Dockerfile
+      - eng/operations/prepare-preview-postgres.py
       - eng/operations/collect-preview-infrastructure.py
       - eng/operations/preview-infrastructure.common.ps1
       - eng/new-preview-env.ps1
@@ -78,6 +81,11 @@ jobs:
 
       - name: Install pinned local scanner
         run: python3 eng/operations/install-probe-trivy.py
+
+      - name: Prepare the isolated Docker image exporter
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+        with:
+          driver-opts: image=moby/buildkit:v0.32.0@sha256:1f8167fcb0eca5b7126353d35299386945cbb8949cc516c592a49f80cfce4fa2
 
       - name: Scan the five exact infrastructure images and verify actual PostgreSQL context
         env:

@@ -92,6 +92,17 @@ image has also been preloaded and registry access must fail closed.
 
 Fresh generated environments select `BUNKFY_INFRA_PROFILE=maintained`: the
 reviewed PostgreSQL 17.11, Redis 8.2.11, NATS 2.14.9 and Mailpit 1.33.0 images.
+The PostgreSQL image is built locally with `python3 eng/operations/prepare-preview-postgres.py`
+before first startup. Select a Buildx `docker-container` builder with
+`docker buildx create --driver docker-container --use` when using the classic
+Docker image store; CI prepares an isolated builder automatically. Its recipe pins the official base and the signed Alpine
+`libxslt` 1.1.43-r4 APK checksum (CVE-2026-87636). The build uses no package
+repository, normalizes build timestamps, and requires the exact reviewed image
+configuration before loading it. A changed build fails closed. Keep this local
+image in the same offline image archive as the other infrastructure images.
+This tuple uses `BUNKFY_INFRA_GENERATION=2`; earlier maintained state requires
+its original image archive or a separately qualified migration. Use fresh
+volumes for this engineering preview.
 PostgreSQL runs as UID/GID 70 with a read-only root filesystem, no capabilities
 and no new privileges. Its data volume remains writable. Database dumps stream
 directly to and from private host files, without using the container's bounded
